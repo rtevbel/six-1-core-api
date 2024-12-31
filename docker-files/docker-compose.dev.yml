@@ -1,0 +1,65 @@
+services:
+    user-service:
+        build:
+         context: ../
+         dockerfile: docker-files/Dockerfile.dev   
+        image: alishoaib3332/user-service:dev
+        container_name: user-service-dev
+        ports:
+          - "3002:3000"
+        volumes:
+           - ..:/src/local/app/
+           - /src/local/app/node_modules
+        command: npm run start:dev
+        environment:
+          - NODE_ENV=${NODE_ENV}
+          - RABBITMQ_HOST=${RABBITMQ_HOST}
+          - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+          - JWT_EXPIRATION_TIME=${JWT_EXPIRATION_TIME}
+          - MESSAGE_BROKER_QUEUE_NAME=${USER_SERVICE_MESSAGE_BROKER_QUEUE_NAME}
+          - MESSAGE_BROKER_URL=${MESSAGE_BROKER_URL}
+        depends_on:
+          - mysql
+        networks:
+          - ueshop-microservices-network
+
+    phpmyadmin:
+      image: phpmyadmin/phpmyadmin:latest
+      container_name: user-service-dev-phpmyadmin
+      environment:
+        PMA_HOST: ${USER_SERVICE_DB_TYPE}
+        PMA_PORT: ${USER_SERVICE_DB_PORT}
+        PMA_ARBITRARY: 1
+      ports:
+        - "8081:80"
+      depends_on:
+        - mysql
+      networks:
+        - ueshop-microservices-network      
+
+    mysql:
+       image: mysql:latest
+       container_name: user-service-dev-mysql
+       environment:
+         MYSQL_ROOT_PASSWORD: ${USER_SERVICE_MYSQL_ROOT_PASSWORD}
+         MYSQL_DATABASE: ${USER_SERVICE_DB_DATABASE} 
+         MYSQL_USER: ${USER_SERVICE_DB_USERNAME}
+         MYSQL_PASSWORD: ${USER_SERVICE_DB_PASSWORD} 
+       ports:
+        - "3307:3306"
+       volumes:
+        - mysql-data-dev:/var/lib/mysql
+        - ../db:/docker-entrypoint-initdb.d/
+
+       networks:
+        - ueshop-microservices-network  
+     
+networks:
+  ueshop-microservices-network:
+     external: true
+    
+volumes:
+   mysql-data-dev:  
+
+  
+              
