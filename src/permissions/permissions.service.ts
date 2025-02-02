@@ -1,12 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { Like, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Permission } from './entities/permission.entity';
-import { PermissionDescription } from './entities/permission-description.entity';
+import { PermissionEntity } from './entities/permission.entity';
+import { PermissionDescriptionEntity } from './entities/permission-description.entity';
 import { FiltersDto } from './dto/filters.dto';
 import { findAllResultInterface } from './interfaces/findall-result.interface';
+import {RpcException} from "@nestjs/microservices";
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -15,28 +16,28 @@ import {
 /**
  * Permissions service class,
  *
- * Version: 1.0.0
+ * @version 1.0.0
  *
- * User's permissions service class uses Permission,
+ * This class uses Permission,
  * and PermissionDescription repositories to handle,
  * all crud operations.
  */
 @Injectable()
 export class PermissionsService {
   constructor(
-    @InjectRepository(Permission)
-    private readonly permissionRepository: Repository<Permission>,
-    @InjectRepository(PermissionDescription)
-    private readonly permissionDescriptionRepository: Repository<PermissionDescription>,
+    @InjectRepository(PermissionEntity)
+    private readonly permissionRepository: Repository<PermissionEntity>,
+    @InjectRepository(PermissionDescriptionEntity)
+    private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
   ) {}
 
   /**
    * Create permission.
    *
-   * Version: 1.0.0.
+   * @version 1.0.0
    *
-   * This service class's create permission,
-   * method uses permission repository to handle,
+   * This create permission method uses,
+   * permission repository to handle,
    * permission creation.
    *
    * @param {number} userId - Authenticated user ID.
@@ -46,7 +47,7 @@ export class PermissionsService {
   async create(
     userId: number,
     createPermissionDto: CreatePermissionDto,
-  ): Promise<Permission> {
+  ): Promise<PermissionEntity> {
     createPermissionDto = {
       ...createPermissionDto,
       ...{ created_by: userId },
@@ -70,20 +71,22 @@ export class PermissionsService {
    *
    * Version:1.0.0.
    *
-   * This service class's find all method uses permission,
+   * This find all method uses permission,
    * repository to fetch permission records from database,
    * by using the client passed filter params.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {FiltersDto} filtersDto -Data transfer object contains filter params.
-   * @returns {Promise<findAllResultInterface | NotFoundException >} - Promise that resolves,
-   * either into  findAllResultInterface or NotFoundException.
+   * @returns {Promise<findAllResultInterface>} - Promise that resolves,
+   * to findAllResultInterface.
    *
+   * @throws {RpcException} -Throws RpcException if no records found.
+   * 
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<findAllResultInterface | NotFoundException> {
+  ): Promise<findAllResultInterface> {
     let findAllQuery = {};
 
     if (filtersDto.search) {
@@ -148,7 +151,12 @@ export class PermissionsService {
       await this.permissionRepository.findAndCount(findAllQuery);
 
     if (permissions.length === 0) {
-      throw new NotFoundException();
+        throw new RpcException(
+          NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
+            '{entity_name}',
+             PermissionEntity.name,
+        )
+      );
     }
 
     return {
@@ -162,32 +170,35 @@ export class PermissionsService {
   }
 
   /**
-   * Fetch one permission.
+   * Fetches one permission.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
-   * This service class' method uses permission,
+   * This method uses permission,
    * reporitory class to find permission object by,
    * passed ID.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {number} id - The ID of permission being fetched.
-   * @returns {Promise<Permission | NotFoundException >} - Promise that resolves either,
-   * into Permission object or throws NotFoundException.
+   * @returns {Promise<Permission >} - Promise that resolves either,
+   * into Permission Entity.
+   * 
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
   async findOne(
     userId: number,
     id: number,
-  ): Promise<Permission | NotFoundException> {
+  ): Promise<PermissionEntity> {
     let permission = await this.permissionRepository.findOneByOrFail({
       permission_id: id,
     });
 
     if (!permission) {
-      throw new NotFoundException(
+      throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
-          'permission',
+          PermissionEntity.name,
         ),
       );
     }
@@ -196,11 +207,11 @@ export class PermissionsService {
   }
 
   /**
-   * Update permission.
+   * Updates permission.
    *
-   * Version: 1.0.0.
+   * @version 1.0.0
    *
-   * This service class's method uses permission,
+   * This method uses permission,
    * and permissionDescription repositories to ,
    * update permission and its description.
    *
@@ -208,21 +219,24 @@ export class PermissionsService {
    * @param {number} id - Permission ID being updated.
    * @param {UpdatePermissionDto} updatePermissionDto - Data transfer object contains,
    * permission's details to update.
-   * @returns {Promise<UpdateResult | NotFoundException>} - Promise that resolves either,
-   * into UpdateResult or throws NotFoundException.
+   * @returns {Promise<UpdateResult>} - Promise that resolves to,
+   * a UpdateResult.
+   * 
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
   async update(
     userId: number,
     id: number,
     updatePermissionDto: UpdatePermissionDto,
-  ): Promise<UpdateResult | NotFoundException> {
+  ): Promise<UpdateResult> {
     let permission = await this.permissionRepository.findOneByOrFail({
       permission_id: id,
     });
 
     if (!permission) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replace('{entity_name}', 'permission'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replace('{entity_name}', PermissionEntity.name),
       );
     }
 
@@ -233,7 +247,7 @@ export class PermissionsService {
 
     if (descriptions.length > 0) {
       permission.descriptions = descriptions.map((description) => {
-        let permissionDescription = new PermissionDescription();
+        let permissionDescription = new PermissionDescriptionEntity();
 
         let updated_by = 0;
         let created_by = 0;
@@ -283,13 +297,13 @@ export class PermissionsService {
   }
 
   /**
-   * Remove permission.
+   * Removes permission.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
-   * This service class's method uses permission,
+   * This method uses permission,
    * repository to delete permission entity by,
-   * using passed permission ID.
+   * using its ID.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {number} id - Permission ID being deleted.

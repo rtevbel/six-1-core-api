@@ -20,24 +20,24 @@ import { UserEntity } from './user.entity';
 @Entity('user_roles')
 export class UserRoleEntity {
   @PrimaryGeneratedColumn()
-  user_role_id: number;
+  user_role_id!: number;
 
   @Column()
-  user_id: number;
+  user_id!: number;
 
   @Column()
-  role_id: number;
+  role_id!: number;
 
   @CreateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
     select: false,
   })
-  created_at: Date;
+  created_at!: Date;
 
   @ManyToOne(() => UserEntity, (user) => user.user_roles, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'user_id' })
-  user: UserEntity;
+  user!: UserEntity;
 }

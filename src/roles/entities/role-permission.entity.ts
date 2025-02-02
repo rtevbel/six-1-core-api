@@ -7,38 +7,39 @@ import {
   OneToOne,
   JoinColumn,
 } from 'typeorm';
-import { Role } from './role.entity';
-import { Permission } from '../../permissions/entities/permission.entity';
+import { RoleEntity } from './role.entity';
+import { PermissionEntity } from '../../permissions/entities/permission.entity';
 
 @Entity('role_permissions')
-export class RolePermission {
+export class RolePermissionEntity {
+  
   @PrimaryGeneratedColumn()
-  role_permission_id: number;
+  role_permission_id!: number;
 
   @Column()
-  role_id: number;
+  role_id!: number;
 
   @Column()
-  permission_id: number;
+  permission_id!: number;
 
   @CreateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
     select: false,
   })
-  created_at: Date;
+  created_at!: Date;
 
-  @ManyToOne(() => Role, (role) => role.permissions, {
+  @ManyToOne(() => RoleEntity, (role) => role.permissions, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({
     name: 'role_id',
   })
-  role: Role;
+  role!: RoleEntity;
 
-  @OneToOne(() => Permission)
+  @OneToOne(() => PermissionEntity)
   @JoinColumn({
     name: 'permission_id',
   })
-  permission: Permission;
+  permission!: PermissionEntity;
 }

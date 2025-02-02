@@ -13,29 +13,10 @@ services:
         command: npm run start:dev
         environment:
           - NODE_ENV=${NODE_ENV}
-          - RABBITMQ_HOST=${RABBITMQ_HOST}
-          - JWT_SECRET_KEY=${JWT_SECRET_KEY}
-          - JWT_EXPIRATION_TIME=${JWT_EXPIRATION_TIME}
-          - MESSAGE_BROKER_QUEUE_NAME=${USER_SERVICE_MESSAGE_BROKER_QUEUE_NAME}
-          - MESSAGE_BROKER_URL=${MESSAGE_BROKER_URL}
         depends_on:
           - mysql
         networks:
           - ueshop-microservices-network
-
-    phpmyadmin:
-      image: phpmyadmin/phpmyadmin:latest
-      container_name: user-service-dev-phpmyadmin
-      environment:
-        PMA_HOST: ${USER_SERVICE_DB_TYPE}
-        PMA_PORT: ${USER_SERVICE_DB_PORT}
-        PMA_ARBITRARY: 1
-      ports:
-        - "8081:80"
-      depends_on:
-        - mysql
-      networks:
-        - ueshop-microservices-network      
 
     mysql:
        image: mysql:latest
@@ -48,7 +29,7 @@ services:
        ports:
         - "3307:3306"
        volumes:
-        - mysql-data-dev:/var/lib/mysql
+        - mysql-data:/var/lib/mysql
         - ../db:/docker-entrypoint-initdb.d/
 
        networks:
@@ -59,7 +40,7 @@ networks:
      external: true
     
 volumes:
-   mysql-data-dev:  
+   mysql-data:  
 
   
               

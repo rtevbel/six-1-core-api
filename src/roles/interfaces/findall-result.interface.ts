@@ -1,6 +1,6 @@
-import { Role } from '../entities/role.entity';
+import { RoleEntity } from '../entities/role.entity';
 export interface findAllResultInterface {
-  roles: Role[];
+  roles: RoleEntity[];
   pagination: {
     total: number;
     page: number;

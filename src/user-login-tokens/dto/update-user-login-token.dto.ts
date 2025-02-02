@@ -19,5 +19,5 @@ export class UpdateUserLoginTokenDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  token_id: number;
+  token_id!: number;
 }

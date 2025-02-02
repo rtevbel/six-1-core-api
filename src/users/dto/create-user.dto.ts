@@ -9,9 +9,13 @@ import {
   IsIn,
   IsBoolean,
   IsDateString,
+  IsNumber,
 } from 'class-validator';
 import { CreateUserRoleDto } from './create-user-role.dto';
 import { Type } from 'class-transformer';
+import {AppLanguagesEnum} from "../../common/enums/app-languages.enum";
+import {Transform} from "class-transformer";
+import sanitizeHtml from "sanitize-html";
 
 /**
  * Create user dto class.
@@ -22,36 +26,39 @@ import { Type } from 'class-transformer';
  * validate the create user request data.
  */
 export class CreateUserDto {
-  @IsString()
   @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(40)
-  first_name: string;
+  first_name!: string;
 
-  @IsString()
   @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(40)
-  last_name: string;
+  last_name!: string;
 
-  @IsString()
   @IsNotEmpty()
+  @IsString()
   @IsEmail()
+  @Transform(({ value }) => value.toLowerCase())
   @MaxLength(150)
-  email: string;
+  email!: string;
 
-  @IsString()
   @IsNotEmpty()
+  @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(40)
-  username: string;
+  username!: string;
 
-  @IsString()
   @IsNotEmpty()
+  @IsString()
   @MaxLength(255)
-  password: string;
+  password!: string;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(10)
-  interface_locale?: string = 'en_GB';
+  @IsNumber()
+  interface_locale?: number = AppLanguagesEnum.English;
 
   @IsOptional()
   @IsBoolean()
@@ -69,8 +76,9 @@ export class CreateUserDto {
   @IsDateString()
   block_date?: string;
 
-  extra: string;
-
+  @Transform(({ value }) => sanitizeHtml(value)) // Removes harmful HTML tags
+  extra: string = '';
+  
   @IsOptional()
   @IsArray()
   @Type(() => CreateUserRoleDto)

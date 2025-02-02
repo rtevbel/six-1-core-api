@@ -7,50 +7,51 @@ import {
   UpdateDateColumn,
   JoinColumn,
 } from 'typeorm';
-import { Role } from './role.entity';
+import { RoleEntity } from './role.entity';
+import {AppLanguagesEnum} from "../../common/enums/app-languages.enum";
 
 @Entity('role_descriptions')
-export class RoleDescription {
+export class RoleDescriptionEntity {
   @PrimaryGeneratedColumn()
-  role_description_id: number;
+  role_description_id!: number;
 
   @Column()
-  role_id: number;
+  role_id!: number;
 
   @Column()
-  language_id: number;
+  language_id: number = AppLanguagesEnum.English;
 
   @Column()
-  name: string;
+  name!: string;
 
   @Column()
-  description: string;
+  description?: string;
 
   @Column()
-  created_by: number;
+  created_by: number = 0;
 
   @Column()
-  updated_by: number;
+  updated_by: number = 0;
 
   @CreateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
     select: false,
   })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
     select: false,
   })
-  updated_at: Date;
+  updated_at!: Date;
 
-  @ManyToOne(() => Role, (role) => role.permissions, {
+  @ManyToOne(() => RoleEntity, (role) => role.permissions, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({
     name: 'role_id',
   })
-  role: Role;
+  role!: RoleEntity;
 }

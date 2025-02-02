@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { DeleteResult, Like, Repository, UpdateResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserLoginTokenEntity } from './entities/user-login-token.entity';
@@ -6,15 +6,16 @@ import { CreateUserLoginTokenDto } from './dto/create-user-login-token.dto';
 import { UpdateUserLoginTokenDto } from './dto/update-user-login-token.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/find-all-result.interface';
+import {RpcException} from "@nestjs/microservices";
 import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../common/constants';
 
 /**
- * User login token service class.
+ * UserLoginToken service class.
  *
- * Version:1.0.0.
+ * @version 1.0.0
  *
  * This service class handles all user-login-token,
  * related operations by using UserLoginTokenRepository.
@@ -27,9 +28,9 @@ export class UserLoginTokensService {
   ) {}
 
   /**
-   * Save login token.
+   * Saves login token.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method save user login token details by using,
    * UserLoginTokenRepository class.
@@ -49,20 +50,23 @@ export class UserLoginTokensService {
   }
 
   /**
-   * Fetch user login tokens.
+   * Fetches user login tokens.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * @param {number} userId -Authenticated user ID.
    * @param {FiltersDto} filtersDto -Data transfer object contains,
    * filter params.
-   * @returns {Promise<FindAllResultInterface|NotFoundException>} -Promise that resolves to either a ,
-   * FindAllResultInterface or a NotFoundException.
+   * @returns {Promise<FindAllResultInterface>} -Promise that resolves to a ,
+   * FindAllResultInterface.
+   * 
+   * @throws {RpcException} - Throws RpcException if no records found.
+   * 
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface | NotFoundException> {
+  ): Promise<FindAllResultInterface> {
     let search = filtersDto.search ?? '';
     let limit = filtersDto.limit ?? 10;
     let page = filtersDto.page ?? 1;
@@ -112,10 +116,10 @@ export class UserLoginTokensService {
 
     //Throw error if not record found against passed filter params.
     if (tokens.length === 0) {
-      throw new NotFoundException(
+      throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
           '{entity_name}',
-          'User tokens',
+          UserLoginTokenEntity.name,
         ),
       );
     }
@@ -131,29 +135,32 @@ export class UserLoginTokensService {
   }
 
   /**
-   * Fetch user token.
+   * Fetches user token.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method uses UserLoginTokenRepository,
    * class to fetch user token by its ID.
    *
    * @param {number} userId -Authenticated user ID.
    * @param {number} id -ID of user token.
-   * @returns {Promise<UserLoginTokenEntity|NotFoundException>} -Promise that resolves to either a
-   * UserLoginTokenEntity or a  NotFoundException.
+   * @returns {Promise<UserLoginTokenEntity>} -Promise that resolves to a
+   * UserLoginTokenEntity.
+   * 
+   * @throws {RpcException} - Throws RpcException if no records found.
+   * 
    */
   async findOne(
     userId: number,
     id: number,
-  ): Promise<UserLoginTokenEntity | NotFoundException> {
+  ): Promise<UserLoginTokenEntity> {
     let token = await this.UserLoginTokenRepository.findOneByOrFail({
       token_id: id,
     });
 
     if (!token) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'User token'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}',UserLoginTokenEntity.name),
       );
     }
 
@@ -161,9 +168,9 @@ export class UserLoginTokensService {
   }
 
   /**
-   * Update user token.
+   * Updates user token.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method updates user token details by using,
    * UserLoginTokenRepository class.
@@ -172,21 +179,24 @@ export class UserLoginTokensService {
    * @param {number} id -ID of user token.
    * @param {UpdateUserLoginTokenDto} updateUserLoginTokenDto -Data transfer object,
    * contains user token details.
-   * @returns {Promise<UpdateResult|NotFoundException>} -Promise that resolves to either a UpdateResult,
-   * or a NotFoundException.
+   * @returns {Promise<UpdateResult>} -Promise that resolves to a,
+   * UpdateResult.
+   * 
+   * @throws {RpcException} - Throws RpcException if no records found.
+   * 
    */
   async update(
     userId: number,
     id: number,
     updateUserLoginTokenDto: UpdateUserLoginTokenDto,
-  ): Promise<UpdateResult | NotFoundException> {
+  ): Promise<UpdateResult> {
     let user_token = await this.UserLoginTokenRepository.findOneByOrFail({
       token_id: id,
     });
 
     if (!user_token) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'user token'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}',UserLoginTokenEntity.name),
       );
     }
 
@@ -197,12 +207,12 @@ export class UserLoginTokensService {
   }
 
   /**
-   * Remove user token.
+   * Removes user token.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method removes user token by using,
-   * UserLoginTokenRepository class .
+   * UserLoginTokenRepository.
    *
    * @param {number} userId -Authenticated user ID.
    * @param {number} id -ID of user token.

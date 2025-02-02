@@ -15,10 +15,10 @@ export class CreateUserRoleDto {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  user_id: number;
+  user_id: number = 0;
 
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  role_id: number;
+  role_id!: number;
 }

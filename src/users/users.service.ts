@@ -1,5 +1,5 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { DeleteResult, Like, Repository, UpdateResult } from 'typeorm';
+import { Injectable} from '@nestjs/common';
+import { DeleteResult, Like, Repository, UpdateResult , FindOptionsWhere } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -7,15 +7,18 @@ import { UserEntity } from './entities/user.entity';
 import { UserRoleEntity } from './entities/user-role.entity';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/find-all-result.interface';
+import { FindByDTO } from './dto/find-by.dto';
 import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../common/constants';
+import {AppLanguagesEnum} from "../common/enums/app-languages.enum";
+import {RpcException} from "@nestjs/microservices";
 
 /**
  * User service class.
  *
- * Version:1.0.0.
+ * @version 1.0.0
  *
  * This user service class uses userRepository,
  * and userRoleRepository classes to manage user's,
@@ -33,7 +36,7 @@ export class UsersService {
   /**
    * Create user.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method creates new user,
    * in database by using userRepository class.
@@ -41,7 +44,9 @@ export class UsersService {
    * @param {number} userId - Authenticated user ID.
    * @param {CreateUserDto} createUserDto - Data tranfer object contains,
    * user details.
+   * 
    * @returns {Promise<UserEntity>} - Promise that resolves to UserEntity.
+   * 
    */
   async create(
     userId: number,
@@ -59,7 +64,7 @@ export class UsersService {
   /**
    * Fetch users.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method uses  userRepository,
    * class to fetch users from database against,
@@ -68,34 +73,39 @@ export class UsersService {
    * @param {number} userId -Auhenticated user ID.
    * @param {FiltersDto} filtersDto - Data trasnfer object contains,
    * filter params.
-   * @returns {Promise<FindAllResultInterface|NotFoundException>} - Promise that resolves either into,
-   *  FindAllResultInterface or NotFoundException.
+   * @returns {Promise<FindAllResultInterface>} - Promise that resolves to,
+   *  FindAllResultInterface.
+   * 
+   * @throws {RpcException} - Throws RpcException if no records found.
+   * 
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface | NotFoundException> {
+  ): Promise<FindAllResultInterface> {
+  
     let search = filtersDto.search ?? '';
     let page = filtersDto.page ?? 1;
     let limit = filtersDto.limit ?? 10;
     let sortBy = filtersDto.sortBy ?? 'user_id';
     let sortOrder = filtersDto.sortOrder ?? 'DESC';
-
+    
     let findQuery = {};
 
     //If search param is set add it to query
     if (search) {
+      let whereCondition: FindOptionsWhere<UserEntity>[]; 
+      whereCondition = [
+        { first_name: Like('%' + search + '%') },
+        { last_name: Like('%' + search + '%') },
+        { email: Like('%' + search + '%') },
+        { username: Like('%' + search + '%') }
+      ];
       findQuery = {
         ...findQuery,
-        ...{
-          WHERE: [
-            { first_name: Like('%' + search + '%') },
-            { last_name: Like('%' + search + '%') },
-            { email: Like('%' + search + '%') },
-            { username: Like('%' + search + '%') },
-          ],
-        },
-      };
+        where:whereCondition
+      }
+      
     }
 
     //Update query with sortBy param
@@ -121,10 +131,10 @@ export class UsersService {
 
     //Throws error if no record found
     if (users.length === 0) {
-      throw new NotFoundException(
+      throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
           '{entity_name}',
-          'Users',
+          UserEntity.name,
         ),
       );
     }
@@ -142,25 +152,29 @@ export class UsersService {
   /**
    * Fetch user.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method fetch user,
    * from database by user ID.
    *
    * @param {number} userId -Authenticated user ID.
    * @param {number} id -ID of user being fetched.
-   * @returns {Promise<UserEntity|NotFoundException>} -Promise that resolves either into UserEntity,
-   * or NotFoundException.
-   */
+   * @returns {Promise<UserEntity>} -Promise that resolves to,
+   * UserEntity.
+   * 
+   * @throws {RpcException} - Throws RpcException if no record found.   
+   * 
+   * */
   async findOne(
     userId: number,
     id: number,
-  ): Promise<UserEntity | NotFoundException> {
-    let user = await this.userRepository.findOneByOrFail({ user_id: id });
-
+  ): Promise<UserEntity> {
+    
+    let user = await this.userRepository.findOneBy({ user_id: id });
+   
     if (!user) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'user'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
       );
     }
 
@@ -168,9 +182,40 @@ export class UsersService {
   }
 
   /**
+   * Fetch user by filter.
+   *
+   * @version 1.0.0
+   *
+   * This service method fetch user,
+   * from database by filter.
+   *
+   * @param {number} userId -Authenticated user ID.
+   * @param {FindByDTO} findByDTO -Data transfer object containing filter params.
+   * @returns {Promise<UserEntity>} -Promise that resolves to UserEntity.
+   * 
+   * @throws {RpcException} - Throws RpcException if no record found.   
+   * 
+   */
+  async findOneBy(
+    userId: number,
+    findByDTO: FindByDTO,
+  ): Promise<UserEntity> {
+      
+      let user = await this.userRepository.findOneBy(findByDTO);
+
+      if (!user) {
+        throw new RpcException(
+          NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
+        );
+      }
+
+      return user;
+  }
+
+  /**
    * Update user.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method updates user's,
    * details by using userRepository.
@@ -179,18 +224,21 @@ export class UsersService {
    * @param {number} id - ID of user being updated.
    * @param {updateUserDto} updateUserDto -Data transfer object contains,
    * user details.
-   * @returns
+   * @returns {Promise<UpdateResult>} - Promise that resolves to UpdateResult.
+   * 
+   * @throws {RpcException} - Throws RpcException if no record found. 
+   * 
    */
   async update(
     userId: number,
     id: number,
     updateUserDto: UpdateUserDto,
   ): Promise<UpdateResult> {
-    let user = await this.userRepository.findOneByOrFail({ user_id: id });
+    let user = await this.userRepository.findOneBy({ user_id: id });
 
     if (!user) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'user'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
       );
     }
 
@@ -201,10 +249,10 @@ export class UsersService {
     if (updateUserDto.password) {
       user.password = updateUserDto.password;
     }
-    user.interface_locale = updateUserDto.interface_locale ?? '';
+    user.interface_locale = updateUserDto.interface_locale ?? AppLanguagesEnum.English;
     user.is_active = updateUserDto.is_active ?? false;
     user.is_deleted = updateUserDto.is_deleted ?? false;
-    user.block_date = updateUserDto.block_date ?? '';
+    user.block_date = updateUserDto.block_date ?? null;
     user.extra = updateUserDto.extra ?? '';
     user.updated_by = userId;
 
@@ -247,7 +295,7 @@ export class UsersService {
   /**
    * Remove user.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method removes user entity,
    * from database by using userRepository class,

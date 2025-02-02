@@ -24,7 +24,7 @@ export class UpdateUserDto extends PartialType(
 ) {
   @IsNotEmpty()
   @IsNumber()
-  user_id: number;
+  user_id!: number;
 
   @IsOptional()
   @IsArray()

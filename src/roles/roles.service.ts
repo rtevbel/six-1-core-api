@@ -1,13 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
-import { DeleteResult, Like, Repository, UpdateResult } from 'typeorm';
+import { DeleteResult, Like, Repository, UpdateResult , FindOptionsWhere} from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Role } from '../roles/entities/role.entity';
-import { RoleDescription } from '../roles/entities/role-description.entity';
-import { RolePermission } from '../roles/entities/role-permission.entity';
+import { RoleEntity } from '../roles/entities/role.entity';
+import { RoleDescriptionEntity } from '../roles/entities/role-description.entity';
+import { RolePermissionEntity } from '../roles/entities/role-permission.entity';
 import { FiltersDto } from './dto/filters.dto';
 import { findAllResultInterface } from './interfaces/findall-result.interface';
+import { RpcException } from '@nestjs/microservices';
 import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
@@ -16,7 +17,7 @@ import {
 /**
  * Roles service class.
  *
- * Version:1.0.0.
+ * @version 1.0.0
  *
  * This service class uses roleRepository,
  * class to handle the role's all operations.
@@ -24,18 +25,18 @@ import {
 @Injectable()
 export class RolesService {
   constructor(
-    @InjectRepository(Role)
-    private readonly roleRepository: Repository<Role>,
-    @InjectRepository(RoleDescription)
-    private readonly roleDescriptionRepository: Repository<RoleDescription>,
-    @InjectRepository(RolePermission)
-    private readonly rolePermissionRepository: Repository<RolePermission>,
+    @InjectRepository(RoleEntity)
+    private readonly roleRepository: Repository<RoleEntity>,
+    @InjectRepository(RoleDescriptionEntity)
+    private readonly roleDescriptionRepository: Repository<RoleDescriptionEntity>,
+    @InjectRepository(RolePermissionEntity)
+    private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
   ) {}
 
   /**
    * Create Role.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method uses roleRepository,
    * and CreateRoleDto to create role with its,
@@ -44,9 +45,10 @@ export class RolesService {
    * @param {number} userId - Authenticated user ID.
    * @param {CreateRoleDto} createRoleDto - Data transfer object contains,
    * role details.
-   * @returns {Promise<Role>} - Promise that resolves to Role object.
+   * @returns {Promise<RoleEntity>} - Promise that resolves to Role object.
+   * 
    */
-  async create(userId: number, createRoleDto: CreateRoleDto): Promise<Role> {
+  async create(userId: number, createRoleDto: CreateRoleDto): Promise<RoleEntity> {
     const { descriptions } = createRoleDto;
 
     createRoleDto = { ...createRoleDto, ...{ created_by: userId } };
@@ -54,13 +56,13 @@ export class RolesService {
     // If role's descriptions attribute is set iterate and update them with additional information.
     if (descriptions.length > 0) {
       createRoleDto.descriptions = descriptions.map((description) => {
-        let roleDescription = new RoleDescription();
 
+        let roleDescription = new RoleDescriptionEntity();
         roleDescription.name = description.name;
         roleDescription.language_id = description.language_id;
         roleDescription.description = description.description ?? '';
         roleDescription.created_by = userId;
-
+        
         return roleDescription;
       });
     }
@@ -69,27 +71,48 @@ export class RolesService {
       this.roleRepository.create(createRoleDto),
     );
   }
-
+  
+   /**
+   * Fetches all roles.
+   *
+   * @version 1.0.0
+   *
+   * This service method uses roleRepository,
+   * and FiltersDto to fetch roles with their
+   * descriptions and permissions.
+   *
+   * @param {number} userId - Authenticated user ID.
+   * @param {FiltersDto} filtersDto - Data transfer object contains,
+   * roles filter params.
+   * @returns {Promise<findAllResultInterface>} - Promise that resolves to Roles object.
+   * 
+   * @throws {RpcException} -Throws RpcException exception if no records found.
+   * 
+   */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<findAllResultInterface | NotFoundException> {
-    let findQuery = {};
+  ): Promise<findAllResultInterface> {
 
+
+    let findQuery = {};
     // If filter's search param is set construct like subquery.
+
     if (filtersDto.search) {
+
+      let whereCondition:FindOptionsWhere<RoleEntity>[];
+       whereCondition = [
+        {
+          descriptions: [
+            { name: Like('%' + filtersDto.search + '%') },
+            { description: Like('%' + filtersDto.search + '%') },
+          ],
+        }
+      ];
+      
       findQuery = {
         ...findQuery,
-        ...{
-          WHERE: [
-            {
-              description: [
-                { name: Like('%' + filtersDto.search + '%') },
-                { description: Like('%' + filtersDto.search + '%') },
-              ],
-            },
-          ],
-        },
+        where:whereCondition,
       };
     }
 
@@ -126,15 +149,15 @@ export class RolesService {
     }
 
     const [roles, total] = await this.roleRepository.findAndCount(findQuery);
-
-    //If no roles' record found against filter params throw  NotFoundException.
+    
+    //If no roles' record found against filter params throw  RpcException.
     if (roles.length === 0) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
-          '{entity_name}',
-          'Role',
-        ),
-      );
+        throw new RpcException(
+           NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
+            '{entity_name}',
+             RoleEntity.name,
+          ),
+       );
     }
 
     return {
@@ -148,44 +171,50 @@ export class RolesService {
   }
 
   /**
-   * Fetch Role.
+   * Fetches Role.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method uses roleRepository,
    * class to fetch role entity by its ID.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {number} id - ID of role being fetched.
-   * @returns {Promise<Role|NotFoundException>} -Promise that resolves into
-   * either Role or throws NotFoundException.
+   * @returns {Promise<RoleEntity>} -Promise that resolves into
+   * RoleEntity.
+   * 
+   * @throws {RpcException} -Throws RpcException exception if no record found.
+   * 
    */
-  async findOne(userId: number, id: number): Promise<Role | NotFoundException> {
+  async findOne(userId: number, id: number): Promise<RoleEntity> {
     let role = await this.roleRepository.findOneByOrFail({
       role_id: id,
     });
 
     if (!role) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'Role'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', RoleEntity.name),
       );
     }
     return role;
   }
 
   /**
-   * Update role.
+   * Updates role.
    *
-   * Version: 1.0.0.
+   * @version 1.0.0
    *
    * This service method uses roleRepository class,
-   * to update role details.
+   *  and UpdateRoleDto to update role's details.
    *
    * @param {number} userId -Authenticated user ID.
    * @param {number} id - Role ID being updated.
    * @param {UpdateRoleDto} updateRoleDto - Data transfer object contains,
    * role details.
    * @returns {Promise<UpdateResult>} -Promise that resolves to UpdateResult.
+   * 
+   * @throws {RpcException} -Throws RpcException exception if no record found.
+   * 
    */
   async update(
     userId: number,
@@ -197,8 +226,8 @@ export class RolesService {
     });
 
     if (!role) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'Role'),
+      throw new RpcException(
+         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', RoleEntity.name),
       );
     }
 
@@ -216,7 +245,7 @@ export class RolesService {
         let updated_by = 0;
         let created_by = 0;
 
-        let roleDescription = new RoleDescription();
+        let roleDescription = new RoleDescriptionEntity();
 
         //Make a list of descriptions which are being updated.
         if (description.role_description_id) {
@@ -237,7 +266,7 @@ export class RolesService {
     //If permissions are set iterate and update them with additional information.
     if (permissions && permissions.length > 0) {
       updateRoleDto.permissions = permissions.map((permission) => {
-        let rolePermission = new RolePermission();
+        let rolePermission = new RolePermissionEntity();
 
         //Make a list of permissions being updated.
         if (permission.role_permission_id) {
@@ -290,9 +319,9 @@ export class RolesService {
   }
 
   /**
-   * Remove role.
+   * Removes role by its ID.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This service method uses roleRepository to,
    * delete role entity from database.

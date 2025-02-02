@@ -14,5 +14,5 @@ import { CreateUserRoleDto } from './create-user-role.dto';
 export class UpdateUserRoleDto extends PartialType(CreateUserRoleDto) {
   @IsNotEmpty()
   @IsNumber()
-  user_role_id: number;
+  user_role_id!: number;
 }

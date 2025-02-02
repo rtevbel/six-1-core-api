@@ -7,6 +7,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
+import {Transform} from "class-transformer";
 
 /**
  *Create user login token dto class.
@@ -20,12 +21,12 @@ export class CreateUserLoginTokenDto {
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  user_id: number;
+  user_id!: number;
 
   @IsNotEmpty()
   @IsString()
   @MaxLength(65535)
-  token: string;
+  token!: string;
 
   @IsOptional()
   @IsBoolean()
@@ -33,16 +34,19 @@ export class CreateUserLoginTokenDto {
 
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(15)
-  ip_address: string;
+  ip_address!: string;
 
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(255)
-  user_agent: string;
+  user_agent!: string;
 
   @IsNotEmpty()
   @IsString()
+  @Transform(({ value }) => value.trim())
   @MaxLength(255)
-  device_name: string;
+  device_name!: string;
 }

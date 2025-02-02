@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Like, Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserPasswordEntity } from './entities/user-password.entity';
@@ -6,13 +6,30 @@ import { CreatePasswordDto } from './dto/create-password.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/find-all-result.interface';
 import { FindOneByDto } from './dto/find-one-by.dto';
+import {RpcException} from "@nestjs/microservices";
 import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../common/constants';
 
+/**
+ * UserPasswordService class.
+ * 
+ *  @version 1.0.0
+ * 
+ * This service class handles all,
+ * user-password related operations using,
+ * userPasswordRepository.
+ * 
+ */
 @Injectable()
 export class UserPasswordsService {
+
+  /**
+   * Special method resolves dependencies.
+   * 
+   * @param {Repository<UserPasswordEntity>} userPasswordRepository 
+   */
   constructor(
     @InjectRepository(UserPasswordEntity)
     private readonly userPasswordRepository: Repository<UserPasswordEntity>,
@@ -21,7 +38,7 @@ export class UserPasswordsService {
   /**
    * Save user password.
    *
-   * Version:1.0.0.
+   * @version 1.0.0.
    *
    * This service method saves user password by,
    * using userPasswordRepository class business logic.
@@ -44,7 +61,7 @@ export class UserPasswordsService {
   /**
    * Fetch passwords.
    *
-   * Version:1.0.0.
+   * @version 1.0.0.
    *
    * This service method uses userPasswordRepository,
    * class's business logic to fetch passwords against filter params.
@@ -52,12 +69,16 @@ export class UserPasswordsService {
    * @param {number} userId -Authenticated user ID.
    * @param {FiltersDto} filtersDto -Data transfer object contains filter,
    * params.
-   * @returns {Promise<FindAllResultInterface|NotFoundException>} -Promise that resolves either to a FindAllResultInterface or a NotFoundException.
+   * @returns {Promise<FindAllResultInterface>} -Promise that resolves to a,
+   * FindAllResultInterface.
+   * 
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface | NotFoundException> {
+  ): Promise<FindAllResultInterface> {
     let search = filtersDto.search ?? '';
     let limit = filtersDto.limit ?? 10;
     let page = filtersDto.page ?? 1;
@@ -102,10 +123,10 @@ export class UserPasswordsService {
       await this.userPasswordRepository.findAndCount(findQuery);
 
     if (passwords.length === 0) {
-      throw new NotFoundException(
+      throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
           '{entity_name}',
-          'User passwords',
+          UserPasswordEntity.name,
         ),
       );
     }
@@ -123,27 +144,30 @@ export class UserPasswordsService {
   /**
    * Fetch password.
    *
-   * Version:1.0.0.
+   * @version 1.0.0.
    *
    * This service method uses userPasswordRepository,
    * class to fetch the user_password.
    *
    * @param {number} userId -Authenticated user ID
    * @param {number} id -ID of user_password
-   * @returns {Promise<UserPasswordEntity|NotFoundException>} -Promise that resolves either to a UserPasswordEntity,
-   * or a NotFoundException.
+   * @returns {Promise<UserPasswordEntity>} -Promise that resolves to a,
+   * UserPasswordEntity,
+   *
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
   async findOne(
     userId: number,
     id: number,
-  ): Promise<UserPasswordEntity | NotFoundException> {
+  ): Promise<UserPasswordEntity> {
     let userPassword = await this.userPasswordRepository.findOneByOrFail({
       password_id: id,
     });
 
     if (!userPassword) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'User password'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserPasswordEntity.name),
       );
     }
 
@@ -153,7 +177,7 @@ export class UserPasswordsService {
   /**
    * Fetch password by.
    *
-   * Version:1.0.0.
+   * @version 1.0.0.
    *
    * This service method uses userPasswordRepository,
    * class to fetch user password.
@@ -161,19 +185,19 @@ export class UserPasswordsService {
    * @param {number} userId -Authenticate user ID.
    * @param {FindOneByDto} findOneByDto -Data trasnfer object contains,
    * user password object's key-values.
-   * @returns {Promise<UserPasswordEntity|NotFoundException>} -Promise that resolves to either a,
-   * UserPasswordEntity or a NotFoundException.
+   * @returns {Promise<UserPasswordEntity>} -Promise that resolves to a,
+   * UserPasswordEntity.
    */
   async findOneBy(
     userId: number,
     findOneByDto: FindOneByDto,
-  ): Promise<UserPasswordEntity | NotFoundException> {
+  ): Promise<UserPasswordEntity> {
     let userPassword =
       await this.userPasswordRepository.findOneByOrFail(findOneByDto);
 
     if (!userPassword) {
-      throw new NotFoundException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', 'User password'),
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserPasswordEntity.name),
       );
     }
 

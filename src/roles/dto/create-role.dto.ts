@@ -20,7 +20,7 @@ export class CreateRoleDto {
   @IsArray()
   @Type(() => CreateRoleDescriptionDto)
   @ValidateNested({ each: true })
-  descriptions: CreateRoleDescriptionDto[];
+  descriptions!: CreateRoleDescriptionDto[];
 
   @IsOptional()
   @IsArray()

@@ -12,25 +12,25 @@ import { UserEntity } from '../../users/entities/user.entity';
 @Entity('user_login_tokens')
 export class UserLoginTokenEntity {
   @PrimaryGeneratedColumn()
-  token_id: number;
+  token_id!: number;
 
   @Column()
-  user_id: number;
+  user_id!: number;
 
   @Column()
-  token: string;
+  token!: string;
 
   @Column({ default: true })
-  is_active: boolean;
+  is_active: boolean = true;
 
   @Column()
-  ip_address: string;
+  ip_address!: string;
 
   @Column()
-  user_agent: string;
+  user_agent!: string;
 
   @Column()
-  device_name: string;
+  device_name!: string;
 
   @CreateDateColumn({
     type: 'timestamp',
@@ -39,7 +39,7 @@ export class UserLoginTokenEntity {
     },
     select: false,
   })
-  created_at: Date;
+  created_at!: Date;
 
   @UpdateDateColumn({
     type: 'timestamp',
@@ -48,7 +48,7 @@ export class UserLoginTokenEntity {
     },
     select: false,
   })
-  updated_at: Date;
+  updated_at!: Date;
 
   //Defines many to one relationship with user entity.
   @ManyToOne(() => UserEntity, (user) => user.user_tokens, {
@@ -57,5 +57,5 @@ export class UserLoginTokenEntity {
   @JoinColumn({
     name: 'user_id',
   })
-  user: UserEntity;
+  user!: UserEntity;
 }

@@ -4,27 +4,27 @@ import {
   ParseIntPipe,
   UsePipes,
 } from '@nestjs/common';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload , RpcException} from '@nestjs/microservices';
 import { PermissionsService } from './permissions.service';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
-import { Permission } from './entities/permission.entity';
+import { PermissionEntity } from './entities/permission.entity';
 import { FiltersDto } from './dto/filters.dto';
-import { AppRpcValidationPipe } from '../common/pipes/AppRpcValidation.pipe';
+import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 import { findAllResultInterface } from './interfaces/findall-result.interface';
 import {
-  MICROSERVICE_CREATE_PERMISSION_PATTERN,
-  MICROSERVICE_FIND_ALL_PERMISSION_PATTERN,
-  MICROSERVICE_FIND_ONE_PERMISSION_PATTERN,
-  MICROSERVICE_REMOVE_PERMISSION_PATTERN,
-  MICROSERVICE_UPDATE_PERMISSION_PATTERN,
+  V1_0_CREATE_PERMISSION_PATTERN,
+  V1_0_FIND_ALL_PERMISSION_PATTERN,
+  V1_0_FIND_ONE_PERMISSION_PATTERN,
+  V1_0_REMOVE_PERMISSION_PATTERN,
+  V1_0_UPDATE_PERMISSION_PATTERN,
 } from './constants';
 import { DeleteResult, UpdateResult } from 'typeorm';
 
 /**
  * Permissions controller class.
  *
- * Version: 1.0.0
+ * @version 1.0.0
  *
  * Permissions controller class uses,
  * PermissionsService class to handle,
@@ -38,7 +38,7 @@ export class PermissionsController {
   /**
    * Create Permission.
    *
-   * Version:1.0.0.
+   * @version:1.0.0.
    *
    * This controller class method uses,
    * permissionsService create method to,
@@ -51,19 +51,19 @@ export class PermissionsController {
    * permission details.
    * @returns {Promise<Permission>} - Promise that resolves into Permission object.
    */
-  @MessagePattern(MICROSERVICE_CREATE_PERMISSION_PATTERN)
+  @MessagePattern(V1_0_CREATE_PERMISSION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async create(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createPermissionDto: CreatePermissionDto,
-  ): Promise<Permission> {
+  ): Promise<PermissionEntity> {
     return await this.permissionsService.create(userId, createPermissionDto);
   }
 
   /**
-   * Fetch all permissions.
+   * Fetches all permissions.
    *
-   * Version:1.0.0.
+   * @version:1.0.0.
    *
    * This controller's method uses permission,
    * service class and AppRpcValidationPipe to,
@@ -73,60 +73,69 @@ export class PermissionsController {
    * @param {number} userId - Authenticated user ID.
    * @param  {FiltersDto} filtersDto -Data transfer object contains,
    * filter params.
-   * @returns {Promise<findAllResultInterface|NotFoundException>} - Promise that resolves,
-   * either into findAllResultInterface object or throws NotFoundException.
+   * @returns {Promise<findAllResultInterface>} - Promise that resolves,
+   * to findAllResultInterface.
+   * 
+   * @throws {RpcException} -Throws RpcException if no records found.
+   * 
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_PERMISSION_PATTERN)
+  @MessagePattern(V1_0_FIND_ALL_PERMISSION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async findAll(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
-  ): Promise<findAllResultInterface | NotFoundException> {
+  ): Promise<findAllResultInterface> {
     return await this.permissionsService.findAll(userId, filtersDto);
   }
 
   /**
-   * Fetch one permission.
+   * Fetches permission by its ID.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
-   * This controller method uses permission,
-   * service class to fetch the permission object.
+   * This method uses permission,
+   * service class to fetch the permission by its ID.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {number} id - Permission ID being fetched.
-   * @returns {Promise<Permission|NotFoundException>} - Promise that resolves,
-   * either into Permission object or NotFoundException.
+   * @returns {Promise<Permission>} - Promise that resolves,
+   *  to PermissionEntity.
+   * 
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_PERMISSION_PATTERN)
+  @MessagePattern(V1_0_FIND_ONE_PERMISSION_PATTERN)
   async findOne(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data', ParseIntPipe) id: number,
-  ): Promise<Permission | NotFoundException> {
+  ): Promise<PermissionEntity | NotFoundException> {
     return await this.permissionsService.findOne(userId, id);
   }
 
   /**
-   * Update permission.
+   * Updates permission.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
-   * This controller method uses permssion,
+   * This method uses permssion,
    * service class and AppRpcValidationPipe ,
-   * to validate and update permission entity.
+   * to validate and update PermissionEntity.
    *
    * @param {number} userId - Authenticated user ID.
    * @param {UpdatePermissionDto} updatePermissionDto - Data transfer object,
    * contains permission details.
-   * @returns {Promise<UpdateResult|NotFoundException>} - Promise that resolves either into,
-   * UpdateResult or throws  NotFoundException.
+   * @returns {Promise<UpdateResul>} - Promise that resolves to,
+   * UpdateResult.
+   * 
+   * @throws {RpcException} -Throws RpcException if no record found.
+   * 
    */
-  @MessagePattern(MICROSERVICE_UPDATE_PERMISSION_PATTERN)
+  @MessagePattern(V1_0_UPDATE_PERMISSION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async update(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') updatePermissionDto: UpdatePermissionDto,
-  ): Promise<UpdateResult | NotFoundException> {
+  ): Promise<UpdateResult> {
     return await this.permissionsService.update(
       userId,
       updatePermissionDto.permission_id,
@@ -135,18 +144,18 @@ export class PermissionsController {
   }
 
   /**
-   * Remove permission.
+   * Removes permission by its ID.
    *
-   * Version:1.0.0.
+   * @version 1.0.0
    *
    * This contoller method uses permission,
    * service class to remove the permission entity.
    *
    * @param {number} userId - Auhenticated user ID.
    * @param {number} id - Permission ID being removed.
-   * @returns {Promise<DeleteResult>} - Promise that resolves into DeleteResult.
+   * @returns {Promise<DeleteResult>} - Promise that resolves to DeleteResult.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_PERMISSION_PATTERN)
+  @MessagePattern(V1_0_REMOVE_PERMISSION_PATTERN)
   async remove(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data', ParseIntPipe) id: number,

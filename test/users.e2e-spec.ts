@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestMicroservice } from '@nestjs/common';
 import { UsersController } from '../src/users/users.controller';
 import { UsersService } from '../src/users/users.service';
-import { AppRpcValidationPipe } from '../src/common/pipes/AppRpcValidation.pipe';
+import { AppRpcValidationPipe } from '../src/common/pipes/app-rpc-validation.pipe';
 import { CreateUserDto } from '../src/users/dto/create-user.dto';
 import { UpdateUserDto } from '../src/users/dto/update-user.dto';
 import { User } from '../src/users/entities/user.entity';

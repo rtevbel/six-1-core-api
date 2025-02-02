@@ -17,12 +17,12 @@ export class UpdateRoleDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  role_id: number;
+  role_id!: number;
 
   @IsArray()
   @Type(() => UpdateRoleDescriptionDto)
   @ValidateNested({ each: true })
-  descriptions: UpdateRoleDescriptionDto[];
+  descriptions: UpdateRoleDescriptionDto[] = [];
 
   @IsOptional()
   @IsArray()

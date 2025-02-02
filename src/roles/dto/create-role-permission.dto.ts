@@ -1,14 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsNotEmpty, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 
 export class CreateRolePermissionDto {
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  permission_id: number;
+  permission_id!: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  role_id: number;
+  role_id?: number;
 }

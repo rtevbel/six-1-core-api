@@ -15,5 +15,5 @@ export class UpdatePasswordDto extends PartialType(CreatePasswordDto) {
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  password_id: number;
+  password_id!: number;
 }

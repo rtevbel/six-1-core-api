@@ -20,16 +20,16 @@ import { UserEntity } from '../../users/entities/user.entity';
 @Entity('user_passwords')
 export class UserPasswordEntity {
   @PrimaryGeneratedColumn()
-  password_id: number;
+  password_id!: number;
 
   @Column()
-  user_id: number;
+  user_id!: number;
 
   @Column()
-  password_hash: string;
+  password_hash!: string;
 
   @Column()
-  ip_address: string;
+  ip_address!: string;
 
   @CreateDateColumn({
     type: 'timestamp',
@@ -38,7 +38,7 @@ export class UserPasswordEntity {
     },
     select: false,
   })
-  created_at: Date;
+  created_at!: Date;
 
   //Defines many-to-one relationship with user entity.
   @ManyToOne(() => UserEntity, (user) => user.user_passwords, {
@@ -47,5 +47,5 @@ export class UserPasswordEntity {
   @JoinColumn({
     name: 'user_id',
   })
-  user: UserEntity;
+  user!: UserEntity;
 }

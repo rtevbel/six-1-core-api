@@ -8,10 +8,10 @@ RUN apt-get update || cat /var/log/apt/term.log && \
     && rm -rf /var/lib/apt/lists/* 
 
 #Create a non-root user for running application (to avoid running as root)    
-RUN groupadd -r usdevgroup && useradd -m -r -g usdevgroup usdevuser
+RUN groupadd -r usdg202501 && useradd -m -r -g usdg202501 usdu202501
 
 #Set environment variables
-ENV HOME=/home/usdevuser
+ENV HOME=/home/usdu202501
 ENV NODE_ENV =development
 
 # Set the working directory
@@ -27,10 +27,10 @@ RUN npm install -g @nestjs/cli nodemon && npm install
 COPY . /src/local/app/
 
 #Change ownership of /src/local/app directory to a non-root user
-RUN chown -R usdevuser:usdevgroup /src/local/app /home/usdevuser
+RUN chown -R usdu202501:usdg202501 /src/local/app /home/usdu202501
 
 #Switch to non-root user
-USER usdevuser
+USER usdu202501
 
 # Build the application
 RUN npm run build
