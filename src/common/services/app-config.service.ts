@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 /**
  * Application custom config service class.
  *
- * @version 1.0.0
+ * @version 0.0.1
  *
  * This service class extends ConfigService class,
  * of ConfigMoudle and provides custom method to add,
@@ -24,7 +24,7 @@ export class AppConfigService extends ConfigService {
   /**
    *  Method to add or override environment variables.
    *
-   * @version 1.0.0
+   * @version 0.0.1
    *
    * @param {string} key -Envrionment variable key.
    * @param {any} value -Envrionment variable value to set.
@@ -37,7 +37,7 @@ export class AppConfigService extends ConfigService {
   /**
    *  Override the get method to include runtime variables
    *
-   * @version 1.0.0
+   * @version 0.0.1
    *
    * @param {string} key -Envrionment variable key.
    * @param {any} defaultValue -Default value of environment variable.

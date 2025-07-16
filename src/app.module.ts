@@ -4,11 +4,8 @@ import { AppService } from './app.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule } from '@nestjs/config';
 import { ConfigService } from '@nestjs/config';
-import { UsersModule } from './users/users.module';
 import { AppRpcExceptionsFilter } from './common/filters/app-rpc-exceptions.filter';
 import { APP_FILTER } from '@nestjs/core';
-import { PermissionsModule } from './permissions/permissions.module';
-import { RolesModule } from './roles/roles.module';
 import { AppConfigService } from './common/services/app-config.service';
 import {
   DEFAULT_ENVIRONMENT_FILE_NAME,
@@ -19,18 +16,25 @@ import {
   MYSQL_DATABASE_PASSWORD_KEY,
   MYSQL_DATABASE_NAME_KEY,
 } from './common/constants';
+import { NotificationsModule } from './notifications/notifications.module';
+import { UsersModule } from './users/users.module';
+import { EventsModule } from './events/events.module';
+import { RolesModule } from './roles/roles.module';
+import { PermissionsModule } from './permissions/permissions.module';
+import { SettingsModule } from './settings/settings.module';
+import { AuthModule } from './auth/auth.module';
 
 /**
  * Root module of the application.
- * 
- * @version 1.0.0
- * 
+ *
+ * @version 0.0.1
+ *
  * This module sets up configuration management, database connection,
  * and registers core modules like Users, Permissions, and Roles.
  */
 @Module({
   imports: [
-     /**
+    /**
      * ConfigModule is used to load environment variables.
      * The `envFilePath` is determined based on the `NODE_ENV` environment variable.
      * This module is set as global to make configuration accessible throughout the application.
@@ -60,18 +64,22 @@ import {
       }),
       inject: [ConfigService],
     }),
+    NotificationsModule,
+    UsersModule,
+    EventsModule,
+    RolesModule,
+    PermissionsModule,
+    SettingsModule,
+    AuthModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */
-    UsersModule,
-    PermissionsModule,
-    RolesModule,
   ],
   controllers: [
-     /**
+    /**
      * The main application controller.
      */
-    AppController
+    AppController,
   ],
   providers: [
     /**
@@ -85,7 +93,7 @@ import {
       provide: ConfigService,
       useClass: AppConfigService,
     },
-     /**
+    /**
      * Global exception filter for handling RPC exceptions.
      */
     {

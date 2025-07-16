@@ -1,65 +1,102 @@
 import {
-  IsArray,
-  IsBoolean,
+  IsInt,
   IsOptional,
+  IsPositive,
+  IsDate,
+  IsArray,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { CreatePermissionDescriptionDto } from './create-permission-description.dto';
+import { CreatePermissionDescriptionDto } from './create-permission_description.dto';
 
 /**
- * Data Transfer Object (DTO) for creating a permission.
- * 
- * @version 1.0.0
- * 
- * This DTO defines the structure and validation rules for creating a new permission,
- * including its activation status, deletion status, and associated descriptions.
+ * Create permission DTO class.
+ *
+ * @version 0.0.1
+ *
+ * Data transfer object for creating a permission.
  */
 export class CreatePermissionDto {
-  
   /**
-   * Indicates whether the permission is active.
-   * 
+   * The ID of the permission.
+   *
    * - Optional field.
-   * - Automatically transformed to a boolean value.
-   * 
-   * @example true
-   * 
-   * @type {boolean | undefined}
+   * - Must be a positive integer.
+   *
+   * @type {number}
    */
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  is_active?: boolean;
+  @IsInt()
+  @IsPositive()
+  permission_id?: number;
 
   /**
-   * Indicates whether the permission is marked as deleted.
-   * 
+   * The status ID of the permission.
+   *
+   * - Required field.
+   * - Must be a positive integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsPositive()
+  status_id!: number;
+
+  /**
+   * The ID of the user who created the permission.
+   *
+   * - Required field.
+   * - Must be a positive integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsPositive()
+  created_by!: number;
+
+  /**
+   * The ID of the user who last updated the permission.
+   *
    * - Optional field.
-   * - Defaults to `false`.
-   * - Automatically transformed to a boolean value.
-   * 
-   * @example false
-   * 
-   * @type {boolean}
+   * - Must be a positive integer.
+   *
+   * @type {number}
    */
   @IsOptional()
-  @Type(() => Boolean)
-  @IsBoolean()
-  is_deleted?: boolean = false;
+  @IsInt()
+  @IsPositive()
+  updated_by?: number;
 
   /**
-   * Array of descriptions for the permission in various languages.
-   * 
-   * - Must be an array.
-   * - Each item must be a valid `CreatePermissionDescriptionDto` object.
-   * - Ensures nested validation for each item.
-   * 
-   * @example [
-   *   { language_id: 1, name: "Edit User", description: "Allows editing of user profiles." },
-   *   { language_id: 2, name: "Benutzer bearbeiten", description: "Ermöglicht das Bearbeiten von Benutzerprofilen." }
-   * ]
-   * 
+   * The creation timestamp of the permission.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsOptional()
+  @IsDate()
+  created_at?: Date;
+
+  /**
+   * The update timestamp of the permission.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsOptional()
+  @IsDate()
+  updated_at?: Date;
+
+  /**
+   * List of permission descriptions.
+   *
+   * - Required field.
+   * - Must be an array of `CreatePermissionDescriptionDto`.
+   *
    * @type {CreatePermissionDescriptionDto[]}
    */
   @IsArray()

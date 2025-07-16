@@ -1,34 +1,57 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { CreateUserDto } from './create-user.dto';
 import {
-  IsNumber,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
-  IsArray,
-  ValidateNested,
+  IsDateString,
 } from 'class-validator';
-import { UpdateUserRoleDto } from './update-user-role.dto';
 import { Type } from 'class-transformer';
 
 /**
- * Update user dto class.
+ * Update user DTO class.
  *
- * Version:1.0.0.
+ * @version 0.0.1
  *
- * This update user data transfer object class is used,
- * to validate the user's update request before passing,
- * to service.
+ * Data transfer object for updating a user.
  */
 export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['user_roles'] as const),
+  OmitType(CreateUserDto, ['created_at', 'updated_at'] as const),
 ) {
+  /**
+   * The ID of the user.
+   *
+   * - Required field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
   @IsNotEmpty()
+  @Type(() => Number)
   @IsNumber()
   user_id!: number;
 
+  /**
+   * Last login date of the user.
+   *
+   * - Optional field.
+   * - Must be a valid date string.
+   *
+   * @type {string}
+   */
   @IsOptional()
-  @IsArray()
-  @Type(() => UpdateUserRoleDto)
-  @ValidateNested({ each: true })
-  user_roles?: UpdateUserRoleDto[];
+  @IsDateString()
+  last_login_at?: string;
+
+  /**
+   * Update date of the user.
+   *
+   * - Optional field.
+   * - Must be a valid date string.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsDateString()
+  updated_at?: string;
 }

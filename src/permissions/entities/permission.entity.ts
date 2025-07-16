@@ -4,121 +4,91 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
   OneToMany,
+  ManyToOne,
 } from 'typeorm';
-import { PermissionDescriptionEntity } from './permission-description.entity';
+import { PermissionDescriptionEntity } from './permission_description.entity';
+import { RolePermissionEntity } from '../../roles/entities/role-permission.entity';
 
 /**
- * Entity representing a permission.
- * 
- * @version 1.0.0
- * 
- * This entity defines the structure of the `permissions` table,
- * including fields for status, audit tracking, and relationships
- * with permission descriptions.
+ * Entity class for `permissions` table.
+ *
+ * Represents the permissions in the system.
  */
 @Entity('permissions')
 export class PermissionEntity {
-  
-  /**
-   * Primary key for the permission.
-   * 
-   * - Auto-generated unique ID.
-   * 
-   * @example 1
-   * 
-   * @type {number}
-   */
-  @PrimaryGeneratedColumn()
-  permission_id: number = 0;
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
+  permission_id!: number;
 
-  /**
-   * Indicates whether the permission is active.
-   * 
-   * - Default value: `false`
-   * 
-   * @example true
-   * 
-   * @type {boolean}
-   */
-  @Column({ default: false })
-  is_active: boolean = false;
+  @Column({
+    type: 'tinyint',
+    unsigned: true,
+    nullable: false,
+    default: 1,
+  })
+  @Index('permissions_status_id')
+  status_id!: number;
 
-  /**
-   * Indicates whether the permission is deleted.
-   * 
-   * - Default value: `false`
-   * 
-   * @example false
-   * 
-   * @type {boolean}
-   */
-  @Column({ default: false })
-  is_deleted: boolean = false;
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+    default: 0,
+  })
+  @Index('permissions_created_by')
+  created_by!: number;
 
-  /**
-   * ID of the user who created the permission.
-   * 
-   * @example 101
-   * 
-   * @type {number}
-   */
-  @Column()
-  created_by: number = 0;
+  @Column({
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    default: 0,
+  })
+  @Index('permissions_updated_by')
+  updated_by!: number;
 
-  /**
-   * ID of the user who last updated the permission.
-   * 
-   * - Default value: `0`
-   * 
-   * @example 102
-   * 
-   * @type {number}
-   */
-  @Column({ default: 0})
-  updated_by: number = 0;
-
-  /**
-   * Timestamp indicating when the permission was created.
-   * 
-   * - Automatically set to the current timestamp.
-   * 
-   * @example "2025-02-01T12:00:00.000Z"
-   * 
-   * @type {Date}
-   */
-  @CreateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP(6)'})
+  @CreateDateColumn({
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
   created_at!: Date;
 
-  /**
-   * Timestamp indicating when the permission was last updated.
-   * 
-   * - Automatically set to the current timestamp.
-   * 
-   * @example "2025-02-01T12:30:00.000Z"
-   * 
-   * @type {Date}
-   */
-  @UpdateDateColumn({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP(6)'})
+  @UpdateDateColumn({
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP',
+    onUpdate: 'CURRENT_TIMESTAMP',
+  })
   updated_at!: Date;
 
   /**
-   * Descriptions associated with this permission.
-   * 
-   * - Cascade operations enabled (insert/update/delete).
-   * - Child rows are deleted when the parent is deleted.
-   * - Orphaned rows are automatically deleted.
-   * - Data is eagerly loaded by default.
-   * 
-   * @example [{ language_id: 1, name: "View Orders", description: "Allows viewing of orders" }]
-   * 
-   * @type {PermissionDescriptionEntity[]}
+   * One-to-many relationship with `PermissionDescriptionEntity`.
+   *
+   * Represents the descriptions associated with the permission.
    */
-  @OneToMany(() => PermissionDescriptionEntity, (descriptions) => descriptions.permission, {
-    cascade: true,
-    onDelete: 'CASCADE',
-    orphanedRowAction: 'delete',
-    eager: true,
-  })
+  @OneToMany(
+    () => PermissionDescriptionEntity,
+    (description) => description.permission,
+    {
+      cascade: true,
+      onDelete: 'CASCADE',
+      orphanedRowAction: 'delete',
+      eager: true,
+    },
+  )
   descriptions!: PermissionDescriptionEntity[];
+
+  /**
+   * One-to-many relationship with the `RolePermissionEntity`.
+   *
+   * - Establishes the inverse side of the relationship.
+   * - Allows access to all role permissions associated with a permission.
+   *
+   * @type {RolePermissionEntity[]}
+   */
+  @OneToMany(
+    () => RolePermissionEntity,
+    (rolePermission) => rolePermission.permission,
+  )
+  rolePermissions!: RolePermissionEntity[];
 }

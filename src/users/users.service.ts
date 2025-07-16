@@ -1,177 +1,137 @@
-import { Injectable} from '@nestjs/common';
-import { DeleteResult, Like, Repository, UpdateResult , FindOptionsWhere } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { UserEntity } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
-import { UserEntity } from './entities/user.entity';
-import { UserRoleEntity } from './entities/user-role.entity';
 import { FiltersDto } from './dto/filters.dto';
-import { FindAllResultInterface } from './interfaces/find-all-result.interface';
 import { FindByDTO } from './dto/find-by.dto';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RpcException } from '@nestjs/microservices';
 import {
-  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
+  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
-import {AppLanguagesEnum} from "../common/enums/app-languages.enum";
-import {RpcException} from "@nestjs/microservices";
 
-/**
- * User service class.
- *
- * @version 1.0.0
- *
- * This user service class uses userRepository,
- * and userRoleRepository classes to manage user's,
- * CRUD operations.
- */
 @Injectable()
-export class UsersService {
+export class UserService {
   constructor(
     @InjectRepository(UserEntity)
-    private userRepository: Repository<UserEntity>,
-    @InjectRepository(UserRoleEntity)
-    private userRoleRepository: Repository<UserRoleEntity>,
+    private readonly userRepository: Repository<UserEntity>,
   ) {}
 
   /**
-   * Create user.
-   *
-   * @version 1.0.0
-   *
-   * This service method creates new user,
-   * in database by using userRepository class.
-   *
-   * @param {number} userId - Authenticated user ID.
-   * @param {CreateUserDto} createUserDto - Data tranfer object contains,
-   * user details.
-   * 
-   * @returns {Promise<UserEntity>} - Promise that resolves to UserEntity.
-   * 
+   * Creates a new user record.
+   * @param userId - ID of the user creating the record.
+   * @param createUserDto - Data Transfer Object containing user details.
+   * @returns The created UserEntity.
    */
   async create(
     userId: number,
     createUserDto: CreateUserDto,
   ): Promise<UserEntity> {
-    createUserDto = {
-      ...createUserDto,
-      ...{ created_by: userId },
-    };
     return await this.userRepository.save(
       this.userRepository.create(createUserDto),
     );
   }
 
   /**
-   * Fetch users.
-   *
-   * @version 1.0.0
-   *
-   * This service method uses  userRepository,
-   * class to fetch users from database against,
-   * filter params.
-   *
-   * @param {number} userId -Auhenticated user ID.
-   * @param {FiltersDto} filtersDto - Data trasnfer object contains,
-   * filter params.
-   * @returns {Promise<FindAllResultInterface>} - Promise that resolves to,
-   *  FindAllResultInterface.
-   * 
-   * @throws {RpcException} - Throws RpcException if no records found.
-   * 
+   * Retrieves all users with optional filters, pagination, and sorting.
+   * @param userId - ID of the user requesting the data.
+   * @param filtersDto - Filters for search, sorting, and pagination.
+   * @returns An object containing the list of users and pagination details.
+   * @throws RpcException if no records match the filters.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-  
-    let search = filtersDto.search ?? '';
-    let page = filtersDto.page ?? 1;
-    let limit = filtersDto.limit ?? 10;
-    let sortBy = filtersDto.sortBy ?? 'user_id';
-    let sortOrder = filtersDto.sortOrder ?? 'DESC';
-    
-    let findQuery = {};
+    const findQuery = this.buildFindQuery(filtersDto);
 
-    //If search param is set add it to query
-    if (search) {
-      let whereCondition: FindOptionsWhere<UserEntity>[]; 
-      whereCondition = [
-        { first_name: Like('%' + search + '%') },
-        { last_name: Like('%' + search + '%') },
-        { email: Like('%' + search + '%') },
-        { username: Like('%' + search + '%') }
-      ];
-      findQuery = {
-        ...findQuery,
-        where:whereCondition
-      }
-      
-    }
-
-    //Update query with sortBy param
-    findQuery = {
-      ...findQuery,
-      ...{
-        order: {
-          [sortBy]: sortOrder,
-        },
-      },
-    };
-
-    //Update query with limit param
-    findQuery = {
-      ...findQuery,
-      ...{
-        take: limit,
-        skip: (page - 1) * limit,
-      },
-    };
-
+    // Fetch users and count total records
     const [users, total] = await this.userRepository.findAndCount(findQuery);
 
-    //Throws error if no record found
+    // Throw exception if no records are found
     if (users.length === 0) {
       throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
+        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
           UserEntity.name,
         ),
       );
     }
 
-    return <FindAllResultInterface>{
-      users: users,
-      pagination: {
-        total: total,
-        page: page,
-        limit: limit,
-      },
+    return {
+      users,
+      pagination: this.buildPagination(filtersDto, total),
     };
   }
 
   /**
-   * Fetch user.
-   *
-   * @version 1.0.0
-   *
-   * This service method fetch user,
-   * from database by user ID.
-   *
-   * @param {number} userId -Authenticated user ID.
-   * @param {number} id -ID of user being fetched.
-   * @returns {Promise<UserEntity>} -Promise that resolves to,
-   * UserEntity.
-   * 
-   * @throws {RpcException} - Throws RpcException if no record found.   
-   * 
-   * */
-  async findOne(
-    userId: number,
-    id: number,
-  ): Promise<UserEntity> {
-    
-    let user = await this.userRepository.findOneBy({ user_id: id });
-   
+   * Builds the query object for filtering, sorting, and pagination.
+   * @param filtersDto - Filters for search, sorting, and pagination.
+   * @returns The query object for TypeORM's `findAndCount` method.
+   */
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {};
+
+    // Apply search filters if provided
+    if (filtersDto.search) {
+      query.where = [
+        { email: Like(`%${filtersDto.search}%`) },
+        { username: Like(`%${filtersDto.search}%`) },
+        { display_name: Like(`%${filtersDto.search}%`) },
+      ];
+    }
+
+    // Apply sorting if provided
+    if (filtersDto.sortBy) {
+      query.order = {
+        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
+      };
+    }
+
+    // Apply pagination if limit is provided
+    if (filtersDto.limit) {
+      filtersDto.page = filtersDto.page || 1;
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+
+      query.take = filtersDto.limit;
+      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds the pagination object for the response.
+   * @param filtersDto - Filters containing pagination details.
+   * @param total - Total number of records matching the query.
+   * @returns The pagination object.
+   */
+  private buildPagination(
+    filtersDto: FiltersDto,
+    total: number,
+  ): { total: number; page: number; limit: number } {
+    return {
+      total,
+      page: filtersDto.page || 1,
+      limit: filtersDto.limit || 10,
+    };
+  }
+
+  /**
+   * Retrieves a single user by ID.
+   * @param userId - ID of the user requesting the data.
+   * @param id - ID of the user to retrieve.
+   * @returns The UserEntity matching the ID.
+   * @throws RpcException if no record is found.
+   */
+  async findOne(userId: number, id: number): Promise<UserEntity> {
+    const user = await this.userRepository.findOneByOrFail({
+      user_id: id,
+    });
+
     if (!user) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
@@ -192,49 +152,12 @@ export class UsersService {
    * @param {number} userId -Authenticated user ID.
    * @param {FindByDTO} findByDTO -Data transfer object containing filter params.
    * @returns {Promise<UserEntity>} -Promise that resolves to UserEntity.
-   * 
-   * @throws {RpcException} - Throws RpcException if no record found.   
-   * 
+   *
+   * @throws {RpcException} - Throws RpcException if no record found.
+   *
    */
-  async findOneBy(
-    userId: number,
-    findByDTO: FindByDTO,
-  ): Promise<UserEntity> {
-      
-      let user = await this.userRepository.findOneBy(findByDTO);
-
-      if (!user) {
-        throw new RpcException(
-          NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
-        );
-      }
-
-      return user;
-  }
-
-  /**
-   * Update user.
-   *
-   * @version 1.0.0
-   *
-   * This service method updates user's,
-   * details by using userRepository.
-   *
-   * @param {number} userId -Authenticated user ID.
-   * @param {number} id - ID of user being updated.
-   * @param {updateUserDto} updateUserDto -Data transfer object contains,
-   * user details.
-   * @returns {Promise<UpdateResult>} - Promise that resolves to UpdateResult.
-   * 
-   * @throws {RpcException} - Throws RpcException if no record found. 
-   * 
-   */
-  async update(
-    userId: number,
-    id: number,
-    updateUserDto: UpdateUserDto,
-  ): Promise<UpdateResult> {
-    let user = await this.userRepository.findOneBy({ user_id: id });
+  async findOneBy(userId: number, findByDTO: FindByDTO): Promise<UserEntity> {
+    let user = await this.userRepository.findOneBy(findByDTO);
 
     if (!user) {
       throw new RpcException(
@@ -242,68 +165,40 @@ export class UsersService {
       );
     }
 
-    const { user_roles } = updateUserDto;
-
-    user.first_name = updateUserDto.first_name ?? '';
-    user.last_name = updateUserDto.last_name ?? '';
-    if (updateUserDto.password) {
-      user.password = updateUserDto.password;
-    }
-    user.interface_locale = updateUserDto.interface_locale ?? AppLanguagesEnum.English;
-    user.is_active = updateUserDto.is_active ?? false;
-    user.is_deleted = updateUserDto.is_deleted ?? false;
-    user.block_date = updateUserDto.block_date ?? null;
-    user.extra = updateUserDto.extra ?? '';
-    user.updated_by = userId;
-
-    let userRolesBeingUpdated: number[] = [];
-    let userRoles: UserRoleEntity[] = [];
-
-    if (user_roles && user_roles.length > 0) {
-      userRoles = user_roles.map((role) => {
-        let userRoleEntity = new UserRoleEntity();
-        if (role.user_role_id) {
-          userRolesBeingUpdated.push(role.user_role_id);
-        }
-        userRoleEntity.role_id = role.role_id ?? 0;
-        userRoleEntity.user_id = role.user_id ?? 0;
-        userRoleEntity.user_role_id = role.user_role_id ?? 0;
-        return userRoleEntity;
-      });
-    }
-
-    if (userRolesBeingUpdated.length > 0 && user.user_roles) {
-      user.user_roles.map((role) => {
-        if (userRolesBeingUpdated.includes(role.user_role_id)) {
-          this.userRoleRepository.delete({ user_role_id: role.user_role_id });
-        }
-      });
-    }
-
-    user.user_roles = userRoles; //Update user roles
-
-    //delete user.user_passwords;
-    //delete user.user_tokens;
-
-    let isUpdated = await this.userRepository.save(user);
-    return <UpdateResult>{
-      raw: [],
-      affected: isUpdated ? 1 : 0,
-    };
+    return user;
   }
 
   /**
-   * Remove user.
-   *
-   * @version 1.0.0
-   *
-   * This service method removes user entity,
-   * from database by using userRepository class,
-   * and its ID.
-   *
-   * @param {number} userId -Authenticated user ID.
-   * @param {number} id - ID of user being deleted.
-   * @returns {Promise<DeleteResult>} -Promise that resolves into DeleteResult.
+   * Updates an existing user record.
+   * @param userId - ID of the user updating the record.
+   * @param id - ID of the user to update.
+   * @param updateUserDto - Data Transfer Object containing updated details.
+   * @returns The result of the update operation.
+   * @throws RpcException if no record is found.
+   */
+  async update(
+    userId: number,
+    id: number,
+    updateUserDto: UpdateUserDto,
+  ): Promise<UpdateResult> {
+    const user = await this.userRepository.findOneByOrFail({
+      user_id: id,
+    });
+
+    if (!user) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
+      );
+    }
+
+    return await this.userRepository.update(id, updateUserDto);
+  }
+
+  /**
+   * Deletes a user record by ID.
+   * @param userId - ID of the user deleting the record.
+   * @param id - ID of the user to delete.
+   * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.userRepository.delete({ user_id: id });

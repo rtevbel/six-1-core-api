@@ -3,85 +3,183 @@ import {
   IsString,
   MaxLength,
   IsEmail,
-  IsArray,
   IsOptional,
-  ValidateNested,
-  IsIn,
-  IsBoolean,
-  IsDateString,
   IsNumber,
+  IsDateString,
 } from 'class-validator';
-import { CreateUserRoleDto } from './create-user-role.dto';
-import { Type } from 'class-transformer';
-import {AppLanguagesEnum} from "../../common/enums/app-languages.enum";
-import {Transform} from "class-transformer";
-import sanitizeHtml from "sanitize-html";
+import { Transform } from 'class-transformer';
 
 /**
- * Create user dto class.
- *
- * Version:1.0.0.
- *
- * This data transfer object is used to,
- * validate the create user request data.
+ * Data transfer object for the Users table.
  */
 export class CreateUserDto {
-  @IsNotEmpty()
-  @IsString()
-  @Transform(({ value }) => value.trim())
-  @MaxLength(40)
-  first_name!: string;
+  /**
+   * User ID.
+   *
+   * - Optional field (auto-generated).
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsOptional()
+  @IsNumber()
+  user_id?: number;
 
-  @IsNotEmpty()
-  @IsString()
-  @Transform(({ value }) => value.trim())
-  @MaxLength(40)
-  last_name!: string;
-
+  /**
+   * Email address of the user.
+   *
+   * - Required field.
+   * - Must be a valid email address.
+   * - Maximum length of 255 characters.
+   *
+   * @type {string}
+   */
   @IsNotEmpty()
   @IsString()
   @IsEmail()
   @Transform(({ value }) => value.toLowerCase())
-  @MaxLength(150)
+  @MaxLength(255)
   email!: string;
 
+  /**
+   * Username of the user.
+   *
+   * - Required field.
+   * - Must be a string with a maximum length of 100 characters.
+   *
+   * @type {string}
+   */
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value.trim())
-  @MaxLength(40)
+  @MaxLength(100)
   username!: string;
 
+  /**
+   * First name of the user.
+   *
+   * - Optional field.
+   * - Must be a string with a maximum length of 100 characters.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value.trim())
+  @MaxLength(100)
+  first_name?: string;
+
+  /**
+   * Last name of the user.
+   *
+   * - Optional field.
+   * - Must be a string with a maximum length of 100 characters.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value.trim())
+  @MaxLength(100)
+  last_name?: string;
+
+  /**
+   * Password hash of the user.
+   *
+   * - Required field.
+   * - Must be a string with a maximum length of 255 characters.
+   *
+   * @type {string}
+   */
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
-  password!: string;
+  password_hash!: string;
 
+  /**
+   * Display name of the user.
+   *
+   * - Optional field.
+   * - Must be a string with a maximum length of 250 characters.
+   *
+   * @type {string}
+   */
   @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  display_name?: string;
+
+  /**
+   * Dashboard URL of the user.
+   *
+   * - Optional field.
+   * - Must be a string with a maximum length of 100 characters.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  dashboard_url?: string;
+
+  /**
+   * Activation key of the user.
+   *
+   * - Optional field.
+   * - Must be a string with a maximum length of 255 characters.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  activation_key?: string;
+
+  /**
+   * Status of the user.
+   *
+   * - Required field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsNotEmpty()
   @IsNumber()
-  interface_locale?: number = AppLanguagesEnum.English;
+  status!: number;
 
-  @IsOptional()
-  @IsBoolean()
-  is_active?: boolean = true;
-
-  @IsOptional()
-  @IsBoolean()
-  is_deleted?: boolean = false;
-
-  @IsOptional()
-  @IsBoolean()
-  is_blocked?: boolean = false;
-
+  /**
+   * Last login date of the user.
+   *
+   * - Optional field.
+   * - Must be a valid date string.
+   *
+   * @type {string}
+   */
   @IsOptional()
   @IsDateString()
-  block_date?: string;
+  last_login_at?: string;
 
-  @Transform(({ value }) => sanitizeHtml(value)) // Removes harmful HTML tags
-  extra: string = '';
-  
+  /**
+   * Creation date of the user.
+   *
+   * - Optional field.
+   * - Must be a valid date string.
+   *
+   * @type {string}
+   */
   @IsOptional()
-  @IsArray()
-  @Type(() => CreateUserRoleDto)
-  @ValidateNested({ each: true })
-  user_roles?: CreateUserRoleDto[];
+  @IsDateString()
+  created_at?: string;
+
+  /**
+   * Update date of the user.
+   *
+   * - Optional field.
+   * - Must be a valid date string.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsDateString()
+  updated_at?: string;
 }

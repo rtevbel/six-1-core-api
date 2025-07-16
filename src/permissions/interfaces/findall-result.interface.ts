@@ -1,44 +1,33 @@
 import { PermissionEntity } from '../entities/permission.entity';
 
 /**
- * Interface for the result of a find-all operation for permissions.
- * 
- * @version 1.0.0
- * 
- * This interface defines the structure of the result returned by 
- * the operation that retrieves all permissions, including pagination
- * details for the result set.
+ * Interface for the result of a findAll operation.
+ * @version 0.0.1
+ * Represents the structure of the response containing roles and pagination details.
  */
-export interface findAllResultInterface {
-  
+export interface FindAllResultInterface {
   /**
-   * List of permissions returned from the find-all operation.
-   * 
-   * @example [
-   *   { permission_id: 1, name: "View Orders", is_active: true },
-   *   { permission_id: 2, name: "Edit Products", is_active: false }
-   * ]
-   * 
-   * @type {PermissionEntity[]}
+   * Array of PermissionEntity objects representing the roles.
    */
   permissions: PermissionEntity[];
 
   /**
    * Pagination details for the result set.
-   * 
-   * Includes information on the total number of records, the current 
-   * page, and the number of records per page.
-   * 
-   * @example { total: 100, page: 1, limit: 10 }
-   * 
-   * @type {Object}
-   * @property {number} total - Total number of permissions available.
-   * @property {number} page - The current page number of the result set.
-   * @property {number} limit - The number of records per page.
    */
   pagination: {
+    /**
+     * Total number of records available.
+     */
     total: number;
+
+    /**
+     * Current page number.
+     */
     page: number;
+
+    /**
+     * Number of records per page.
+     */
     limit: number;
   };
 }

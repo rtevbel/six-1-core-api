@@ -65,22 +65,21 @@ async function bootstrap() {
     },
   });
 
-
-  //Start all connected microservices 
+  //Start all connected microservices
   await app.startAllMicroservices();
-  
+
   /**
    * Initialise application to enable the ,
    * usage of onModuleInit and onApplicationBootstrap,
    * life cycle hooks
    */
   app.init();
-  
+
   /*
-  * By uncommenting the below line we can start a HTTP server,
-  * to make this application hybrid. 
-  */
-  //await app.listen(3000, '0.0.0.0'); 
+   * By uncommenting the below line we can start a HTTP server,
+   * to make this application hybrid.
+   */
+  //await app.listen(3000, '0.0.0.0');
 }
 
 bootstrap();

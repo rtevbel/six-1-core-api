@@ -2,57 +2,111 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  OneToMany,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
+  OneToMany,
 } from 'typeorm';
-import { RoleDescriptionEntity } from './role-description.entity';
 import { RolePermissionEntity } from './role-permission.entity';
+import { RoleDescriptionEntity } from './role-description.entity';
+import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity';
 
+/**
+ * Entity class for `roles` table.
+ *
+ * Represents the roles in the system.
+ */
 @Entity('roles')
 export class RoleEntity {
-  @PrimaryGeneratedColumn()
+  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
   role_id!: number;
 
-  @Column({ default: false })
-  is_active: boolean = false;
+  @Column({
+    type: 'tinyint',
+    width: 1,
+    unsigned: true,
+    nullable: false,
+    default: 1,
+  })
+  @Index('roles_is_active')
+  is_active: number = 1;
 
-  @Column({ default: false })
-  is_deleted: boolean = false;
+  @Column({
+    type: 'tinyint',
+    width: 1,
+    unsigned: true,
+    default: 0,
+    nullable: false,
+  })
+  @Index('roles_is_deleted')
+  is_deleted: number = 0;
 
-  @Column()
+  @Column({
+    type: 'int',
+    width: 11,
+    unsigned: true,
+    default: 0,
+    nullable: false,
+  })
+  @Index('roles_created_by')
   created_by: number = 0;
 
-  @Column()
+  @Column({
+    type: 'int',
+    width: 11,
+    unsigned: true,
+    default: 0,
+    nullable: true,
+  })
+  @Index('roles_updated_by')
   updated_by: number = 0;
 
   @CreateDateColumn({
-    type: 'timestamp',
+    type: 'datetime',
     default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
   })
   created_at!: Date;
 
   @UpdateDateColumn({
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
   })
   updated_at!: Date;
 
+  /**
+   * One-to-many relationship with `RoleDescriptionEntity`.
+   *
+   * Represents the descriptions associated with the role.
+   */
   @OneToMany(() => RoleDescriptionEntity, (description) => description.role, {
-    cascade: true, // Handle relational operation automatically (e.g. add/update/delete) application description data.
-    onDelete: 'CASCADE', // Delete child rows when parent is deleted
-    orphanedRowAction: 'delete', // Automatically delete orphaned row
-    eager: true, // With this earger attribute true the TypeOrm will load the application description without passing the relations in find query.
+    cascade: true,
+    onDelete: 'CASCADE',
+    orphanedRowAction: 'delete',
+    eager: true,
   })
   descriptions!: RoleDescriptionEntity[];
 
+  /**
+   * One-to-many relationship with `RolePermissionEntity`.
+   *
+   * Represents the descriptions associated with the role.
+   */
   @OneToMany(() => RolePermissionEntity, (permission) => permission.role, {
-    cascade: true, // Handle relational operation automatically (e.g. add/update/delete) application description data.
-    onDelete: 'CASCADE', // Delete child rows when parent is deleted
-    orphanedRowAction: 'delete', // Automatically delete orphaned row
-    eager: true, // With this earger attribute true the TypeOrm will load the application description without passing the relations in find query.
+    cascade: true,
+    onDelete: 'CASCADE',
+    orphanedRowAction: 'delete',
+    eager: true,
   })
   permissions!: RolePermissionEntity[];
+
+  /**
+   * One-to-many relationship with `UserRoleEntity`.
+   *
+   * Represents the users associated with this role.
+   */
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.role, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  user_roles!: UserRoleEntity[];
 }

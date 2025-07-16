@@ -1,149 +1,135 @@
 import {
   Entity,
-  Column,
   PrimaryGeneratedColumn,
+  Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
   BeforeInsert,
   BeforeUpdate,
-  OneToMany,
 } from 'typeorm';
-import { Expose } from 'class-transformer';
-import { hash_content } from '../../common/functions';
-import { UserRoleEntity } from './user-role.entity';
-import { UserPasswordEntity } from '../../user-passwords/entities/user-password.entity';
-import { UserLoginTokenEntity } from '../../user-login-tokens/entities/user-login-token.entity';
+import { UserRoleEntity } from '../user-roles/entities/user-role.entity';
+import { UserMetaEntity } from '../user-meta/entities/user-meta.entity';
+import {hash_content} from "../../common/functions";
 
 /**
- * User entity class.
- *
- * Version:1.0.0.
- *
- * This user entity class is used,
- * in TypeORM to map application data to,
- * database table and vice versa.
- *
+ * Represents the `users` table in the database.
+ * 
+ * @version 1.0.0
  */
 @Entity('users')
 export class UserEntity {
-  @PrimaryGeneratedColumn()
+  /**
+   * Primary key: Unique identifier for the user.
+   */
+  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
   user_id!: number;
 
-  @Column()
-  first_name!: string;
-
-  @Column()
-  last_name!: string;
-
-  @Column({ unique: true })
+  /**
+   * User's email address (must be unique).
+   */
+  @Column({ type: 'varchar', length: 255, unique: true, nullable: false })
   email!: string;
 
-  @Column({ unique: true })
+  /**
+   * User's username (must be unique).
+   */
+  @Column({ type: 'varchar', length: 100, unique: true, nullable: false })
   username!: string;
 
-  @Column({ select: true })
-  password!: string;
+  /**
+   * User's first name.
+   */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  first_name!: string;
 
+  /**
+   * User's last name.
+   */
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  last_name!: string;
+
+  /**
+   * Hashed password for the user.
+   */
+  @Column({ type: 'varchar', length: 255, nullable: false })
+  password_hash!: string;
+
+  /**
+   * Display name for the user.
+   */
+  @Column({ type: 'varchar', length: 250, default: '', nullable: false })
+  display_name!: string;
+
+  /**
+   * URL for the user's dashboard.
+   */
+  @Column({ type: 'varchar', length: 100, default: '', nullable: false })
+  dashboard_url!: string;
+
+  /**
+   * Activation key for the user (used for account activation).
+   */
+  @Column({ type: 'varchar', length: 255, default: '', nullable: false })
+  activation_key!: string;
+
+  /**
+   * Status of the user (e.g., active, inactive).
+   */
+  @Column({ type: 'int', default: 0, nullable: false })
+  status!: number;
+
+  /**
+   * Timestamp of the user's last successful login.
+   */
   @Column({
-    default: 0,
-    select: false,
+    type: 'datetime',
+    nullable: true,
+    comment: 'Latest successful login',
   })
-  login_num: number = 0;
+  last_login_at!: Date;
 
-  @Column({
-    select: false,
-  })
-  rp_token: string = '';
-
-  @Column({
-    select: false,
-    type:"datetime",
-    nullable:true,
-    default:null
-  })
-  rp_token_created_at?: string|null;
-
-  @Column({ default:1})
-  interface_locale:number = 1;
-
-  @Column({
-    default: true,
-    select: true,
-  })
-  is_active: boolean = true;
-
-  @Column({
-    default: false,
-    select: false,
-  })
-  is_deleted: boolean = false;
-
-  @Column({
-    default: false,
-    select: false,
-  })
-  is_blocked: boolean = false;
-
-  @Column({ type: 'datetime', nullable: true, default: null , select:false})
-  block_date?:string|null;
-  
-  @Column() 
-  extra: string = '';
-
-  @Column({ select: false })
-  created_by: number = 0;
-
-  @Column({ select: false })
-  updated_by: number = 0;
-
-  @CreateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
-  })
+  /**
+   * Timestamp when the user was created.
+   */
+  @CreateDateColumn({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
   created_at!: Date;
 
+  /**
+   * Timestamp when the user was last updated.
+   */
   @UpdateDateColumn({
     type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
+    default: () => 'CURRENT_TIMESTAMP',
+    onUpdate: 'CURRENT_TIMESTAMP',
   })
   updated_at!: Date;
-
-  @Expose()
-  get full_name(): string {
-    return `${this.first_name} ${this.last_name}`;
-  }
 
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {
-    if (this.password) {
-      this.password = await hash_content(this.password);
+    if (this.password_hash) {
+      this.password_hash = await hash_content(this.password_hash);
     }
   }
 
-  @OneToMany(() => UserRoleEntity, (role) => role.user, {
-    cascade: true, // Handle relational operation automatically (e.g. add/update/delete) user's roles data.
-    onDelete: 'CASCADE', // Delete child rows when parent is deleted
-    orphanedRowAction: 'delete', // Automatically delete orphaned row
-    eager: true, // With this earger attribute true the TypeOrm will load the user's roles without passing the relations in find query.
+  /**
+   * One-to-many relationship with `UserRoleEntity`.
+   *
+   * Represents the roles associated with the user.
+   */
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, {
+    cascade: true,
+    onDelete: 'CASCADE',
   })
   user_roles!: UserRoleEntity[];
 
-  @OneToMany(() => UserPasswordEntity, (user_password) => user_password.user, {
-    cascade: true, // Handle relational operation automatically (e.g. add/update/delete) user's passwords data.
-    onDelete: 'CASCADE', // Delete child rows when parent is deleted
-    orphanedRowAction: 'delete', // Automatically delete orphaned row
-    eager: false, // With this earger attribute true the TypeOrm will load the user's passwords without passing the relations in find query.
-  })
-  user_passwords!: UserPasswordEntity[];
-
-  @OneToMany(() => UserLoginTokenEntity, (user_token) => user_token.user, {
+  /**
+   * Relationship to UserMetaEntity.
+   * A user can have multiple metadata records.
+   */
+  @OneToMany(() => UserMetaEntity, (userMeta) => userMeta.user, {
     cascade: true,
-    onDelete: 'CASCADE',
-    orphanedRowAction: 'delete',
-    eager: false,
   })
-  user_tokens!: UserLoginTokenEntity[];
+  user_meta!: UserMetaEntity[];
 }

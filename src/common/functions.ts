@@ -7,9 +7,9 @@ import {
 
 /**
  * Hashes the provided content using bcrypt.
- * 
- * @version 1.0.0
- * 
+ *
+ * @version 0.0.1
+ *
  * @param {string} content - The string content to be hashed.
  * @returns {Promise<string>} - A hashed version of the content.
  */
@@ -20,9 +20,9 @@ export async function hash_content(content: string): Promise<string> {
 
 /**
  * Compares a plain text string with a hashed string to check if they match.
- * 
- * @version 1.0.0
- * 
+ *
+ * @version 0.0.1
+ *
  * @param {string} content - The original plain text content.
  * @param {string} hashedString - The hashed string to compare against.
  * @returns {Promise<boolean>} - Returns `true` if the content matches the hash, otherwise `false`.
@@ -38,7 +38,7 @@ export async function compare_hashed_content(
  * Ensures a configuration parameter is defined and not null or undefined.
  * Throws a `NotFoundException` if the parameter is missing.
  *
- * @version 1.0.0
+ * @version 0.0.1
  *
  * @template T
  * @param {T | null | undefined} value - The value to verify.
@@ -76,7 +76,7 @@ export function ensureDefinedConfigParam<T>(
  * Ensures that a value is defined and not null or undefined.
  * Throws a generic `Error` if the value is missing.
  *
- * @version 1.0.0
+ * @version 0.0.1
  *
  * @template T
  * @param {T | null | undefined} value - The value to verify.

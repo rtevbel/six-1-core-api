@@ -1,57 +1,89 @@
 import {
   Entity,
-  Column,
   PrimaryGeneratedColumn,
+  Column,
   ManyToOne,
   CreateDateColumn,
   UpdateDateColumn,
   JoinColumn,
 } from 'typeorm';
 import { RoleEntity } from './role.entity';
-import {AppLanguagesEnum} from "../../common/enums/app-languages.enum";
+import { SystemLanguageEntity } from '../../settings/system_languages/entities/system-language.entity';
 
+/**
+ * Entity representing the role_descriptions table.
+ */
 @Entity('role_descriptions')
 export class RoleDescriptionEntity {
-  @PrimaryGeneratedColumn()
-  role_description_id!: number;
+  /**
+   * Primary key: Unique identifier for the role description.
+   */
+  @PrimaryGeneratedColumn({
+    name: 'role_description_id',
+    type: 'int',
+    unsigned: true,
+  })
+  roleDescriptionId!: number;
 
-  @Column()
-  role_id!: number;
+  /**
+   * Foreign key: Identifier for the associated role.
+   */
+  @Column({ name: 'role_id', type: 'int', unsigned: true })
+  roleId!: number;
 
-  @Column()
-  language_id: number = AppLanguagesEnum.English;
+  /**
+   * Foreign key: Identifier for the associated language.
+   * Defaults to 1.
+   */
+  @Column({ name: 'language_id', type: 'tinyint', unsigned: true, default: 1 })
+  languageId!: number;
 
-  @Column()
+  /**
+   * Name of the role description.
+   * Must be unique and cannot exceed 50 characters.
+   */
+  @Column({ name: 'name', type: 'varchar', length: 50, unique: true })
   name!: string;
 
-  @Column()
+  /**
+   * Detailed description of the role.
+   * Optional field.
+   */
+  @Column({ name: 'description', type: 'text', nullable: true })
   description?: string;
 
-  @Column()
-  created_by: number = 0;
+  /**
+   * Timestamp when the record was created.
+   * Automatically set to the current timestamp.
+   */
+  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
+  createdAt!: Date;
 
-  @Column()
-  updated_by: number = 0;
+  /**
+   * Timestamp when the record was last updated.
+   * Automatically updated to the current timestamp on modification.
+   */
+  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  updatedAt!: Date;
 
-  @CreateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
-  })
-  created_at!: Date;
-
-  @UpdateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    select: false,
-  })
-  updated_at!: Date;
-
-  @ManyToOne(() => RoleEntity, (role) => role.permissions, {
+  /**
+   * Relation to the RoleEntity.
+   * Establishes a many-to-one relationship with the roles table.
+   */
+  @ManyToOne(() => RoleEntity, (role) => role.descriptions, {
     onDelete: 'CASCADE',
   })
-  @JoinColumn({
-    name: 'role_id',
-  })
+  @JoinColumn({ name: 'role_id' })
   role!: RoleEntity;
+
+  /**
+   * Relation to the SystemLanguageEntity.
+   * Establishes a many-to-one relationship with the system_languages table.
+   */
+  @ManyToOne(
+    () => SystemLanguageEntity,
+    (language) => language.roleDescriptions,
+  )
+  @JoinColumn({ name: 'language_id' })
+  language!: SystemLanguageEntity;
 }
