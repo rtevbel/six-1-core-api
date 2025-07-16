@@ -1,7 +1,7 @@
 services:
     user-service:
-        image: alishoaib3332/unifiedeshop:us-dev
-        container_name: user-service
+        image: alishoaib3332/unifiedeshop:sixcapi-dev
+        container_name: six1-core-api
         ports:
           - "3002:3000"
         volumes:
@@ -14,34 +14,17 @@ services:
           - RABBITMQ_HOST=rabbitmq
         depends_on:
           - mysql
-          - redis  
         networks:
-          - ueshop-microservices-network
-
-    phpmyadmin:
-      image: phpmyadmin/phpmyadmin:latest
-      container_name: us_phpmyadmin
-      environment:
-        PMA_HOST: mysql
-        PMA_PORT: 3306
-        #PMA_USER: phpmyadmin
-        #PMA_PASSWORD: phpmyadmin_password 
-        PMA_ARBITRARY: 1
-      ports:
-        - "8081:80"
-      depends_on:
-        - mysql
-      networks:
-        - ueshop-microservices-network      
+          - six1-microservices-network
 
     mysql:
        image: mysql:latest
-       container_name: us_mysql
+       container_name: sixcapi_mysql
        environment:
-         MYSQL_ROOT_PASSWORD: ueshopusrp
-         MYSQL_DATABASE: ueshop_users
-         MYSQL_USER: ueshopudu
-         MYSQL_PASSWORD: ueshopudp 
+         MYSQL_ROOT_PASSWORD: sixcapi!1283!
+         MYSQL_DATABASE: six1_core_api
+         MYSQL_USER: six1ca202412
+         MYSQL_PASSWORD: taU4f:?W^HTSBN+Xswn 
        ports:
         - "3307:3306"
        volumes:
@@ -49,18 +32,10 @@ services:
         - ./db:/docker-entrypoint-initdb.d/
 
        networks:
-        - ueshop-microservices-network  
-
-    redis:
-      image: redis:latest
-      container_name: us_redis
-      ports:
-        - "6380:6379"
-      networks:
-        - ueshop-microservices-network 
+        - six1-microservices-network  
      
 networks:
-  ueshop-microservices-network:
+  six1-microservices-network:
      external: true
     
 volumes:

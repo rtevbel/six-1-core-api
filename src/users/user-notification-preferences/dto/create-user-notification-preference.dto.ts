@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsOptional,
 } from 'class-validator';
+import {Type} from "class-transformer";
 
 /**
  * Data Transfer Object for creating a user notification preference.
@@ -17,16 +18,18 @@ export class CreateUserNotificationPreferenceDto {
    * Must be a non-empty string containing numeric characters only.
    */
   @IsNotEmpty()
+  @Type(() => Number)
   @IsNumberString()
-  userId!: string;
+  userId!: number;
 
   /**
    * ID of the notification channel associated with the preference.
    * Must be a non-empty string containing numeric characters only.
    */
   @IsNotEmpty()
+  @Type(() => Number)
   @IsNumberString()
-  channelId!: string;
+  channelId!: number;
 
   /**
    * Indicates whether the notification preference is enabled.

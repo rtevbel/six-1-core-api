@@ -19,19 +19,20 @@ export class UserNotificationPreferenceService {
 
   /**
    * Creates a new user notification preference record.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user associated with the preference.
    * @param createDto - Data Transfer Object containing preference details.
    * @returns The created UserNotificationPreferenceEntity.
    */
   async create(
+    requestingUserId: number,
+    user_id: number,
     createDto: CreateUserNotificationPreferenceDto,
   ): Promise<UserNotificationPreferenceEntity> {
-    // Ensure the DTO matches the entity structure
+    createDto.userId = user_id; // Associate the preference with the specified user
     const preference = this.preferenceRepository.create(createDto);
-
-    // Save and return the created entity
     const savedPreference = await this.preferenceRepository.save(preference);
 
-    // Ensure the return type matches the expected entity type
     if (!savedPreference.preferenceId) {
       throw new Error('Failed to create UserNotificationPreferenceEntity');
     }
@@ -40,11 +41,18 @@ export class UserNotificationPreferenceService {
   }
 
   /**
-   * Retrieves all user notification preferences.
+   * Retrieves all user notification preferences for a specific user.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user whose preferences are being retrieved.
    * @returns A list of UserNotificationPreference entities.
    */
-  async findAll(): Promise<UserNotificationPreferenceEntity[]> {
-    const preferences = await this.preferenceRepository.find();
+  async findAll(
+    requestingUserId: number,
+    user_id: number,
+  ): Promise<UserNotificationPreferenceEntity[]> {
+    const preferences = await this.preferenceRepository.find({
+      where: { userId:user_id },
+    });
     if (preferences.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
@@ -58,14 +66,21 @@ export class UserNotificationPreferenceService {
 
   /**
    * Retrieves a single user notification preference by ID.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user associated with the preference.
    * @param id - ID of the preference to retrieve.
    * @returns The UserNotificationPreference entity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(id: string): Promise<UserNotificationPreferenceEntity> {
+  async findOne(
+    requestingUserId: number,
+    user_id: number,
+    id: string,
+  ): Promise<UserNotificationPreferenceEntity> {
     try {
       return await this.preferenceRepository.findOneByOrFail({
         preferenceId: id,
+        userId: user_id,
       });
     } catch (error) {
       throw new RpcException(
@@ -79,16 +94,20 @@ export class UserNotificationPreferenceService {
 
   /**
    * Updates an existing user notification preference record.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user associated with the preference.
    * @param id - ID of the preference to update.
    * @param updateDto - Data Transfer Object containing updated details.
    * @returns The result of the update operation.
    * @throws RpcException if no record is found.
    */
   async update(
+    requestingUserId: number,
+    user_id: number,
     id: string,
     updateDto: UpdateUserNotificationPreferenceDto,
   ): Promise<UpdateResult> {
-    const preference = await this.findOne(id);
+    const preference = await this.findOne(requestingUserId, user_id, id);
     if (!preference) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replace(
@@ -102,11 +121,17 @@ export class UserNotificationPreferenceService {
 
   /**
    * Deletes a user notification preference record by ID.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user associated with the preference.
    * @param id - ID of the preference to delete.
    * @returns The result of the delete operation.
    */
-  async remove(id: string): Promise<DeleteResult> {
-    const preference = await this.findOne(id);
+  async remove(
+    requestingUserId: number,
+    user_id: number,
+    id: string,
+  ): Promise<DeleteResult> {
+    const preference = await this.findOne(requestingUserId, user_id, id);
     if (!preference) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replace(
@@ -115,6 +140,6 @@ export class UserNotificationPreferenceService {
         ),
       );
     }
-    return await this.preferenceRepository.delete({ preferenceId: id });
+    return await this.preferenceRepository.delete({ preferenceId: id, userId:user_id });
   }
 }

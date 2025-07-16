@@ -34,14 +34,14 @@ export class UserNotificationPreferenceEntity {
    * Unsigned bigint.
    */
   @Column({ type: 'bigint', unsigned: true, name: 'user_id' })
-  userId!: string;
+  userId!: number;
 
   /**
    * Foreign key referencing the notification channel associated with the preference.
    * Unsigned bigint.
    */
   @Column({ type: 'bigint', unsigned: true, name: 'channel_id' })
-  channelId!: string;
+  channelId!: number;
 
   /**
    * Indicates whether the notification preference is enabled.

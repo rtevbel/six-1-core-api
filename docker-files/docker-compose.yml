@@ -1,10 +1,10 @@
 services:
-    user-service:
+    six1-core-api:
         build:
          context: ..
          dockerfile: docker-files/Dockerfile   
-        image: alishoaib3332/user-service:prod
-        container_name: user-service-prod
+        image: alishoaib3332/six1-core-api:prod
+        container_name: six1-core-api-prod
         ports:
           - "3002:3000"
         environment:
@@ -12,28 +12,28 @@ services:
           - RABBITMQ_HOST=${RABBITMQ_HOST}
           - JWT_SECRET_KEY=${JWT_SECRET_KEY}
           - JWT_EXPIRATION_TIME=${JWT_EXPIRATION_TIME}
-          - MESSAGE_BROKER_QUEUE_NAME=${USER_SERVICE_MESSAGE_BROKER_QUEUE_NAME}
+          - MESSAGE_BROKER_QUEUE_NAME=${SIX1_CORE_API_MESSAGE_BROKER_QUEUE_NAME}
           - MESSAGE_BROKER_URL=${MESSAGE_BROKER_URL}
         depends_on:
           - mysql
         networks:
-          - ueshop-microservices-network
+          - six1-microservices-network
 
     mysql:
        image: mysql:latest
-       container_name: user-service-prod-mysql
+       container_name: six1-core-api-prod-mysql
        environment:
-         MYSQL_ROOT_PASSWORD: ${USER_SERVICE_MYSQL_ROOT_PASSWORD}
-         MYSQL_DATABASE: ${USER_SERVICE_DB_DATABASE} 
-         MYSQL_USER: ${USER_SERVICE_DB_USERNAME}
-         MYSQL_PASSWORD: ${USER_SERVICE_DB_PASSWORD} 
+         MYSQL_ROOT_PASSWORD: ${SIX1_CORE_API_MYSQL_ROOT_PASSWORD}
+         MYSQL_DATABASE: ${SIX1_CORE_API_DB_DATABASE} 
+         MYSQL_USER: ${SIX1_CORE_API_DB_USERNAME}
+         MYSQL_PASSWORD: ${SIX1_CORE_API_DB_PASSWORD} 
        ports:
         - "3307:3306"
        volumes:
         - mysql-data:/var/lib/mysql
         - ../db:/docker-entrypoint-initdb.d/
        networks:
-        - ueshop-microservices-network  
+        - six1-microservices-network  
      
 networks:
   ueshop-microservices-network:

@@ -1,4 +1,4 @@
-import { Controller, ParseIntPipe, UsePipes } from '@nestjs/common';
+import { Controller, UsePipes, ParseIntPipe } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UserRolesService } from './user-roles.service';
 import { CreateUserRoleDto } from './dto/create-user-role.dto';
@@ -6,7 +6,6 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UserRoleEntity } from './entities/user-role.entity';
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
-
 import {
   MICROSERVICE_CREATE_USER_ROLE_PATTERN,
   MICROSERVICE_FIND_ALL_USER_ROLE_PATTERN,
@@ -15,82 +14,96 @@ import {
   MICROSERVICE_REMOVE_USER_ROLE_PATTERN,
 } from './constants';
 
-@Controller('user-roles')
+/**
+ * Controller for handling user role operations.
+ * This controller interacts with the UserRolesService to perform CRUD operations
+ * and responds to microservice message patterns.
+ * 
+ * @version 0.0.1
+ */
+@Controller('user_roles')
 export class UserRolesController {
   constructor(private readonly userRolesService: UserRolesService) {}
 
   /**
-   * Handles the creation of a new user role.
-   * @param userId - ID of the user making the request.
-   * @param createUserRoleDto - Data transfer object containing user role details.
-   * @returns The created user role entity.
+   * Create a new user role.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user for whom the role is being created.
+   * @param createDto - Data transfer object containing role details.
+   * @returns The created UserRoleEntity.
    */
   @MessagePattern(MICROSERVICE_CREATE_USER_ROLE_PATTERN)
   @UsePipes(AppRpcValidationPipe)
-  createUserRole(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') createUserRoleDto: CreateUserRoleDto,
+  async createRole(
+    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('user_id', ParseIntPipe) user_id: number,
+    @Payload('data') createDto: CreateUserRoleDto,
   ): Promise<UserRoleEntity> {
-    return this.userRolesService.create(userId, createUserRoleDto);
+    return await this.userRolesService.create(requestingUserId, user_id, createDto);
   }
 
   /**
-   * Retrieves all user roles.
-   * @param userId - ID of the user making the request.
-   * @returns A list of user roles.
+   * Retrieve all user roles for a specific user.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user whose roles are being retrieved.
+   * @returns An array of UserRoleEntity objects.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_USER_ROLE_PATTERN)
-  @UsePipes(AppRpcValidationPipe)
-  findAllUserRoles(
-    @Payload('userId', ParseIntPipe) userId: number,
+  async findAllRoles(
+    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('user_id', ParseIntPipe) user_id: number,
   ): Promise<UserRoleEntity[]> {
-    return this.userRolesService.findAll(userId);
+    return await this.userRolesService.findAll(requestingUserId, user_id);
   }
 
   /**
-   * Retrieves a single user role by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the user role to retrieve.
-   * @returns The user role entity.
+   * Retrieve a single user role by its ID for a specific user.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user whose role is being retrieved.
+   * @param id - ID of the role to retrieve.
+   * @returns The UserRoleEntity object or an exception if not found.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_USER_ROLE_PATTERN)
-  findOneUserRole(
-    @Payload('userId') userId: number,
+  async findOneRole(
+    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('user_id', ParseIntPipe) user_id: number,
     @Payload('data') id: number,
   ): Promise<UserRoleEntity> {
-    return this.userRolesService.findOne(userId, id);
+    return await this.userRolesService.findOne(requestingUserId, user_id, id);
   }
 
   /**
-   * Updates an existing user role.
-   * @param userId - ID of the user making the request.
-   * @param updateUserRoleDto - Data transfer object containing updated user role details.
+   * Update a user role for a specific user.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user whose role is being updated.
+   * @param id - ID of the role to update.
+   * @param updateDto - Data transfer object containing updated role details.
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_USER_ROLE_PATTERN)
   @UsePipes(AppRpcValidationPipe)
-  updateUserRole(
-    @Payload('userId') userId: number,
-    @Payload('data') updateUserRoleDto: UpdateUserRoleDto,
+  async updateRole(
+    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('user_id', ParseIntPipe) user_id: number,
+    @Payload('id') id: number,
+    @Payload('data') updateDto: UpdateUserRoleDto,
   ): Promise<UpdateResult> {
-    return this.userRolesService.update(
-      userId,
-      updateUserRoleDto.user_role_id,
-      updateUserRoleDto,
-    );
+    return await this.userRolesService.update(requestingUserId, user_id, id, updateDto);
   }
 
   /**
-   * Deletes a user role by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the user role to delete.
+   * Delete a user role for a specific user.
+   * @param requestingUserId - ID of the user making the request.
+   * @param user_id - ID of the user whose role is being deleted.
+   * @param id - ID of the role to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_USER_ROLE_PATTERN)
-  removeUserRole(
-    @Payload('userId') userId: number,
+  async removeRole(
+    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('user_id', ParseIntPipe) user_id: number,
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
-    return this.userRolesService.remove(userId, id);
+    return await this.userRolesService.remove(requestingUserId, user_id, id);
   }
 }
