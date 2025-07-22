@@ -37,7 +37,11 @@ export class UserRolesService {
     userId: number,
     createUserRoleDto: CreateUserRoleDto,
   ): Promise<UserRoleEntity> {
-    createUserRoleDto = { ...createUserRoleDto, created_by: requestingUserId, user_id: userId };
+    createUserRoleDto = {
+      ...createUserRoleDto,
+      created_by: requestingUserId,
+      user_id: userId,
+    };
     return await this.userRoleRepository.save(
       this.userRoleRepository.create(createUserRoleDto),
     );
@@ -162,6 +166,9 @@ export class UserRolesService {
       );
     }
 
-    return await this.userRoleRepository.delete({ user_role_id: id, user_id: userId });
+    return await this.userRoleRepository.delete({
+      user_role_id: id,
+      user_id: userId,
+    });
   }
 }

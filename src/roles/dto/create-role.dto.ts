@@ -27,7 +27,7 @@ export class CreateRoleDto {
    */
   @IsOptional()
   @IsNumber()
-  status_id?: number;
+  statusId?: number;
 
   /**
    * The tenant ID linked to the role.
@@ -39,31 +39,31 @@ export class CreateRoleDto {
    */
   @IsOptional()
   @IsNumber()
-  tenant_id?: number;
+  tenantId?: number;
 
   /**
    * Indicates if the role is a tenant role.
    *
    * - Optional field.
-   * - Must be a boolean.
+   * - Must be a number.
    *
-   * @type {boolean}
+   * @type {number}
    */
   @IsOptional()
-  @IsBoolean()
-  is_tenant_role?: boolean;
+  @IsNumber()
+  isTenantRole?: number;
 
   /**
    * Indicates if the role is a tenant team role.
    *
    * - Optional field.
-   * - Must be a boolean.
+   * - Must be a number.
    *
-   * @type {boolean}
+   * @type {number}
    */
   @IsOptional()
-  @IsBoolean()
-  is_tenant_team_role?: boolean;
+  @IsNumber()
+  isTenantTeamRole?: number;
 
   /**
    * Indicates if the role is a customer role.
@@ -71,11 +71,11 @@ export class CreateRoleDto {
    * - Optional field.
    * - Must be a boolean.
    *
-   * @type {boolean}
+   * @type {number}
    */
   @IsOptional()
-  @IsBoolean()
-  is_customer_role?: boolean;
+  @IsNumber()
+  isCustomerRole?: number;
 
   /**
    * List of role descriptions.

@@ -18,9 +18,9 @@ import {
  * Controller for handling user notification preference operations.
  * This controller interacts with the UserNotificationPreferenceService to perform CRUD operations
  * and responds to microservice message patterns.
- * 
+ *
  * @version 0.0.1
- * 
+ *
  */
 @Controller('user_notification_preference')
 export class UserNotificationPreferenceController {
@@ -60,7 +60,10 @@ export class UserNotificationPreferenceController {
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('user_id', ParseIntPipe) user_id: number,
   ): Promise<UserNotificationPreferenceEntity[]> {
-    return await this.userNotificationPreferenceService.findAll(requestingUserId, user_id);
+    return await this.userNotificationPreferenceService.findAll(
+      requestingUserId,
+      user_id,
+    );
   }
 
   /**
@@ -76,7 +79,11 @@ export class UserNotificationPreferenceController {
     @Payload('user_id', ParseIntPipe) user_id: number,
     @Payload('data') id: string,
   ): Promise<UserNotificationPreferenceEntity> {
-    return await this.userNotificationPreferenceService.findOne(requestingUserId, user_id, id);
+    return await this.userNotificationPreferenceService.findOne(
+      requestingUserId,
+      user_id,
+      id,
+    );
   }
 
   /**
@@ -116,6 +123,10 @@ export class UserNotificationPreferenceController {
     @Payload('user_id', ParseIntPipe) user_id: number,
     @Payload('data') id: string,
   ): Promise<DeleteResult> {
-    return await this.userNotificationPreferenceService.remove(requestingUserId, user_id, id);
+    return await this.userNotificationPreferenceService.remove(
+      requestingUserId,
+      user_id,
+      id,
+    );
   }
 }

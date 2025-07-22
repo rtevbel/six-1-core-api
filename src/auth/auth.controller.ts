@@ -9,7 +9,7 @@ import {
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './guards/jwt-guard';
 import { CustomAuthGuard } from './guards/custom-auth.guard';
-import {AppRpcExceptionsFilter} from '../common/filters/app-rpc-exceptions.filter';
+import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { OidcClient } from './oidc-client';
 import { JwtService } from '@nestjs/jwt';
 import { MessagePattern, Payload } from '@nestjs/microservices';
@@ -24,7 +24,7 @@ import { UserJWTTokenResponseInterface } from './interfaces/user-jwt-token-respo
 /**
  * Authentication controller class handles,
  * users' all authentication gRPC calls.
- * 
+ *
  * @Version 0.0.1
  */
 @Controller()

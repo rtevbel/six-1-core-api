@@ -6,7 +6,7 @@ import {
   IsBoolean,
   IsOptional,
 } from 'class-validator';
-import {Type} from "class-transformer";
+import { Type } from 'class-transformer';
 
 /**
  * Data Transfer Object for creating a user notification preference.

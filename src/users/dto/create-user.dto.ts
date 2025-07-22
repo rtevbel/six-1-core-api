@@ -84,7 +84,7 @@ export class CreateUserDto {
   last_name?: string;
 
   /**
-   * Password hash of the user.
+   * Password of the user.
    *
    * - Required field.
    * - Must be a string with a maximum length of 255 characters.
@@ -94,7 +94,7 @@ export class CreateUserDto {
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
-  password_hash!: string;
+  password!: string;
 
   /**
    * Display name of the user.

@@ -5,6 +5,7 @@ import {
   CreateDateColumn,
   Index,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { PermissionEntity } from '../../permissions/entities/permission.entity';
 import { RoleEntity } from './role.entity';
@@ -16,74 +17,48 @@ import { RoleEntity } from './role.entity';
  */
 @Entity('role_permissions')
 export class RolePermissionEntity {
-  /**
-   * Primary key for the role permission.
-   *
-   * - Auto-incremented integer.
-   * - Unsigned.
-   *
-   * @type {number}
-   */
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
-  role_permission_id!: number;
+  @PrimaryGeneratedColumn({
+    name: 'role_permission_id',
+    type: 'int',
+    unsigned: true,
+  })
+  rolePermissionId!: number;
 
-  /**
-   * Foreign key referencing the `roles` table.
-   *
-   * - Unsigned integer.
-   * - Indexed for faster lookups.
-   *
-   * @type {number}
-   */
-  @Column({ type: 'int', unsigned: true, nullable: false })
+  @Column({ name: 'role_id', type: 'int', unsigned: true, nullable: false })
   @Index('role_permissions_role_id')
-  role_id!: number;
+  roleId!: number;
 
-  /**
-   * Foreign key referencing the `permissions` table.
-   *
-   * - Unsigned integer.
-   * - Indexed for faster lookups.
-   *
-   * @type {number}
-   */
-  @Column({ type: 'int', unsigned: true, nullable: false })
+  @Column({
+    name: 'permission_id',
+    type: 'int',
+    unsigned: true,
+    nullable: false,
+  })
   @Index('role_permissions_permission_id')
-  permission_id!: number;
+  permissionId!: number;
 
-  /**
-   * Timestamp when the role permission was created.
-   *
-   * - Defaults to the current timestamp.
-   *
-   * @type {Date}
-   */
   @CreateDateColumn({
+    name: 'created_at',
     type: 'datetime',
     default: () => 'CURRENT_TIMESTAMP(6)',
   })
-  created_at!: Date;
+  createdAt!: Date;
 
   /**
    * Many-to-one relationship with the `RoleEntity`.
    *
-   * - Cascade operations.
-   * - Deletes child rows when parent is deleted.
-   *
-   * @type {RoleEntity}
+   * Represents the role associated with the permission.
    */
   @ManyToOne(() => RoleEntity, (role) => role.permissions, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'role_id' })
   role!: RoleEntity;
 
   /**
    * Many-to-one relationship with the `PermissionEntity`.
    *
-   * - Cascade operations.
-   * - Deletes child rows when parent is deleted.
-   *
-   * @type {PermissionEntity}
+   * Represents the permission associated with the role.
    */
   @ManyToOne(
     () => PermissionEntity,
@@ -92,5 +67,6 @@ export class RolePermissionEntity {
       onDelete: 'CASCADE',
     },
   )
+  @JoinColumn({ name: 'permission_id' })
   permission!: PermissionEntity;
 }

@@ -4,6 +4,7 @@ import {
   IsPositive,
   IsDate,
   IsNotEmpty,
+  IsNumber,
 } from 'class-validator';
 
 /**
@@ -24,19 +25,19 @@ export class CreatePermissionDescriptionDto {
    */
   @IsOptional()
   @IsInt()
-  @IsPositive()
+  @IsNumber()
   permission_description_id?: number;
 
   /**
    * The ID of the permission linked to this description.
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a positive integer.
    *
    * @type {number}
    */
-  @IsInt()
-  @IsPositive()
+  @IsOptional()
+  @IsNumber()
   permission_id!: number;
 
   /**
@@ -48,7 +49,7 @@ export class CreatePermissionDescriptionDto {
    * @type {number}
    */
   @IsInt()
-  @IsPositive()
+  @IsNumber()
   language_id!: number;
 
   /**

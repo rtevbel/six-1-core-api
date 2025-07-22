@@ -6,6 +6,7 @@ import {
   UpdateDateColumn,
   Index,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { PermissionEntity } from './permission.entity';
 
@@ -58,15 +59,17 @@ export class PermissionDescriptionEntity {
   permission_group?: string;
 
   @CreateDateColumn({
+    name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   created_at!: Date;
 
   @UpdateDateColumn({
+    name: 'updated_at',
     type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updated_at!: Date;
 
@@ -78,5 +81,6 @@ export class PermissionDescriptionEntity {
   @ManyToOne(() => PermissionEntity, (permission) => permission.descriptions, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'permission_id' })
   permission!: PermissionEntity;
 }

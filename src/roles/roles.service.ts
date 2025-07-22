@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
+import { RoleDescriptionEntity } from './entities/role-description.entity';
+import { RolePermissionEntity } from './entities/role-permission.entity';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { FiltersDto } from './dto/filters.dto';
@@ -17,6 +19,10 @@ export class RolesService {
   constructor(
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
+    @InjectRepository(RoleDescriptionEntity)
+    private readonly roleDescriptionRepository: Repository<RoleDescriptionEntity>,
+    @InjectRepository(RolePermissionEntity)
+    private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
   ) {}
 
   /**
@@ -124,7 +130,7 @@ export class RolesService {
    */
   async findOne(userId: number, id: number): Promise<RoleEntity> {
     const role = await this.roleRepository.findOneByOrFail({
-      role_id: id,
+      roleId: id,
     });
 
     if (!role) {
@@ -150,7 +156,7 @@ export class RolesService {
     updateRoleDto: UpdateRoleDto,
   ): Promise<UpdateResult> {
     const role = await this.roleRepository.findOneByOrFail({
-      role_id: id,
+      roleId: id,
     });
 
     if (!role) {
@@ -159,7 +165,49 @@ export class RolesService {
       );
     }
 
-    return await this.roleRepository.update(id, updateRoleDto);
+    const { descriptions, permissions, ...roleUpdateData } = updateRoleDto;
+
+    // Handle descriptions update
+    if (descriptions) {
+      for (const description of descriptions) {
+        if (description.roleDescriptionId) {
+          // Update existing description
+          await this.roleDescriptionRepository.update(
+            description.roleDescriptionId,
+            description,
+          );
+        } else {
+          // Create new description
+          description.roleId = id; // Ensure the roleId is set for new descriptions
+          await this.roleDescriptionRepository.save(
+            this.roleDescriptionRepository.create(description),
+          );
+        }
+      }
+    }
+
+    // Handle permissions update
+    if (permissions) {
+      for (const permission of permissions) {
+        if (permission.rolePermissionId) {
+          // Update existing permission
+          await this.rolePermissionRepository.update(
+            permission.rolePermissionId,
+            permission,
+          );
+        } else {
+          // Create new permission
+          permission.roleId = id; // Ensure the roleId is set for new permissions
+          await this.rolePermissionRepository.save(
+            this.rolePermissionRepository.create(permission),
+          );
+        }
+      }
+    }
+
+    console.log(roleUpdateData, 'roleUpdateData');
+
+    return await this.roleRepository.update(id, roleUpdateData);
   }
 
   /**
@@ -169,6 +217,6 @@ export class RolesService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.roleRepository.delete({ role_id: id });
+    return await this.roleRepository.delete({ roleId: id });
   }
 }

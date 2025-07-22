@@ -7,7 +7,7 @@ import { LOCAL_STRATEGY_IDENTIFIER } from '../constants';
 /**
  * LocalStrategy class.
  *
- * Version:1.0.0.
+ * @Version 0.0.1
  *
  * This strategy class extends PassportStrategy class that uses,
  * passport-local srategy to authenticate user by username,

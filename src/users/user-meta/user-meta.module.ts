@@ -20,7 +20,7 @@ import {
  * UserMetaModule is responsible for managing user metadata.
  * It includes the controller and service for handling operations
  * related to user metadata.
- * 
+ *
  * @version 0.0.1
  */
 @Module({

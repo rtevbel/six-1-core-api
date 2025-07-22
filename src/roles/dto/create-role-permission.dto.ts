@@ -1,9 +1,9 @@
-import { IsNotEmpty, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 
 /**
  * Create role permission DTO class.
  *
- * @version 1.0.0
+ * @version 1.0.1
  *
  * Data transfer object for creating a role permission.
  */
@@ -16,9 +16,9 @@ export class CreateRolePermissionDto {
    *
    * @type {number}
    */
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  role_id!: number;
+  roleId!: number;
 
   /**
    * The ID of the permission.
@@ -30,5 +30,5 @@ export class CreateRolePermissionDto {
    */
   @IsNotEmpty()
   @IsNumber()
-  permission_id!: number;
+  permissionId!: number;
 }

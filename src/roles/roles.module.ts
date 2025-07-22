@@ -6,6 +6,8 @@ import { ensureDefinedConfigParam } from '../common/functions';
 import { MESSAGE_BROKER_ROLE_SERVICE_CLIENT_TOKEN } from './constants';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
+import { RoleDescriptionEntity } from './entities/role-description.entity';
+import { RolePermissionEntity } from './entities/role-permission.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 
 import {
@@ -21,14 +23,18 @@ import {
  * RolesModule is responsible for managing roles.
  * It includes the controller and service for handling operations
  * related to roles and integrates with the message broker.
- * 
+ *
  * @version 0.0.1
  */
 @Module({
   // Imports required modules and configurations.
   imports: [
     // Registers the RoleEntity for TypeORM.
-    TypeOrmModule.forFeature([RoleEntity]),
+    TypeOrmModule.forFeature([
+      RoleEntity,
+      RoleDescriptionEntity,
+      RolePermissionEntity,
+    ]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

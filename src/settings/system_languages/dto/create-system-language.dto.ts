@@ -36,12 +36,12 @@ export class CreateSystemLanguageDto {
    * Indicates whether the language is active.
    *
    * - Optional field.
-   * - Must be a boolean.
+   * - Must be a number.
    * - Default value is true.
    *
-   * @type {boolean}
+   * @type {number}
    */
   @IsOptional()
-  @IsBoolean()
-  isActive?: boolean;
+  @IsNumber()
+  isActive?: number;
 }

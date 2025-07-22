@@ -81,5 +81,4 @@ export class FindByDTO {
   @IsOptional()
   @IsNumber()
   status?: number;
-
 }

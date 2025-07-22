@@ -7,4 +7,5 @@ export const MICROSERVICE_FIND_ONE_PERMISSION_PATTERN =
 export const MICROSERVICE_UPDATE_PERMISSION_PATTERN = 'v0.1_update_permission';
 export const MICROSERVICE_REMOVE_PERMISSION_PATTERN = 'v0.1_remove_permission';
 
-export const MESSAGE_BROKER_PERMISSION_SERVICE_CLIENT_TOKEN = 'permission_service_token';
+export const MESSAGE_BROKER_PERMISSION_SERVICE_CLIENT_TOKEN =
+  'permission_service_token';

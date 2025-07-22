@@ -21,7 +21,7 @@ import {
  * UserRolesModule is responsible for managing user roles.
  * It includes the controller and service for handling operations
  * related to user roles.
- * 
+ *
  * @version 0.0.1
  */
 @Module({

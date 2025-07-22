@@ -24,5 +24,5 @@ export class UpdateRolePermissionDto extends PartialType(
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  role_permission_id?: number;
+  rolePermissionId?: number;
 }

@@ -18,7 +18,7 @@ import {
  * Controller for handling user role operations.
  * This controller interacts with the UserRolesService to perform CRUD operations
  * and responds to microservice message patterns.
- * 
+ *
  * @version 0.0.1
  */
 @Controller('user_roles')
@@ -39,7 +39,11 @@ export class UserRolesController {
     @Payload('user_id', ParseIntPipe) user_id: number,
     @Payload('data') createDto: CreateUserRoleDto,
   ): Promise<UserRoleEntity> {
-    return await this.userRolesService.create(requestingUserId, user_id, createDto);
+    return await this.userRolesService.create(
+      requestingUserId,
+      user_id,
+      createDto,
+    );
   }
 
   /**
@@ -88,7 +92,12 @@ export class UserRolesController {
     @Payload('id') id: number,
     @Payload('data') updateDto: UpdateUserRoleDto,
   ): Promise<UpdateResult> {
-    return await this.userRolesService.update(requestingUserId, user_id, id, updateDto);
+    return await this.userRolesService.update(
+      requestingUserId,
+      user_id,
+      id,
+      updateDto,
+    );
   }
 
   /**

@@ -25,13 +25,27 @@ export class OidcStrategy extends PassportStrategy(
     private readonly configService: ConfigService,
   ) {
     super({
-      issuer: configService.get<string>('GOOGLE_ISSUER')|| 'https://accounts.google.com',
-      authorizationURL: configService.get<string>('GOOGLE_AUTHORIZATION_URL') || 'https://accounts.google.com/o/oauth2/auth',
-      tokenURL: configService.get<string>('GOOGLE_TOKEN_URL') || 'https://oauth2.googleapis.com/token',
-      userInfoURL: configService.get<string>('GOOGLE_USERINFO_URL') || 'https://www.googleapis.com/oauth2/v3/userinfo',
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID') || 'your-google-client-id',
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || 'your-google-client-secret',
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || 'http://localhost:3005/auth/callback',
+      issuer:
+        configService.get<string>('GOOGLE_ISSUER') ||
+        'https://accounts.google.com',
+      authorizationURL:
+        configService.get<string>('GOOGLE_AUTHORIZATION_URL') ||
+        'https://accounts.google.com/o/oauth2/auth',
+      tokenURL:
+        configService.get<string>('GOOGLE_TOKEN_URL') ||
+        'https://oauth2.googleapis.com/token',
+      userInfoURL:
+        configService.get<string>('GOOGLE_USERINFO_URL') ||
+        'https://www.googleapis.com/oauth2/v3/userinfo',
+      clientID:
+        configService.get<string>('GOOGLE_CLIENT_ID') ||
+        'your-google-client-id',
+      clientSecret:
+        configService.get<string>('GOOGLE_CLIENT_SECRET') ||
+        'your-google-client-secret',
+      callbackURL:
+        configService.get<string>('GOOGLE_CALLBACK_URL') ||
+        'http://localhost:3005/auth/callback',
       scope: ['openid', 'profile', 'email'],
       //responseType:'code', // Use 'code' for authorization code flow
       passReqToCallback: false, // Ensure we can control the request object

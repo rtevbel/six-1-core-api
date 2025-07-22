@@ -2,10 +2,14 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
   Index,
+  OneToOne,
+  JoinColumn,
+  OneToMany,
 } from 'typeorm';
+import { TenantEntity } from '../../../tenants/entities/tenant.entity';
+import { TenantTypeEntity } from '../../../tenants/tenant_types/entities/tenant_type.entity';
+import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
 
 /**
  * Entity class for `system_statuses` table.
@@ -41,16 +45,28 @@ export class SystemStatusEntity {
   })
   module_identifier!: string;
 
-  @CreateDateColumn({
-    type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-  })
-  created_at!: Date;
+  /**
+   * Relationship to TenantEntity.
+   * A status can have one Tenant record.
+   */
+  @OneToOne(() => TenantEntity, (tenant) => tenant.user, { cascade: true })
+  @JoinColumn({ name: 'status_id' })
+  tenant!: TenantEntity;
 
-  @UpdateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    onUpdate: 'CURRENT_TIMESTAMP(6)',
+  /**
+   * Relationship to TenantTypeEntity.
+   * A status can have one Tenant type record.
+   */
+  @OneToOne(() => TenantTypeEntity, (tenant_type) => tenant_type.status, {
+    cascade: true,
   })
-  updated_at!: Date;
+  @JoinColumn({ name: 'status_id' })
+  tennant_type!: TenantTypeEntity;
+
+  /**
+   * Inverse relationship to TenantUsersEntity.
+   * A status can be linked to multiple tenant users.
+   */
+  @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.status)
+  tenantUsers!: TenantUsersEntity[];
 }

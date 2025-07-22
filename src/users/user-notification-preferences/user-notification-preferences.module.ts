@@ -20,7 +20,7 @@ import {
  * UserNotificationPreferencesModule is responsible for managing
  * user notification preferences. It includes the controller and
  * service for handling related operations.
- * 
+ *
  * @version 0.0.1
  */
 @Module({

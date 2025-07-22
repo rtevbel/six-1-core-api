@@ -85,7 +85,7 @@ export class RolesController {
   ): Promise<UpdateResult> {
     return this.rolesService.update(
       userId,
-      updateRoleDto.role_id,
+      updateRoleDto.roleId,
       updateRoleDto,
     );
   }

@@ -10,6 +10,7 @@ import {
 import { RolePermissionEntity } from './role-permission.entity';
 import { RoleDescriptionEntity } from './role-description.entity';
 import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity';
+import { TenantUserInvitationsEntity } from '../../tenants/tenant_users/tenant_user_invitations/entities/tenant_user_invitation.entity';
 
 /**
  * Entity class for `roles` table.
@@ -18,60 +19,71 @@ import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity
  */
 @Entity('roles')
 export class RoleEntity {
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
-  role_id!: number;
+  @PrimaryGeneratedColumn({ name: 'role_id', type: 'int', unsigned: true })
+  roleId!: number;
 
   @Column({
+    name: 'status_id',
     type: 'tinyint',
-    width: 1,
     unsigned: true,
-    nullable: false,
     default: 1,
+    comment: '1,2',
   })
-  @Index('roles_is_active')
-  is_active: number = 1;
+  @Index('roles_status_id')
+  statusId!: number;
 
   @Column({
+    name: 'tenant_id',
+    type: 'bigint',
+    unsigned: true,
+    default: 0,
+    comment: 'Linked tenant',
+  })
+  tenantId!: number;
+
+  @Column({
+    name: 'is_tenant_role',
     type: 'tinyint',
     width: 1,
     unsigned: true,
     default: 0,
-    nullable: false,
   })
-  @Index('roles_is_deleted')
-  is_deleted: number = 0;
+  @Index('roles_is_tenant_role')
+  isTenantRole!: number;
 
   @Column({
-    type: 'int',
-    width: 11,
+    name: 'is_tenant_team_role',
+    type: 'tinyint',
+    width: 1,
     unsigned: true,
     default: 0,
-    nullable: false,
   })
-  @Index('roles_created_by')
-  created_by: number = 0;
+  @Index('roles_is_tenant_team_role')
+  isTenantTeamRole!: number;
 
   @Column({
-    type: 'int',
-    width: 11,
+    name: 'is_customer_role',
+    type: 'tinyint',
+    width: 1,
     unsigned: true,
     default: 0,
-    nullable: true,
   })
-  @Index('roles_updated_by')
-  updated_by: number = 0;
+  isCustomerRole!: number;
 
   @CreateDateColumn({
+    name: 'created_at',
     type: 'datetime',
     default: () => 'CURRENT_TIMESTAMP(6)',
   })
-  created_at!: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({
+    name: 'updated_at',
     type: 'timestamp',
     default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
-  updated_at!: Date;
+  updatedAt!: Date;
 
   /**
    * One-to-many relationship with `RoleDescriptionEntity`.
@@ -89,7 +101,7 @@ export class RoleEntity {
   /**
    * One-to-many relationship with `RolePermissionEntity`.
    *
-   * Represents the descriptions associated with the role.
+   * Represents the permissions associated with the role.
    */
   @OneToMany(() => RolePermissionEntity, (permission) => permission.role, {
     cascade: true,
@@ -108,5 +120,12 @@ export class RoleEntity {
     cascade: true,
     onDelete: 'CASCADE',
   })
-  user_roles!: UserRoleEntity[];
+  userRoles!: UserRoleEntity[];
+
+  /**
+   * Relationship to TenantUserInvitationsEntity.
+   * A role can be associated with multiple invitations.
+   */
+  @OneToMany(() => TenantUserInvitationsEntity, (invitation) => invitation.role)
+  invitations!: TenantUserInvitationsEntity[];
 }

@@ -25,7 +25,7 @@ export class UpdateRoleDescriptionDto extends PartialType(
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  role_description_id?: number = 0;
+  roleDescriptionId?: number = 0;
 
   /**
    * The ID of the role.
@@ -39,5 +39,5 @@ export class UpdateRoleDescriptionDto extends PartialType(
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  role_id?: number = 0;
+  roleId?: number = 0;
 }

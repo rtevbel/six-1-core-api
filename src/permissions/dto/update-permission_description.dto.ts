@@ -1,12 +1,6 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { CreatePermissionDescriptionDto } from './create-permission_description.dto';
-import {
-  IsArray,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsNotEmpty, IsNumber, IsOptional } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -31,4 +25,16 @@ export class UpdatePermissionDescriptionDto extends PartialType(
   @Type(() => Number)
   @IsNumber()
   permission_description_id!: number;
+
+  /**
+   * The ID of the permission linked to this description.
+   *
+   * - Optional field.
+   * - Must be a positive integer.
+   *
+   * @type {number}
+   */
+  @IsOptional()
+  @IsNumber()
+  permission_id!: number;
 }

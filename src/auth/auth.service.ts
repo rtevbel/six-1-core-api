@@ -1,12 +1,15 @@
 import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
 import { ClientProxy } from '@nestjs/microservices';
-import { lastValueFrom, retry } from 'rxjs';
 import { JwtService } from '@nestjs/jwt';
 import { OidcClient } from './oidc-client';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-import { hash_content, compare_hashed_content , ensureDefinedConfigParam } from '../common/functions';
+import {
+  hash_content,
+  compare_hashed_content,
+  ensureDefinedConfigParam,
+} from '../common/functions';
 
 import {
   JWT_REFRESH_TOKEN_SECRET_KEY,
@@ -81,19 +84,19 @@ export class AuthService {
     username?: string,
     email?: string,
   ): Promise<Object | null> {
-    
     let params = username
-      ? { username: username, status:1}
+      ? { username: username, status: 1 }
       : { email: email, status: 1 };
 
-    let  userId  = 0 
-    const userObject = await this.UserService.findOneBy(userId,params);
+    let userId = 0;
+    const userObject = await this.UserService.findOneBy(userId, params);
+
     if (
       userObject &&
-          (await compare_hashed_content(userObject.password_hash, password))
-    ){
-          const { password_hash, ...user } = userObject;
-          return user;
+      (await compare_hashed_content(userObject.password, password))
+    ) {
+      const { password, ...user } = userObject;
+      return user;
     }
     return null;
   }
@@ -120,7 +123,7 @@ export class AuthService {
   /**
    * Creates authenticated user's jwt_token.
    *
-   * Version:1.0.0.
+   * @Version 0.0.1
    *
    * This method generates and returns  user's JWT token from user's,
    * entity and saves refresh token into redis database.
@@ -145,7 +148,10 @@ export class AuthService {
     const expiresIn =
       (this.configService.get<string>(JWT_REFRESH_TOKEN_EXPIRATION_TIME)
         ? parseInt(
-          ensureDefinedConfigParam(this.configService.get<string>(JWT_REFRESH_TOKEN_EXPIRATION_TIME),JWT_REFRESH_TOKEN_EXPIRATION_TIME),
+            ensureDefinedConfigParam(
+              this.configService.get<string>(JWT_REFRESH_TOKEN_EXPIRATION_TIME),
+              JWT_REFRESH_TOKEN_EXPIRATION_TIME,
+            ),
           )
         : 7) * 86400; // 7 days in seconds
 

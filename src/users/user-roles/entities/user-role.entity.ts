@@ -54,7 +54,7 @@ export class UserRoleEntity {
    *
    * Represents the role associated with this user.
    */
-  @ManyToOne(() => RoleEntity, (role) => role.user_roles)
+  @ManyToOne(() => RoleEntity, (role) => role.userRoles)
   role!: RoleEntity;
 
   /**

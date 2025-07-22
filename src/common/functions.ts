@@ -6,32 +6,26 @@ import {
 } from './constants';
 
 /**
- * Hashes the provided content using bcrypt.
- *
- * @version 0.0.1
- *
- * @param {string} content - The string content to be hashed.
- * @returns {Promise<string>} - A hashed version of the content.
+ * Hash Content
+ * @param data
+ * @returns Promise
  */
-export async function hash_content(content: string): Promise<string> {
+export async function hash_content(data: any): Promise<any> {
   const salt = await bcrypt.genSalt();
-  return await bcrypt.hash(content, salt);
+  return await bcrypt.hash(data, salt);
 }
 
 /**
- * Compares a plain text string with a hashed string to check if they match.
- *
- * @version 0.0.1
- *
- * @param {string} content - The original plain text content.
- * @param {string} hashedString - The hashed string to compare against.
- * @returns {Promise<boolean>} - Returns `true` if the content matches the hash, otherwise `false`.
+ * Compare Hashed Content
+ * @param hashed_content
+ * @param content_to_compare
+ * @returns
  */
 export async function compare_hashed_content(
-  content: string,
-  hashedString: string,
-): Promise<boolean> {
-  return bcrypt.compare(content, hashedString);
+  hashed_content: any,
+  content_to_compare: any,
+): Promise<Boolean> {
+  return await bcrypt.compare(content_to_compare, hashed_content);
 }
 
 /**

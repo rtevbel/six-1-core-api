@@ -47,11 +47,11 @@ export class FiltersDto {
    * Must be one of 'role_id', 'name', or 'description'.
    */
   @IsOptional()
-  @IsIn(['languag_id', 'name', 'lang_code'], {
-    message: 'sortBy key must be from this list (languag_id, name, lang_code)',
+  @IsIn(['languageId', 'name', 'langCode'], {
+    message: 'sortBy key must be from this list (languageId, name, langCode)',
   })
   @IsString()
-  sortBy: string = 'languag_id';
+  sortBy: string = 'languageId';
 
   /**
    * Sort order for the results.

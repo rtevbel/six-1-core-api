@@ -6,7 +6,7 @@ import {
   IsNumber,
   IsOptional,
   ValidateNested,
-  IsDateString
+  IsDateString,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -60,5 +60,4 @@ export class UpdateUserRoleDto extends PartialType(
   @Type(() => Number)
   @ValidateNested({ each: true })
   role_ids?: number[];
-
 }

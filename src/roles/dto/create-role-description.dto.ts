@@ -24,9 +24,10 @@ export class CreateRoleDescriptionDto {
    *
    * @type {number}
    */
-  @IsNotEmpty()
+  @IsOptional()
   @IsNumber()
-  role_id!: number;
+  @Transform(({ value }) => Number(value))
+  roleId!: number;
 
   /**
    * The language ID for the description.
@@ -38,7 +39,8 @@ export class CreateRoleDescriptionDto {
    */
   @IsNotEmpty()
   @IsNumber()
-  language_id!: number;
+  @Transform(({ value }) => Number(value))
+  languageId!: number;
 
   /**
    * The name of the role.
@@ -68,6 +70,6 @@ export class CreateRoleDescriptionDto {
   @IsOptional()
   @IsString()
   @MaxLength(65535)
-  @Transform(({ value }) => sanitizeHtml(value))
+  @Transform(({ value }) => sanitizeHtml(value.trim()))
   description?: string;
 }

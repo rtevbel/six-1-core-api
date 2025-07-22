@@ -26,10 +26,7 @@ export class UserService {
    * @param createUserDto - Data Transfer Object containing user details.
    * @returns The created UserEntity.
    */
-  async create(
-    userId: number,
-    createUserDto: CreateUserDto,
-  ): Promise<UserEntity> {
+  async create(createUserDto: CreateUserDto): Promise<UserEntity> {
     return await this.userRepository.save(
       this.userRepository.create(createUserDto),
     );

@@ -23,7 +23,7 @@ import {
  * PermissionsModule is responsible for managing permissions.
  * It includes the controller and service for handling operations
  * related to permissions and integrates with the message broker.
- * 
+ *
  * @version 0.0.1
  */
 @Module({
@@ -33,8 +33,8 @@ import {
     TypeOrmModule.forFeature([
       PermissionEntity,
       PermissionDescriptionEntity,
-      RolePermissionEntity
-      ]),
+      RolePermissionEntity,
+    ]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

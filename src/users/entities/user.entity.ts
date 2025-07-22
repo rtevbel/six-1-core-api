@@ -7,14 +7,19 @@ import {
   OneToMany,
   BeforeInsert,
   BeforeUpdate,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { UserRoleEntity } from '../user-roles/entities/user-role.entity';
 import { UserMetaEntity } from '../user-meta/entities/user-meta.entity';
-import {hash_content} from "../../common/functions";
+import { hash_content } from '../../common/functions';
+import { TenantEntity } from '../../tenants/entities/tenant.entity';
+import { TenantWorkingHoursEntity } from '../../tenants/tenant_working_hours/entities/tenant_working_hour.entity';
+import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 
 /**
  * Represents the `users` table in the database.
- * 
+ *
  * @version 1.0.0
  */
 @Entity('users')
@@ -53,7 +58,7 @@ export class UserEntity {
    * Hashed password for the user.
    */
   @Column({ type: 'varchar', length: 255, nullable: false })
-  password_hash!: string;
+  password!: string;
 
   /**
    * Display name for the user.
@@ -108,8 +113,8 @@ export class UserEntity {
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword() {
-    if (this.password_hash) {
-      this.password_hash = await hash_content(this.password_hash);
+    if (this.password) {
+      this.password = await hash_content(this.password);
     }
   }
 
@@ -132,4 +137,39 @@ export class UserEntity {
     cascade: true,
   })
   user_meta!: UserMetaEntity[];
+
+  /**
+   * Relationship to TenantEntity.
+   * A user can have one Tenant record.
+   */
+  @OneToOne(() => TenantEntity, (tenant) => tenant.user, { cascade: true })
+  @JoinColumn({ name: 'user_id' })
+  tenant!: TenantEntity;
+
+  /**
+   * Inverse relationship to TenantWorkingHoursEntity for createdBy.
+   * A user can create multiple working hour records.
+   */
+  @OneToMany(
+    () => TenantWorkingHoursEntity,
+    (workingHour) => workingHour.createdByUser,
+  )
+  createdWorkingHours!: TenantWorkingHoursEntity[];
+
+  /**
+   * Inverse relationship to TenantWorkingHoursEntity for updatedByUser.
+   * A user can update multiple working hour records.
+   */
+  @OneToMany(
+    () => TenantWorkingHoursEntity,
+    (workingHour) => workingHour.updatedByUser,
+  )
+  updatedWorkingHours!: TenantWorkingHoursEntity[];
+
+  /**
+   * Inverse relationship to TenantUsersEntity.
+   * A user can be linked to multiple tenant users.
+   */
+  @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user)
+  tenantUsers!: TenantUsersEntity[];
 }

@@ -32,7 +32,7 @@ export class UpdateRoleDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  role_id!: number;
+  roleId!: number;
 
   /**
    * List of updated role descriptions.

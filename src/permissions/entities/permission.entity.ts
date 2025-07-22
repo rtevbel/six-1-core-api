@@ -7,12 +7,15 @@ import {
   Index,
   OneToMany,
   ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { PermissionDescriptionEntity } from './permission_description.entity';
 import { RolePermissionEntity } from '../../roles/entities/role-permission.entity';
 
 /**
  * Entity class for `permissions` table.
+ *
+ * @Version 0.0.1
  *
  * Represents the permissions in the system.
  */
@@ -49,15 +52,17 @@ export class PermissionEntity {
   updated_by!: number;
 
   @CreateDateColumn({
+    name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   created_at!: Date;
 
   @UpdateDateColumn({
+    name: 'updated_at',
     type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updated_at!: Date;
 
@@ -76,6 +81,7 @@ export class PermissionEntity {
       eager: true,
     },
   )
+  @JoinColumn({ name: 'permission_id' }) // Join column for descriptions
   descriptions!: PermissionDescriptionEntity[];
 
   /**
@@ -90,5 +96,6 @@ export class PermissionEntity {
     () => RolePermissionEntity,
     (rolePermission) => rolePermission.permission,
   )
+  @JoinColumn({ name: 'permission_id' }) // Join column for role permissions
   rolePermissions!: RolePermissionEntity[];
 }

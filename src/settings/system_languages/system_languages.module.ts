@@ -31,10 +31,7 @@ import {
   // Imports required modules and configurations.
   imports: [
     // Registers the SystemLanguageEntity , RoleDescriptionEntity for TypeORM.
-    TypeOrmModule.forFeature([
-      SystemLanguageEntity,
-      RoleDescriptionEntity
-    ]),
+    TypeOrmModule.forFeature([SystemLanguageEntity, RoleDescriptionEntity]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

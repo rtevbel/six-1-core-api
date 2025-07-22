@@ -2,6 +2,7 @@ import {
   Controller,
   NotFoundException,
   ParseIntPipe,
+  UseFilters,
   UsePipes,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
@@ -12,6 +13,7 @@ import { FiltersDto } from './dto/filters.dto';
 import { UserEntity } from './entities/user.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { DeleteResult, UpdateResult } from 'typeorm';
+import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 
 import {
@@ -23,22 +25,21 @@ import {
 } from './constants';
 
 @Controller('users')
+@UseFilters(AppRpcExceptionsFilter)
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
   /**
    * Handles the creation of a new user.
-   * @param userId - ID of the user making the request.
    * @param createUserDto - Data transfer object containing user details.
    * @returns The created user entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_USER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createUser(
-    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createUserDto: CreateUserDto,
   ): Promise<UserEntity> {
-    return this.userService.create(userId, createUserDto);
+    return this.userService.create(createUserDto);
   }
 
   /**

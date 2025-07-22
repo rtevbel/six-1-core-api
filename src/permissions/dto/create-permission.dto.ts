@@ -5,6 +5,8 @@ import {
   IsDate,
   IsArray,
   ValidateNested,
+  IsNumber,
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreatePermissionDescriptionDto } from './create-permission_description.dto';
@@ -50,8 +52,8 @@ export class CreatePermissionDto {
    *
    * @type {number}
    */
-  @IsInt()
-  @IsPositive()
+  @IsOptional()
+  @IsNumber()
   created_by!: number;
 
   /**
@@ -63,8 +65,7 @@ export class CreatePermissionDto {
    * @type {number}
    */
   @IsOptional()
-  @IsInt()
-  @IsPositive()
+  @IsNumber()
   updated_by?: number;
 
   /**

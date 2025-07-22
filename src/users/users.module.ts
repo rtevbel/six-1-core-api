@@ -24,9 +24,9 @@ import {
  * UsersModule is the main module responsible for managing user-related functionality.
  * It imports submodules for user metadata, notification preferences, and roles,
  * and provides the main service and controller for user operations.
- * 
+ *
  * @version 0.0.1
- * 
+ *
  */
 @Module({
   // Imports required modules and configurations.
@@ -85,6 +85,6 @@ import {
   controllers: [UserController],
   // Specifies the providers that contain the business logic.
   providers: [UserService],
-  exports:[UserService]
+  exports: [UserService],
 })
 export class UsersModule {}

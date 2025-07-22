@@ -24,5 +24,5 @@ export class UpdateSystemLanguageDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  language_id!: number;
+  languageId!: number;
 }

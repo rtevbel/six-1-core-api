@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PermissionEntity } from './entities/permission.entity';
+import { PermissionDescriptionEntity } from './entities/permission_description.entity';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { FiltersDto } from './dto/filters.dto';
@@ -17,6 +18,8 @@ export class PermissionsService {
   constructor(
     @InjectRepository(PermissionEntity)
     private readonly permissionRepository: Repository<PermissionEntity>,
+    @InjectRepository(PermissionDescriptionEntity)
+    private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
   ) {}
 
   /**
@@ -143,6 +146,8 @@ export class PermissionsService {
       permission_id: id,
     });
 
+    updatePermissionDto.updated_by = userId; // Set the updated_by field to the current user
+
     if (!permission) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll(
@@ -152,7 +157,28 @@ export class PermissionsService {
       );
     }
 
-    return await this.permissionRepository.update(id, updatePermissionDto);
+    const { descriptions, ...updatePermissionDtoCopy } = updatePermissionDto;
+
+    // Handle descriptions update
+    if (descriptions) {
+      for (const description of descriptions) {
+        if (description.permission_description_id) {
+          // Update existing description
+          await this.permissionDescriptionRepository.update(
+            description.permission_description_id,
+            description,
+          );
+        } else {
+          // Create new description
+          description.permission_id = id; // Ensure the permission_id is set for new descriptions
+          await this.permissionDescriptionRepository.save(
+            this.permissionDescriptionRepository.create(description),
+          );
+        }
+      }
+    }
+
+    return await this.permissionRepository.update(id, updatePermissionDtoCopy);
   }
 
   /**

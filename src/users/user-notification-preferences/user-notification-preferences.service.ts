@@ -51,7 +51,7 @@ export class UserNotificationPreferenceService {
     user_id: number,
   ): Promise<UserNotificationPreferenceEntity[]> {
     const preferences = await this.preferenceRepository.find({
-      where: { userId:user_id },
+      where: { userId: user_id },
     });
     if (preferences.length === 0) {
       throw new RpcException(
@@ -140,6 +140,9 @@ export class UserNotificationPreferenceService {
         ),
       );
     }
-    return await this.preferenceRepository.delete({ preferenceId: id, userId:user_id });
+    return await this.preferenceRepository.delete({
+      preferenceId: id,
+      userId: user_id,
+    });
   }
 }

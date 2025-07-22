@@ -2,12 +2,11 @@ import {
   Entity,
   Column,
   PrimaryGeneratedColumn,
-  CreateDateColumn,
-  UpdateDateColumn,
   Index,
   OneToMany,
 } from 'typeorm';
 import { RoleDescriptionEntity } from '../../../roles/entities/role-description.entity';
+import { TenantUserConfigurationsEntity } from '../../../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
 
 /**
  * Entity class for `system_languages` table.
@@ -16,10 +15,11 @@ import { RoleDescriptionEntity } from '../../../roles/entities/role-description.
  */
 @Entity('system_languages')
 export class SystemLanguageEntity {
-  @PrimaryGeneratedColumn({ type: 'tinyint', unsigned: true })
-  language_id!: number;
+  @PrimaryGeneratedColumn({ name: 'language_id' })
+  languageId!: number;
 
   @Column({
+    name: 'name',
     type: 'varchar',
     length: 20,
     nullable: false,
@@ -30,6 +30,7 @@ export class SystemLanguageEntity {
   name!: string;
 
   @Column({
+    name: 'lang_code',
     type: 'varchar',
     length: 20,
     nullable: false,
@@ -37,9 +38,10 @@ export class SystemLanguageEntity {
     comment: 'Language code like en',
   })
   @Index('system_languages_lang_code')
-  lang_code!: string;
+  langCode!: string;
 
   @Column({
+    name: 'is_active',
     type: 'tinyint',
     width: 1,
     unsigned: true,
@@ -47,20 +49,7 @@ export class SystemLanguageEntity {
     nullable: false,
     comment: 'Indicates whether the language is active',
   })
-  is_active: number = 1;
-
-  @CreateDateColumn({
-    type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-  })
-  created_at!: Date;
-
-  @UpdateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP(6)',
-    onUpdate: 'CURRENT_TIMESTAMP(6)',
-  })
-  updated_at!: Date;
+  isActive: number = 1;
 
   /**
    * One-to-many relationship with role descriptions.
@@ -71,4 +60,14 @@ export class SystemLanguageEntity {
     (roleDescription) => roleDescription.language,
   )
   roleDescriptions!: RoleDescriptionEntity[];
+
+  /**
+   * Relation to the TenantUserConfigurationsEntity.
+   * Establishes a one-to-many relationship with the tenant_user_configurations table.
+   */
+  @OneToMany(
+    () => TenantUserConfigurationsEntity,
+    (configuration) => configuration.language,
+  )
+  tenantUserConfigurations!: TenantUserConfigurationsEntity[];
 }

@@ -13,7 +13,7 @@ import { CustomStrategy } from './strategies/custom.strategy';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { AppConfigService } from '../common/services/app-config.service';
 import { ensureDefinedConfigParam } from '../common/functions';
-import {UsersModule} from "../users/users.module";
+import { UsersModule } from '../users/users.module';
 import {
   MESSAGE_BROKER_AUTH_TOKEN,
   REDIS_CLIENT_TYPE,
@@ -39,9 +39,9 @@ import {
  * AuthModule is responsible for authentication and authorization.
  * It integrates Redis for caching, JWT for token-based authentication,
  * and a message broker for microservice communication.
- * 
+ *
  * @Version 0.0.1
- * 
+ *
  */
 @Module({
   // Imports required modules and configurations.
@@ -133,9 +133,9 @@ import {
         inject: [ConfigService],
       },
     ]),
-    UsersModule
+    UsersModule,
   ],
-  
+
   // Specifies the controllers that handle incoming requests.
   controllers: [AuthController],
 

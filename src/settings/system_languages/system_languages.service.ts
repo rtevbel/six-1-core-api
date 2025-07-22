@@ -128,7 +128,7 @@ export class SystemLanguagesService {
    */
   async findOne(userId: number, id: number): Promise<SystemLanguageEntity> {
     const language = await this.systemLanguageRepository.findOneByOrFail({
-      language_id: id,
+      languageId: id,
     });
 
     if (!language) {
@@ -157,7 +157,7 @@ export class SystemLanguagesService {
     updateSystemLanguageDto: UpdateSystemLanguageDto,
   ): Promise<UpdateResult> {
     const language = await this.systemLanguageRepository.findOneByOrFail({
-      language_id: id,
+      languageId: id,
     });
 
     if (!language) {
@@ -182,6 +182,6 @@ export class SystemLanguagesService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.systemLanguageRepository.delete({ language_id: id });
+    return await this.systemLanguageRepository.delete({ languageId: id });
   }
 }

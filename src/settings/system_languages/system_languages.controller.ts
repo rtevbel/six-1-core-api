@@ -4,6 +4,7 @@ import {
   ParseFloatPipe,
   ParseIntPipe,
   UsePipes,
+  UseFilters,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { SystemLanguagesService } from './system_languages.service';
@@ -12,6 +13,7 @@ import { UpdateSystemLanguageDto } from './dto/update-system-language.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { SystemLanguageEntity } from './entities/system-language.entity';
 import { FindAllResultInterface as FindAllLanguageResultInterface } from './interfaces/findall-result.interface';
+import { AppRpcExceptionsFilter } from '../../common/filters/app-rpc-exceptions.filter';
 
 import {
   MICROSERVICE_CREATE_LANGUAGE_PATTERN,
@@ -25,6 +27,7 @@ import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from 'src/common/pipes/app-rpc-validation.pipe';
 
 @Controller('system_languages')
+@UseFilters(AppRpcExceptionsFilter)
 export class SystemLanguagesController {
   constructor(
     private readonly systemLanguagesService: SystemLanguagesService,
@@ -53,11 +56,11 @@ export class SystemLanguagesController {
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_LANGUAGES_PATTERN)
   @UsePipes(AppRpcValidationPipe)
-  findAllLanguages(
+  async findAllLanguages(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllLanguageResultInterface | never> {
-    return this.systemLanguagesService.findAll(userId, filtersDto);
+    return await this.systemLanguagesService.findAll(userId, filtersDto);
   }
 
   /**
@@ -88,7 +91,7 @@ export class SystemLanguagesController {
   ): Promise<UpdateResult> {
     return this.systemLanguagesService.update(
       userId,
-      updateSystemLanguageDto.language_id,
+      updateSystemLanguageDto.languageId,
       updateSystemLanguageDto,
     );
   }

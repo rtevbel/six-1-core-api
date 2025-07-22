@@ -9,7 +9,7 @@ import {
 
 /**
  * FiltersDto class for handling query parameters.
- * @version 1.0.0
+ * @version 1.0.1
  * This class validates and transforms query parameters
  * used for filtering, sorting, and pagination.
  */
@@ -43,15 +43,15 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'role_id'.
-   * Must be one of 'role_id', 'name', or 'description'.
+   * Optional field, defaults to 'roleId'.
+   * Must be one of 'roleId', 'name', or 'description'.
    */
   @IsOptional()
-  @IsIn(['role_id', 'name', 'description'], {
-    message: 'sortBy key must be from this list (role_id, name, description)',
+  @IsIn(['roleId', 'name', 'description'], {
+    message: 'sortBy key must be from this list (roleId, name, description)',
   })
   @IsString()
-  sortBy: string = 'role_id';
+  sortBy: string = 'roleId';
 
   /**
    * Sort order for the results.
@@ -60,7 +60,7 @@ export class FiltersDto {
    */
   @IsOptional()
   @IsIn(['ASC', 'DESC'], {
-    message: "SortOrder key must be from this list ('ASC', 'DESC')",
+    message: "sortOrder key must be from this list ('ASC', 'DESC')",
   })
   @IsString()
   sortOrder: string = 'DESC';
