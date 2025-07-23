@@ -20,6 +20,7 @@ import { TenantSubscriptionEntity } from '../tenant_subscriptions/entities/tenan
 import { TenantConfigurationsEntity } from '../tenant_configurations/entities/tenant_configuration.entity';
 import { TenantUsersEntity } from '../tenant_users/entities/tenant_user.entity';
 import { TenantUserInvitationsEntity } from '../tenant_users/tenant_user_invitations/entities/tenant_user_invitation.entity';
+import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
 
 /**
  * Entity class for `tenants` table.
@@ -187,4 +188,11 @@ export class TenantEntity {
     (invitation) => invitation.tenant,
   )
   invitations!: TenantUserInvitationsEntity[];
+
+  /**
+   * Inverse relationship to TenantTeamEntity.
+   * A tenant can have multiple teams.
+   */
+  @OneToMany(() => TenantTeamEntity, (team) => team.tenant)
+  teams!: TenantTeamEntity[];
 }

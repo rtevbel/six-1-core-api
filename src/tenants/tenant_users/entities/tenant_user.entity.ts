@@ -17,6 +17,9 @@ import { TenantUserConfigurationsEntity } from '../tenant_user_configurations/en
 import { TenantUserWorkingHoursEntity } from '../tenant_user_working_hours/entities/tenant_user_working_hour.entity';
 import { TenantUserOffDaysEntity } from '../tenant_user_off_days/entities/tenant_user_off_day.entity';
 import { TenantUserMetaEntity } from '../tenant_user_meta/entities/tenant_user_meta.entity';
+import { TenantUserRoleEntity } from '../tenant_user_roles/entities/tenant_user_role.entity';
+import { TenantTeamEntity } from '../../tenant_teams/entities/tenant_team.entity';
+import { TenantTeamMemberEntity } from '../../tenant_teams/tenant_team_members/entities/tenant_team_member.entity';
 
 /**
  * Entity class for `tenant_users` table.
@@ -273,4 +276,41 @@ export class TenantUsersEntity {
     (tenantUserMeta) => tenantUserMeta.tenantUser,
   )
   meta!: TenantUserMetaEntity[];
+
+   /**
+   * Relationship to TenantUserRoleEntity.
+   * A tenant user can have multiple roles assigned.
+   */
+   @OneToMany(() => TenantUserRoleEntity, (tenantUserRole) => tenantUserRole.tenantUser)
+   roles!: TenantUserRoleEntity[];
+
+  /**
+   * Relationship to TenantUserRoleEntity.
+   * A tenant user can assign roles to other users.
+   */
+  @OneToMany(() => TenantUserRoleEntity, (tenantUserRole) => tenantUserRole.createdByUser)
+  assignedRoles!: TenantUserRoleEntity[];
+
+   /**
+   * Inverse relationship to TenantTeamEntity.
+   * A tenant user can create multiple teams.
+   */
+   @OneToMany(() => TenantTeamEntity, (team) => team.createdByUser)
+   createdTeams!: TenantTeamEntity[];
+ 
+   /**
+    * Inverse relationship to TenantTeamEntity.
+    * A tenant user can update multiple teams.
+    */
+   @OneToMany(() => TenantTeamEntity, (team) => team.updatedByUser)
+   updatedTeams!: TenantTeamEntity[];
+
+   /**
+ * Relationship to TenantTeamMemberEntity.
+ * A tenant user has many team memberships.
+ */
+  @OneToMany(() => TenantTeamMemberEntity, (member) => member.user, {
+    cascade: true,
+  })
+  teamMemberships!: TenantTeamMemberEntity[];
 }

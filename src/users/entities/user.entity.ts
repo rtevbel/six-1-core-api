@@ -16,6 +16,9 @@ import { hash_content } from '../../common/functions';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantWorkingHoursEntity } from '../../tenants/tenant_working_hours/entities/tenant_working_hour.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
+import { NotificationChannelEntity } from '../../notifications/notification_channels/entities/notification_channel.entity';
+import { NotificationTemplateEntity } from '../../notifications/notification_templates/entities/notification_template.entity';
+import { EventEntity } from '../../events/entities/event.entity';
 
 /**
  * Represents the `users` table in the database.
@@ -167,9 +170,57 @@ export class UserEntity {
   updatedWorkingHours!: TenantWorkingHoursEntity[];
 
   /**
-   * Inverse relationship to TenantUsersEntity.
+   * Relationship to TenantUsersEntity.
    * A user can be linked to multiple tenant users.
    */
   @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user)
   tenantUsers!: TenantUsersEntity[];
+
+  /**
+   * Relationship to NotificationChannelEntity for created_by.
+   * A user can create multiple notification channels.
+   */
+  @OneToMany(
+    () => NotificationChannelEntity,
+    (notificationChannel) => notificationChannel.creator,
+  )
+  createdNotificationChannels!: NotificationChannelEntity[];
+
+  /**
+ * Relationship to NotificationChannelEntity for updated_by.
+ * A user can update multiple notification channels.
+ */
+  @OneToMany(
+    () => NotificationChannelEntity,
+    (notificationChannel) => notificationChannel.updater,
+  )
+  updatedNotificationChannels!: NotificationChannelEntity[];
+
+   /**
+   * Relationship to NotificationTemplateEntity for created_by.
+   */
+   @OneToMany(() => NotificationTemplateEntity, (template) => template.creator, {
+    cascade: true,
+  })
+  createdNotificationTemplates!: NotificationTemplateEntity[];
+
+   /**
+   * Relationship to NotificationTemplateEntity for updated_by.
+   */
+    @OneToMany(() => NotificationTemplateEntity, (template) => template.updater, {
+      cascade: true,
+    })
+    updatedNotificationTemplates!: NotificationTemplateEntity[];
+
+     /**
+   * Relationship to EventEntity for events created by the user.
+   */
+  @OneToMany(() => EventEntity, (event) => event.creator)
+  createdEvents!: EventEntity[];
+
+  /**
+   * Relationship to EventEntity for events updated by the user.
+   */
+  @OneToMany(() => EventEntity, (event) => event.updater)
+  updatedEvents!: EventEntity[];
 }
