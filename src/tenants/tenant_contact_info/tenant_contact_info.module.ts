@@ -14,7 +14,7 @@ import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../../common/functions';
 
 // Importing constants for message broker configuration
-import { MESSAGE_BROKER_CONTACT_INFO_SERVICE_CLIENT_TOKEN } from './constants';
+import { MESSAGE_BROKER_TENANT_CONTACT_INFO_SERVICE_CLIENT_TOKEN } from './constants';
 import {
   MESSAGE_BROKER_USERNAME_KEY,
   MESSAGE_BROKER_HOST_KEY,
@@ -42,7 +42,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {
-        name: MESSAGE_BROKER_CONTACT_INFO_SERVICE_CLIENT_TOKEN,
+        name: MESSAGE_BROKER_TENANT_CONTACT_INFO_SERVICE_CLIENT_TOKEN,
         useFactory: async (configService: ConfigService) => ({
           transport: Transport.RMQ, // Specifies RabbitMQ as the transport protocol
           options: {

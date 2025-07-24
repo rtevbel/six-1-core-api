@@ -8,11 +8,11 @@ import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
 
 import {
-  MICROSERVICE_CREATE_USER_ROLE_PATTERN,
-  MICROSERVICE_FIND_ALL_USER_ROLE_PATTERN,
-  MICROSERVICE_FIND_ONE_USER_ROLE_PATTERN,
-  MICROSERVICE_UPDATE_USER_ROLE_PATTERN,
-  MICROSERVICE_REMOVE_USER_ROLE_PATTERN,
+  MICROSERVICE_CREATE_TENANT_USER_ROLE_PATTERN,
+  MICROSERVICE_FIND_ALL_TENANT_USER_ROLE_PATTERN,
+  MICROSERVICE_FIND_ONE_TENANT_USER_ROLE_PATTERN,
+  MICROSERVICE_UPDATE_TENANT_USER_ROLE_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_USER_ROLE_PATTERN,
 } from './constants';
 
 /**
@@ -28,7 +28,7 @@ export class TenantUserRoleController {
    * @param createTenantUserRoleDto - Data transfer object containing user role details.
    * @returns The created tenant user role entity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_USER_ROLE_PATTERN)
+  @MessagePattern(MICROSERVICE_CREATE_TENANT_USER_ROLE_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createUserRole(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -42,7 +42,7 @@ export class TenantUserRoleController {
    * @param requestingUserId - ID of the user making the request.
    * @returns A list of tenant user role entities.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_USER_ROLE_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_USER_ROLE_PATTERN)
   async findAllUserRoles(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
   ): Promise<TenantUserRoleEntity[]> {
@@ -55,7 +55,7 @@ export class TenantUserRoleController {
    * @param id - ID of the user role to retrieve.
    * @returns The tenant user role entity.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_USER_ROLE_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_USER_ROLE_PATTERN)
   async findOneUserRole(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('data', ParseIntPipe) id: number,
@@ -69,7 +69,7 @@ export class TenantUserRoleController {
    * @param updateTenantUserRoleDto - Data transfer object containing updated user role details.
    * @returns The result of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_USER_ROLE_PATTERN)
+  @MessagePattern(MICROSERVICE_UPDATE_TENANT_USER_ROLE_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateUserRole(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -88,7 +88,7 @@ export class TenantUserRoleController {
    * @param id - ID of the user role to delete.
    * @returns The result of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_USER_ROLE_PATTERN)
+  @MessagePattern(MICROSERVICE_REMOVE_TENANT_USER_ROLE_PATTERN)
   async removeUserRole(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('data', ParseIntPipe) id: number,

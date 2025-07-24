@@ -10,11 +10,11 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
-  MICROSERVICE_CREATE_CONTACT_INFO_PATTERN,
-  MICROSERVICE_FIND_ALL_CONTACT_INFO_PATTERN,
-  MICROSERVICE_FIND_ONE_CONTACT_INFO_PATTERN,
-  MICROSERVICE_UPDATE_CONTACT_INFO_PATTERN,
-  MICROSERVICE_REMOVE_CONTACT_INFO_PATTERN,
+  MICROSERVICE_CREATE_TENANT_CONTACT_INFO_PATTERN,
+  MICROSERVICE_FIND_ALL_TENANT_CONTACT_INFO_PATTERN,
+  MICROSERVICE_FIND_ONE_TENANT_CONTACT_INFO_PATTERN,
+  MICROSERVICE_UPDATE_TENANT_CONTACT_INFO_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_CONTACT_INFO_PATTERN,
   MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN,
 } from './constants';
 
@@ -31,7 +31,7 @@ export class TenantContactInfoController {
    * @param createTenantContactInfoDto - DTO containing contact information data.
    * @returns The created TenantContactInfoEntity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_CONTACT_INFO_PATTERN)
+  @MessagePattern(MICROSERVICE_CREATE_TENANT_CONTACT_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createContactInfo(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -52,7 +52,7 @@ export class TenantContactInfoController {
    * @param id - ID of the contact information record.
    * @returns The TenantContactInfoEntity.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_CONTACT_INFO_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_CONTACT_INFO_PATTERN)
   async findOneContactInfo(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
@@ -71,7 +71,7 @@ export class TenantContactInfoController {
    * @param filtersDto - Filters to apply for fetching contact information.
    * @returns Array of TenantContactInfoEntity matching the filters.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_CONTACT_INFO_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_CONTACT_INFO_PATTERN)
   async findAllByFilters(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('data') filtersDto: FiltersDto,
@@ -105,7 +105,7 @@ export class TenantContactInfoController {
    * @param updateTenantContactInfoDto - DTO containing updated contact information data.
    * @returns UpdateResult indicating the outcome of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_CONTACT_INFO_PATTERN)
+  @MessagePattern(MICROSERVICE_UPDATE_TENANT_CONTACT_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateContactInfo(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -127,7 +127,7 @@ export class TenantContactInfoController {
    * @param id - ID of the contact information record.
    * @returns DeleteResult indicating the outcome of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_CONTACT_INFO_PATTERN)
+  @MessagePattern(MICROSERVICE_REMOVE_TENANT_CONTACT_INFO_PATTERN)
   async removeContactInfo(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,

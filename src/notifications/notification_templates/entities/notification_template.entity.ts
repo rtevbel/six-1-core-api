@@ -6,9 +6,11 @@ import {
     UpdateDateColumn,
     ManyToOne,
     JoinColumn,
+    OneToMany
   } from 'typeorm';
   import { NotificationChannelEntity } from '../../notification_channels/entities/notification_channel.entity';
   import { UserEntity } from '../../../users/entities/user.entity';
+import { EventListenerEntity } from '../../../events/event_listeners/entities/event_listener.entity';
   
   /**
    * Entity class for `notification_templates` table.
@@ -119,4 +121,10 @@ import {
     })
     @JoinColumn({ name: 'updated_by' })
     updater?: UserEntity;
+
+   /**
+   * Relationship to EventListenerEntity for template_id.
+   */
+    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.template)
+    eventListeners!: EventListenerEntity[];
   }

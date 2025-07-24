@@ -16,6 +16,7 @@ import {
   MESSAGE_BROKER_URL_KEY,
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../common/constants';
+import { EventListenersModule } from './event_listeners/event_listeners.module';
 
 /**
  * EventsModule is responsible for managing events.
@@ -70,6 +71,7 @@ import {
         inject: [ConfigService],
       },
     ]),
+    EventListenersModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

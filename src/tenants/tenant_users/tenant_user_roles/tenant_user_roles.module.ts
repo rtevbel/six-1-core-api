@@ -14,7 +14,7 @@ import {
   MESSAGE_BROKER_URL_KEY,
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../../../common/constants';
-import { MESSAGE_BROKER_USER_ROLE_SERVICE_CLIENT_TOKEN } from './constants';
+import { MESSAGE_BROKER_TENANT_USER_ROLE_SERVICE_CLIENT_TOKEN } from './constants';
 
 /**
  * TenantUserRolesModule is responsible for managing tenant user roles.
@@ -28,7 +28,7 @@ import { MESSAGE_BROKER_USER_ROLE_SERVICE_CLIENT_TOKEN } from './constants';
     TypeOrmModule.forFeature([TenantUserRoleEntity]),
     ClientsModule.registerAsync([
       {
-        name: MESSAGE_BROKER_USER_ROLE_SERVICE_CLIENT_TOKEN,
+        name: MESSAGE_BROKER_TENANT_USER_ROLE_SERVICE_CLIENT_TOKEN,
         useFactory: async (configService: ConfigService) => ({
           transport: Transport.RMQ,
           options: {

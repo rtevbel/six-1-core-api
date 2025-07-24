@@ -8,11 +8,11 @@ import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
 
 import {
-  MICROSERVICE_CREATE_WORKING_HOURS_PATTERN,
-  MICROSERVICE_FIND_ALL_WORKING_HOURS_PATTERN,
-  MICROSERVICE_FIND_ONE_WORKING_HOURS_PATTERN,
-  MICROSERVICE_UPDATE_WORKING_HOURS_PATTERN,
-  MICROSERVICE_REMOVE_WORKING_HOURS_PATTERN,
+MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN,
+  MICROSERVICE_FIND_ALL_TENANT_WORKING_HOURS_PATTERN,
+  MICROSERVICE_FIND_ONE_TENANT_WORKING_HOURS_PATTERN,
+  MICROSERVICE_UPDATE_TENANT_WORKING_HOURS_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_WORKING_HOURS_PATTERN,
 } from './constants';
 
 @Controller('tenant-working-hours')
@@ -28,7 +28,7 @@ export class TenantWorkingHoursController {
    * @param createTenantWorkingHoursDto - DTO containing working hours data.
    * @returns The created TenantWorkingHoursEntity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_WORKING_HOURS_PATTERN)
+  @MessagePattern(MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createWorkingHours(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -48,7 +48,7 @@ export class TenantWorkingHoursController {
    * @param tenantId - ID of the tenant associated with the working hours.
    * @returns Array of TenantWorkingHoursEntity.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_WORKING_HOURS_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_WORKING_HOURS_PATTERN)
   async findAllWorkingHours(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
@@ -66,7 +66,7 @@ export class TenantWorkingHoursController {
    * @param id - ID of the working hours record.
    * @returns The TenantWorkingHoursEntity.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_WORKING_HOURS_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_WORKING_HOURS_PATTERN)
   async findOneWorkingHours(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
@@ -86,7 +86,7 @@ export class TenantWorkingHoursController {
    * @param updateTenantWorkingHoursDto - DTO containing updated working hours data.
    * @returns UpdateResult indicating the outcome of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_WORKING_HOURS_PATTERN)
+  @MessagePattern(MICROSERVICE_UPDATE_TENANT_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateWorkingHours(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -108,7 +108,7 @@ export class TenantWorkingHoursController {
    * @param id - ID of the working hours record.
    * @returns DeleteResult indicating the outcome of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_WORKING_HOURS_PATTERN)
+  @MessagePattern(MICROSERVICE_REMOVE_TENANT_WORKING_HOURS_PATTERN)
   async removeWorkingHours(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,

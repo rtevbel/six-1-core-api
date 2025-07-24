@@ -10,11 +10,11 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
-  MICROSERVICE_CREATE_CONFIGURATION_PATTERN,
-  MICROSERVICE_FIND_ALL_CONFIGURATIONS_PATTERN,
-  MICROSERVICE_FIND_ONE_CONFIGURATION_PATTERN,
-  MICROSERVICE_UPDATE_CONFIGURATION_PATTERN,
-  MICROSERVICE_REMOVE_CONFIGURATION_PATTERN,
+ MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN,
+  MICROSERVICE_FIND_ALL_TENANT_CONFIGURATIONS_PATTERN,
+  MICROSERVICE_FIND_ONE_TENANT_CONFIGURATION_PATTERN,
+  MICROSERVICE_UPDATE_TENANT_CONFIGURATION_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_CONFIGURATION_PATTERN,
   MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN,
 } from './constants';
 
@@ -32,7 +32,7 @@ export class TenantConfigurationsController {
    * @param createTenantConfigurationsDto - Data for the new configuration
    * @returns The created tenant configuration entity
    */
-  @MessagePattern(MICROSERVICE_CREATE_CONFIGURATION_PATTERN)
+  @MessagePattern(MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createConfiguration(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -54,7 +54,7 @@ export class TenantConfigurationsController {
    * @param id - ID of the configuration to retrieve
    * @returns The tenant configuration entity
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_CONFIGURATION_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_CONFIGURATION_PATTERN)
   async findOneConfiguration(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
@@ -73,7 +73,7 @@ export class TenantConfigurationsController {
    * @param filtersDto - Filters for querying configurations
    * @returns A result object containing filtered configurations
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_CONFIGURATIONS_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_CONFIGURATIONS_PATTERN)
   async findAllByFilters(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('data') filtersDto: FiltersDto,
@@ -108,7 +108,7 @@ export class TenantConfigurationsController {
    * @param updateTenantConfigurationsDto - Data for updating the configuration
    * @returns The result of the update operation
    */
-  @MessagePattern(MICROSERVICE_UPDATE_CONFIGURATION_PATTERN)
+  @MessagePattern(MICROSERVICE_UPDATE_TENANT_CONFIGURATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateConfiguration(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -131,7 +131,7 @@ export class TenantConfigurationsController {
    * @param id - ID of the configuration to delete
    * @returns The result of the delete operation
    */
-  @MessagePattern(MICROSERVICE_REMOVE_CONFIGURATION_PATTERN)
+  @MessagePattern(MICROSERVICE_REMOVE_TENANT_CONFIGURATION_PATTERN)
   async removeConfiguration(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,

@@ -10,11 +10,11 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
-  MICROSERVICE_CREATE_SUBSCRIPTION_PATTERN,
-  MICROSERVICE_FIND_ALL_SUBSCRIPTIONS_PATTERN,
-  MICROSERVICE_FIND_ONE_SUBSCRIPTION_PATTERN,
-  MICROSERVICE_UPDATE_SUBSCRIPTION_PATTERN,
-  MICROSERVICE_REMOVE_SUBSCRIPTION_PATTERN,
+  MICROSERVICE_CREATE_TENANT_SUBSCRIPTION_PATTERN,
+  MICROSERVICE_FIND_ALL_TENANT_SUBSCRIPTIONS_PATTERN,
+  MICROSERVICE_FIND_ONE_TENANT_SUBSCRIPTION_PATTERN,
+  MICROSERVICE_UPDATE_TENANT_SUBSCRIPTION_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_SUBSCRIPTION_PATTERN,
   MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN,
 } from './constants';
 
@@ -32,7 +32,7 @@ export class TenantSubscriptionController {
    * @param createTenantSubscriptionDto - Data for the new subscription
    * @returns The created tenant subscription entity
    */
-  @MessagePattern(MICROSERVICE_CREATE_SUBSCRIPTION_PATTERN)
+  @MessagePattern(MICROSERVICE_CREATE_TENANT_SUBSCRIPTION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createSubscription(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -53,7 +53,7 @@ export class TenantSubscriptionController {
    * @param id - ID of the subscription to retrieve
    * @returns The tenant subscription entity
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_SUBSCRIPTION_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_SUBSCRIPTION_PATTERN)
   async findOneSubscription(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
@@ -72,7 +72,7 @@ export class TenantSubscriptionController {
    * @param filtersDto - Filters for querying subscriptions
    * @returns A result object containing filtered subscriptions
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_SUBSCRIPTIONS_PATTERN)
+  @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_SUBSCRIPTIONS_PATTERN)
   async findAllByFilters(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('data') filtersDto: FiltersDto,
@@ -107,7 +107,7 @@ export class TenantSubscriptionController {
    * @param updateTenantSubscriptionDto - Data for updating the subscription
    * @returns The result of the update operation
    */
-  @MessagePattern(MICROSERVICE_UPDATE_SUBSCRIPTION_PATTERN)
+  @MessagePattern(MICROSERVICE_UPDATE_TENANT_SUBSCRIPTION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateSubscription(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
@@ -129,7 +129,7 @@ export class TenantSubscriptionController {
    * @param id - ID of the subscription to delete
    * @returns The result of the delete operation
    */
-  @MessagePattern(MICROSERVICE_REMOVE_SUBSCRIPTION_PATTERN)
+  @MessagePattern(MICROSERVICE_REMOVE_TENANT_SUBSCRIPTION_PATTERN)
   async removeSubscription(
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,

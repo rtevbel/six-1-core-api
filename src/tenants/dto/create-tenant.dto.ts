@@ -22,7 +22,7 @@ export class CreateTenantDto {
   name!: string;
 
   /**
-   * Tenant type ID.
+   * Tenant type ID
    *
    * - Required field.
    * - Must be a number.

@@ -3,8 +3,9 @@ import {
   Column,
   PrimaryGeneratedColumn,
   CreateDateColumn,
-  Index,
+  UpdateDateColumn,
   ManyToOne,
+  JoinColumn,
   Unique,
 } from 'typeorm';
 import { UserEntity } from '../../entities/user.entity';
@@ -16,37 +17,58 @@ import { RoleEntity } from '../../../roles/entities/role.entity';
  * Represents the mapping between users and roles.
  */
 @Entity('user_roles')
-@Unique('unique_user_id_role_id', ['user_id', 'role_id'])
+@Unique('unique_user_id_role_id', ['userId', 'roleId'])
 export class UserRoleEntity {
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
-  user_role_id!: number;
+  @PrimaryGeneratedColumn({
+    name: 'user_role_id',
+    type: 'int',
+    unsigned: true,
+  })
+  userRoleId!: number;
 
-  @Column({ type: 'bigint', unsigned: true, nullable: false })
-  @Index('user_roles_user_id')
-  user_id!: number;
+  @Column({
+    name: 'user_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+    comment: 'ID of the user associated with the role',
+  })
+  userId!: number;
 
-  @Column({ type: 'int', unsigned: true, nullable: false })
-  @Index('user_roles_role_id')
-  role_id!: number;
+  @Column({
+    name: 'role_id',
+    type: 'int',
+    unsigned: true,
+    nullable: false,
+    comment: 'ID of the role associated with the user',
+  })
+  roleId!: number;
 
-  @Column({ type: 'bigint', unsigned: true, nullable: false })
-  @Index('user_roles_created_by')
-  created_by!: number;
+  @Column({
+    name: 'created_by',
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+    comment: 'ID of the user who created this mapping',
+  })
+  createdBy!: number;
 
   @CreateDateColumn({
+    name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
-  created_at!: Date;
+  createdAt!: Date;
 
   /**
    * Many-to-one relationship with `UserEntity`.
    *
    * Represents the user associated with this role.
    */
-  @ManyToOne(() => UserEntity, (user) => user.user_roles, {
+  @ManyToOne(() => UserEntity, (user) => user.userRoles, {
     onDelete: 'CASCADE',
   })
+  @JoinColumn({ name: 'user_id' })
   user!: UserEntity;
 
   /**
@@ -55,6 +77,7 @@ export class UserRoleEntity {
    * Represents the role associated with this user.
    */
   @ManyToOne(() => RoleEntity, (role) => role.userRoles)
+  @JoinColumn({ name: 'role_id' })
   role!: RoleEntity;
 
   /**
@@ -62,6 +85,10 @@ export class UserRoleEntity {
    *
    * Represents the user who created this mapping.
    */
-  @ManyToOne(() => UserEntity)
-  createdByUser!: UserEntity;
+  @ManyToOne(() => UserEntity, (user) => user.createdUserRoles, {
+    onDelete: 'CASCADE',
+  })
+  @JoinColumn({ name: 'created_by' })
+  creator!: UserEntity;
+
 }

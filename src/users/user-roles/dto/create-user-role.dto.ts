@@ -1,76 +1,48 @@
-import { IsNotEmpty, IsNumber, ValidateNested, IsArray } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsNumber, IsNotEmpty , IsOptional } from 'class-validator';
 
 /**
- * Create user role DTO class.
+ * Create UserRole DTO class.
  *
  * @version 0.0.1
  *
- * Data transfer object for creating a user role.
+ * Data transfer object for creating a user-role mapping.
  */
 export class CreateUserRoleDto {
   /**
-   * The ID of the user.
+   * User ID associated with the role.
    *
    * - Required field.
    * - Must be a number.
    *
    * @type {number}
    */
-  @IsNotEmpty()
-  @Type(() => Number)
   @IsNumber()
-  user_id!: number;
+  @IsNotEmpty()
+  userId!: number;
 
   /**
-   * The ID of the role.
+   * Role ID associated with the user.
    *
    * - Required field.
    * - Must be a number.
    *
    * @type {number}
    */
-  @IsNotEmpty()
-  @Type(() => Number)
   @IsNumber()
-  role_id!: number;
+  @IsNotEmpty()
+  roleId!: number;
 
   /**
-   * The ID of the user who created this mapping.
-   *
-   * - Required field.
-   * - Must be a number.
-   *
-   * @type {number}
-   */
-  @IsNotEmpty()
-  @Type(() => Number)
-  @IsNumber()
-  created_by!: number;
-
-  /**
-   * List of user IDs for batch creation.
+   * User ID of the creator.
    *
    * - Optional field.
-   * - Must be an array of numbers.
+   * - Must be a number.
    *
-   * @type {number[]}
+   * @type {number}
    */
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => Number)
-  user_ids?: number[];
+  @IsNumber()
+  @IsOptional()
+  createdBy!: number;
 
-  /**
-   * List of role IDs for batch creation.
-   *
-   * - Optional field.
-   * - Must be an array of numbers.
-   *
-   * @type {number[]}
-   */
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => Number)
-  role_ids?: number[];
+  
 }

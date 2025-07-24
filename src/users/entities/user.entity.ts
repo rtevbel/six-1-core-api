@@ -19,6 +19,7 @@ import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_us
 import { NotificationChannelEntity } from '../../notifications/notification_channels/entities/notification_channel.entity';
 import { NotificationTemplateEntity } from '../../notifications/notification_templates/entities/notification_template.entity';
 import { EventEntity } from '../../events/entities/event.entity';
+import { EventListenerEntity } from '../../events/event_listeners/entities/event_listener.entity';
 
 /**
  * Represents the `users` table in the database.
@@ -223,4 +224,37 @@ export class UserEntity {
    */
   @OneToMany(() => EventEntity, (event) => event.updater)
   updatedEvents!: EventEntity[];
+
+   /**
+   * Relationship to EventListenerEntity for created_by.
+   */
+    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.creator)
+    createdEventListeners!: EventListenerEntity[];
+
+  /**
+   * Relationship to EventListenerEntity for updated_by.
+   */
+   @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.updater)
+   updatedEventListeners!: EventListenerEntity[];
+   
+   /**
+ * One-to-many relationship with `UserRoleEntity`.
+ *
+ * Represents the roles associated with this user.
+ */
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, {
+    cascade: true,
+  })
+  userRoles!: UserRoleEntity[];
+
+  /**
+ * One-to-many relationship with `UserRoleEntity` for created_by.
+ *
+ * Represents the mappings created by this user.
+ */
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.creator, {
+    cascade: true,
+  })
+  createdUserRoles!: UserRoleEntity[];
+
 }

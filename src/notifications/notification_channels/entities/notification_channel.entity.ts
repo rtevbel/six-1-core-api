@@ -11,6 +11,7 @@ import {
   } from 'typeorm';
   import { UserEntity } from '../../../users/entities/user.entity';
 import { NotificationTemplateEntity } from '../../notification_templates/entities/notification_template.entity';
+import { EventListenerEntity } from '../../../events/event_listeners/entities/event_listener.entity';
   
   /**
    * Entity class for `notification_channels` table.
@@ -105,4 +106,10 @@ import { NotificationTemplateEntity } from '../../notification_templates/entitie
         cascade: true,
     })
     templateEntities!: NotificationTemplateEntity[];
+
+   /**
+    * Relationship to EventListenerEntity for channel_id.
+    */
+    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.channel)
+    eventListeners!: EventListenerEntity[];
   }

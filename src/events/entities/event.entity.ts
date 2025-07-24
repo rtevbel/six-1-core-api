@@ -6,8 +6,10 @@ import {
     UpdateDateColumn,
     ManyToOne,
     JoinColumn,
+    OneToMany
   } from 'typeorm';
   import { UserEntity } from '../../users/entities/user.entity';
+import { EventListenerEntity } from '../event_listeners/entities/event_listener.entity';
   
   /**
    * Entity class for `events` table.
@@ -92,4 +94,10 @@ import {
     })
     @JoinColumn({ name: 'updated_by' })
     updater?: UserEntity;
+
+    /**
+     * Relationship to EventListenerEntity for event_id.
+     */
+     @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.event)
+     eventListeners!: EventListenerEntity[];
   }
