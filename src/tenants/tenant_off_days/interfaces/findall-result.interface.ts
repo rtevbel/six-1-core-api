@@ -1,4 +1,4 @@
-import { TenantBillingInfoEntity } from '../entities/tenant_billing_info.entity';
+import { TenantOffDaysEntity } from '../entities/tenant_off_day.entity';
 
 /**
  * Interface for the result of a findAll operation.
@@ -7,9 +7,9 @@ import { TenantBillingInfoEntity } from '../entities/tenant_billing_info.entity'
  */
 export interface FindAllResultInterface {
   /**
-   * Array of TenantBillingInfoEntity objects representing the roles.
+   * Array of TenantOffDaysEntity objects representing the roles.
    */
-  contactBillingInfoRecords: TenantBillingInfoEntity[];
+  tenantOffDaysRecords: TenantOffDaysEntity[];
 
   /**
    * Pagination details for the result set.

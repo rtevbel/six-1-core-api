@@ -22,17 +22,17 @@ export class TenantUsersService {
 
   /**
    * Creates a new tenant user record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param CreateTenantUserDto - Data transfer object containing tenant user details.
    * @returns The created tenant user entity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     createTenantUsersDto: CreateTenantUserDto,
   ): Promise<TenantUsersEntity> {
-    createTenantUsersDto.createdBy = requestingUserId;
+    createTenantUsersDto.createdBy = userId;
     createTenantUsersDto.tenantId = tenantId;
 
     return await this.tenantUsersRepository.save(
@@ -42,12 +42,12 @@ export class TenantUsersService {
 
   /**
    * Retrieves all tenant user records for a specific tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @returns Array of tenant user entities.
    */
   async findAllByTenantId(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
   ): Promise<TenantUsersEntity[]> {
     const tenantUsersRecords = await this.tenantUsersRepository.find({
@@ -68,12 +68,12 @@ export class TenantUsersService {
 
   /**
    * Retrieves tenant user records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying tenant user records.
    * @returns Object containing tenant user records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -98,13 +98,13 @@ export class TenantUsersService {
 
   /**
    * Retrieves a single tenant user record by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the tenant user.
    * @returns The tenant user entity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantUsersEntity> {
@@ -125,14 +125,14 @@ export class TenantUsersService {
 
   /**
    * Updates a tenant user record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the tenant user.
    * @param updateTenantUsersDto - Data transfer object containing updated tenant user details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantUsersDto: UpdateTenantUserDto,
@@ -150,20 +150,20 @@ export class TenantUsersService {
       );
     }
 
-    updateTenantUsersDto.updatedBy = requestingUserId;
+    updateTenantUsersDto.updatedBy = userId;
 
     return await this.tenantUsersRepository.update(id, updateTenantUsersDto);
   }
 
   /**
    * Deletes a tenant user record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the tenant user.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -193,7 +193,14 @@ export class TenantUsersService {
    * @returns Query object for filtering.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+
     const query: Record<string, any> = {};
+
+    if (filtersDto.tenantId) {
+      query.where = [
+        {tenantId: filtersDto.tenantId} // Filter by tenantId
+      ];
+    }
 
     if (filtersDto.search) {
       query.where = [

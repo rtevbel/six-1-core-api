@@ -1,5 +1,5 @@
 import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
-import { PartialType } from '@nestjs/mapped-types';
+import { Type } from 'class-transformer';
 
 /**
  * Create tenant type DTO class.
@@ -41,6 +41,7 @@ export class CreateTenantTypeDto {
    *
    * @type {number}
    */
+  @Type(() => Number)
   @IsNumber()
   statusId!: number;
 }

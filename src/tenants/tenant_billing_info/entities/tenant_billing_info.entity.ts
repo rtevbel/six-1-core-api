@@ -18,7 +18,7 @@ import { TenantEntity } from '../../entities/tenant.entity';
 @Entity('tenant_billing_info')
 export class TenantBillingInfoEntity {
   @PrimaryGeneratedColumn({
-    name: 'tenant_billing_id',
+    name: 'billing_id',
     type: 'bigint',
     unsigned: true,
   })
@@ -35,7 +35,7 @@ export class TenantBillingInfoEntity {
   tenantId!: number;
 
   @Column({
-    name: 'billing_email',
+    name: 'email',
     type: 'varchar',
     length: 255,
     nullable: false,
@@ -44,7 +44,7 @@ export class TenantBillingInfoEntity {
   billingEmail!: string;
 
   @Column({
-    name: 'billing_phone',
+    name: 'phone',
     type: 'varchar',
     length: 20,
     nullable: true,
@@ -53,7 +53,7 @@ export class TenantBillingInfoEntity {
   billingPhone!: string;
 
   @Column({
-    name: 'billing_address',
+    name: 'address',
     type: 'text',
     nullable: true,
     comment: 'Billing physical address',
@@ -61,7 +61,7 @@ export class TenantBillingInfoEntity {
   billingAddress!: string;
 
   @Column({
-    name: 'billing_city',
+    name: 'city',
     type: 'varchar',
     length: 100,
     nullable: true,
@@ -70,7 +70,7 @@ export class TenantBillingInfoEntity {
   billingCity!: string;
 
   @Column({
-    name: 'billing_state',
+    name: 'state',
     type: 'varchar',
     length: 100,
     nullable: true,
@@ -79,7 +79,7 @@ export class TenantBillingInfoEntity {
   billingState!: string;
 
   @Column({
-    name: 'billing_country',
+    name: 'country',
     type: 'varchar',
     length: 100,
     nullable: true,
@@ -88,13 +88,22 @@ export class TenantBillingInfoEntity {
   billingCountry!: string;
 
   @Column({
-    name: 'billing_postal_code',
+    name: 'postal_code',
     type: 'varchar',
     length: 20,
     nullable: true,
     comment: 'Billing postal code',
   })
   billingPostalCode!: string;
+
+  @Column({
+    name: 'currency',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+    comment: 'Billing currency (e.g., USD, EUR)',
+  })
+  billingCurrency!: string;
 
   @Column({
     name: 'created_by',

@@ -1,20 +1,17 @@
 import { IsNumber, IsNotEmpty } from 'class-validator';
-import { CreateTenantBillingInfoDto } from './create-tenant_billing_info.dto';
 import { PartialType } from '@nestjs/mapped-types';
+import { CreateTenantBillingInfoDto } from './create-tenant_billing_info.dto';
 
 /**
  * Update tenant billing info DTO class.
  *
  * @version 0.0.1
  *
- * Data transfer object for updating tenant billing information.
+ * Data transfer object for updating tenant billing info.
  */
-
-export class UpdateTenantBillingInfoDto extends PartialType(
-  CreateTenantBillingInfoDto,
-) {
+export class UpdateTenantBillingInfoDto extends PartialType(CreateTenantBillingInfoDto) {
   /**
-   * Tenant billing info ID.
+   * Unique identifier for the tenant billing info.
    *
    * - Required field.
    * - Must be a number.
@@ -24,16 +21,4 @@ export class UpdateTenantBillingInfoDto extends PartialType(
   @IsNumber()
   @IsNotEmpty()
   tenantBillingId!: number;
-
-  /**
-   * Updated by user ID.
-   *
-   * - Required field.
-   * - Must be a number.
-   *
-   * @type {number}
-   */
-  @IsNumber()
-  @IsNotEmpty()
-  updatedBy!: number;
 }

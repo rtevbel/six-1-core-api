@@ -22,13 +22,13 @@ export class TenantSubscriptionService {
 
   /**
    * Creates a new tenant subscription.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param createTenantSubscriptionDto - Data for creating the subscription.
    * @returns The created subscription entity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     createTenantSubscriptionDto: CreateTenantSubscriptionDto,
   ): Promise<TenantSubscriptionEntity> {
@@ -40,39 +40,13 @@ export class TenantSubscriptionService {
   }
 
   /**
-   * Finds all subscriptions for a given tenant ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns List of tenant subscriptions.
-   */
-  async findAllByTenantId(
-    requestingUserId: number,
-    tenantId: number,
-  ): Promise<TenantSubscriptionEntity[]> {
-    const subscriptions = await this.tenantSubscriptionRepository.find({
-      where: { tenantId },
-    });
-
-    if (subscriptions.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantSubscriptionEntity.name,
-        ),
-      );
-    }
-
-    return subscriptions;
-  }
-
-  /**
    * Finds subscriptions based on filters and pagination.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters and pagination options.
    * @returns Filtered subscriptions and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -97,13 +71,13 @@ export class TenantSubscriptionService {
 
   /**
    * Finds a single subscription by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the subscription.
    * @returns The subscription entity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantSubscriptionEntity> {
@@ -124,14 +98,14 @@ export class TenantSubscriptionService {
 
   /**
    * Updates a subscription by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the subscription.
    * @param updateTenantSubscriptionDto - Data for updating the subscription.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantSubscriptionDto: UpdateTenantSubscriptionDto,
@@ -157,13 +131,13 @@ export class TenantSubscriptionService {
 
   /**
    * Removes a subscription by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the subscription.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -194,6 +168,10 @@ export class TenantSubscriptionService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+   if (filtersDto.tenantId) {
+        query.where = [{ tenantId: filtersDto.tenantId}];
+    }
+    
     if (filtersDto.search) {
       query.where = [{ plan: Like(`%${filtersDto.search}%`) }];
     }

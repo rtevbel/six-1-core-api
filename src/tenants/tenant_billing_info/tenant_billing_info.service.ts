@@ -29,12 +29,10 @@ export class TenantBillingInfoService {
    */
   async create(
     requestingUserId: number,
-    tenantId: number,
     createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
     createTenantBillingInfoDto.createdBy = requestingUserId;
-    createTenantBillingInfoDto.tenantId = tenantId;
-
+   
     return await this.tenantBillingInfoRepository.save(
       this.tenantBillingInfoRepository.create(createTenantBillingInfoDto),
     );
@@ -91,7 +89,7 @@ export class TenantBillingInfoService {
     }
 
     return {
-      contactBillingInfoInfoRecords: billingInfoRecords,
+      contactBillingInfoRecords: billingInfoRecords,
       pagination: this.buildPagination(filtersDto, total),
     };
   }

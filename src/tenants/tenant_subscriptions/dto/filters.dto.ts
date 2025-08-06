@@ -14,6 +14,15 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
+
+  /**
+   * Tenant ID for filtering results.
+   * Required field, must be a number.
+   */
+  @Type(() => Number)
+  @IsNumber()
+  tenantId!:number;
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.
@@ -43,16 +52,16 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'subscription_id'.
-   * Must be one of 'subscription_id', 'tenant_id' , 'start_date' , 'end_date'.
+   * Optional field, defaults to 'subscriptionId'.
+   * Must be one of 'subscriptionId', 'tenantId' , 'startDate' , 'endDate'.
    */
   @IsOptional()
-  @IsIn(['subscription_id', 'tenant_id', 'start_date', 'end_date'], {
+  @IsIn(['subscriptionId', 'tenantId', 'startDate', 'endDate'], {
     message:
-      'sortBy key must be from this list (subscription_id, tenant_id , start_date , end_date)',
+      'sortBy key must be from this list (subscriptionId, tenantId , startDate , endDate)',
   })
   @IsString()
-  sortBy: string = 'subscription_id';
+  sortBy: string = 'subscriptionId';
 
   /**
    * Sort order for the results.

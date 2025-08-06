@@ -27,7 +27,7 @@ export class TenantUsersController {
 
   /**
    * Handles the creation of a tenant user.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant for which the user is being created.
    * @param CreateTenantUserDto - Data transfer object containing user details.
    * @returns The created tenant user entity.
@@ -35,12 +35,12 @@ export class TenantUsersController {
   @MessagePattern(MICROSERVICE_CREATE_TENANT_USER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createTenantUser(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') createTenantUserDto: CreateTenantUserDto,
   ): Promise<TenantUsersEntity> {
     return this.tenantUsersService.create(
-      requestingUserId,
+      userId,
       tenantId,
       createTenantUserDto,
     );
@@ -48,57 +48,57 @@ export class TenantUsersController {
 
   /**
    * Retrieves a single tenant user by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the user to retrieve.
    * @returns The tenant user entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_USER_PATTERN)
   async findOneTenantUser(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUsersEntity> {
-    return this.tenantUsersService.findOne(requestingUserId, tenantId, id);
+    return this.tenantUsersService.findOne(userId, tenantId, id);
   }
 
   /**
    * Retrieves all tenant users based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying users.
    * @returns A list of tenant users matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_USERS_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantUsersService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
    * Retrieves all users for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @returns A list of tenant user entities.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
   async findAllByTenantId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
   ): Promise<TenantUsersEntity[]> {
     return this.tenantUsersService.findAllByTenantId(
-      requestingUserId,
+      userId,
       tenantId,
     );
   }
 
   /**
    * Updates tenant user information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param updateTenantUserDto - Data transfer object containing updated user details.
    * @returns The result of the update operation.
@@ -106,12 +106,12 @@ export class TenantUsersController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_USER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateTenantUser(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') updateTenantUserDto: UpdateTenantUserDto,
   ): Promise<UpdateResult> {
     return this.tenantUsersService.update(
-      requestingUserId,
+      userId,
       tenantId,
       updateTenantUserDto.tenantUserId,
       updateTenantUserDto,
@@ -120,17 +120,17 @@ export class TenantUsersController {
 
   /**
    * Deletes a tenant user by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the user to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_USER_PATTERN)
   async removeTenantUser(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantUsersService.remove(requestingUserId, tenantId, id);
+    return this.tenantUsersService.remove(userId, tenantId, id);
   }
 }

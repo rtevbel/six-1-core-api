@@ -29,40 +29,39 @@ export class TenantBillingInfoController {
 
   /**
    * Handles the creation of tenant billing information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant for which billing info is being created.
    * @param createTenantBillingInfoDto - Data transfer object containing billing info details.
    * @returns The created tenant billing info entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_BILLING_INFO_PATTERN)
-  @UsePipes(AppRpcValidationPipe)
+  //@UsePipes(AppRpcValidationPipe)
   async createBillingInfo(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
+    console.log(createTenantBillingInfoDto,'createTenantBillingInfoDto');
     return this.tenantBillingInfoService.create(
-      requestingUserId,
-      tenantId,
+      userId,
       createTenantBillingInfoDto,
     );
   }
 
   /**
    * Retrieves a single tenant billing information by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the billing info to retrieve.
    * @returns The tenant billing info entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_BILLING_INFO_PATTERN)
   async findOneBillingInfo(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantBillingInfoEntity> {
     return this.tenantBillingInfoService.findOne(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );
@@ -70,41 +69,41 @@ export class TenantBillingInfoController {
 
   /**
    * Retrieves all tenant billing information based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying billing information.
    * @returns A list of tenant billing information matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_BILLING_INFO_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantBillingInfoService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
    * Retrieves all billing information for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @returns A list of tenant billing information entities.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
   async findAllByTenantId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
   ): Promise<TenantBillingInfoEntity[]> {
     return this.tenantBillingInfoService.findAllByTenantId(
-      requestingUserId,
+      userId,
       tenantId,
     );
   }
 
   /**
    * Updates tenant billing information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param updateTenantBillingInfoDto - Data transfer object containing updated billing info details.
    * @returns The result of the update operation.
@@ -112,12 +111,12 @@ export class TenantBillingInfoController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_BILLING_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateBillingInfo(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') updateTenantBillingInfoDto: UpdateTenantBillingInfoDto,
   ): Promise<UpdateResult> {
     return this.tenantBillingInfoService.update(
-      requestingUserId,
+      userId,
       tenantId,
       updateTenantBillingInfoDto.tenantBillingId,
       updateTenantBillingInfoDto,
@@ -126,17 +125,17 @@ export class TenantBillingInfoController {
 
   /**
    * Deletes tenant billing information by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the billing info to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_BILLING_INFO_PATTERN)
   async removeBillingInfo(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantBillingInfoService.remove(requestingUserId, tenantId, id);
+    return this.tenantBillingInfoService.remove(userId, tenantId, id);
   }
 }

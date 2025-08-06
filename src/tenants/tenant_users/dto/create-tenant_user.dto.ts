@@ -55,4 +55,16 @@ export class CreateTenantUserDto {
   @IsNumber()
   @IsNotEmpty()
   createdBy!: number;
+
+  /**
+   * ID of the user who last updated the tenant user.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+   @IsNumber()
+   @IsOptional()
+   updatedBy!: number;
 }

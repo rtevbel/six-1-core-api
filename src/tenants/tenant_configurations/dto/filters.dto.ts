@@ -43,15 +43,15 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'tenant_config_id'.
-   * Must be one of 'tenant_config_id', 'tenant_id'.
+   * Optional field, defaults to 'tenantConfigId'.
+   * Must be one of 'tenantConfigId', 'tenantId'.
    */
   @IsOptional()
-  @IsIn(['tenant_config_id', 'tenant_id'], {
-    message: 'sortBy key must be from this list (tenant_config_id, tenant_id)',
+  @IsIn(['tenantConfigId', 'tenantId'], {
+    message: 'sortBy key must be from this list (tenantConfigId, tenantId)',
   })
   @IsString()
-  sortBy: string = 'tenant_config_id';
+  sortBy: string = 'tenantConfigId';
 
   /**
    * Sort order for the results.

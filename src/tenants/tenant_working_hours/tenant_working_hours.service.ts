@@ -20,17 +20,17 @@ export class TenantWorkingHoursService {
 
   /**
    * Create a new tenant working hours record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param createTenantWorkingHoursDto - DTO containing working hours data.
    * @returns The created TenantWorkingHoursEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     createTenantWorkingHoursDto: CreateTenantWorkingHoursDto,
   ): Promise<TenantWorkingHoursEntity> {
-    createTenantWorkingHoursDto.createdBy = requestingUserId;
+    createTenantWorkingHoursDto.createdBy = userId;
     createTenantWorkingHoursDto.tenantId = tenantId;
 
     return await this.tenantWorkingHoursRepository.save(
@@ -40,12 +40,12 @@ export class TenantWorkingHoursService {
 
   /**
    * Find all working hours for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @returns Array of TenantWorkingHoursEntity.
    */
   async findAllByTenant(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
   ): Promise<TenantWorkingHoursEntity[]> {
     const workingHours = await this.tenantWorkingHoursRepository.find({
@@ -66,13 +66,13 @@ export class TenantWorkingHoursService {
 
   /**
    * Find a specific working hours record by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param id - ID of the working hours record.
    * @returns The TenantWorkingHoursEntity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantWorkingHoursEntity> {
@@ -94,14 +94,14 @@ export class TenantWorkingHoursService {
 
   /**
    * Update a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param id - ID of the working hours record.
    * @param updateTenantWorkingHoursDto - DTO containing updated working hours data.
    * @returns UpdateResult indicating the outcome of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantWorkingHoursDto: UpdateTenantWorkingHoursDto,
@@ -119,7 +119,7 @@ export class TenantWorkingHoursService {
       );
     }
 
-    updateTenantWorkingHoursDto.updatedBy = requestingUserId;
+    updateTenantWorkingHoursDto.updatedBy = userId;
 
     return await this.tenantWorkingHoursRepository.update(
       id,
@@ -129,13 +129,13 @@ export class TenantWorkingHoursService {
 
   /**
    * Remove a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param id - ID of the working hours record.
    * @returns DeleteResult indicating the outcome of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {

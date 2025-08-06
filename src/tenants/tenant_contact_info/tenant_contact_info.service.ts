@@ -39,33 +39,7 @@ export class TenantContactInfoService {
       this.tenantContactInfoRepository.create(createTenantContactInfoDto),
     );
   }
-
-  /**
-   * Retrieves all contact information records for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns An array of TenantContactInfoEntity records.
-   */
-  async findAllByTenantId(
-    requestingUserId: number,
-    tenantId: number,
-  ): Promise<TenantContactInfoEntity[]> {
-    const contactInfoRecords = await this.tenantContactInfoRepository.find({
-      where: { tenantId },
-    });
-
-    if (contactInfoRecords.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantContactInfoEntity.name,
-        ),
-      );
-    }
-
-    return contactInfoRecords;
-  }
-
+  
   /**
    * Retrieves contact information records based on filters.
    * @param requestingUserId - ID of the user making the request.

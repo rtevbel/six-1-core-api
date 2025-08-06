@@ -21,6 +21,7 @@ import { TenantConfigurationsEntity } from '../tenant_configurations/entities/te
 import { TenantUsersEntity } from '../tenant_users/entities/tenant_user.entity';
 import { TenantUserInvitationsEntity } from '../tenant_users/tenant_user_invitations/entities/tenant_user_invitation.entity';
 import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
+import {TenantOffDaysEntity} from '../tenant_off_days/entities/tenant_off_day.entity'
 
 /**
  * Entity class for `tenants` table.
@@ -146,14 +147,14 @@ export class TenantEntity {
   contactInfo!: TenantContactInfoEntity[];
 
   /**
-   * Inverse relationship to TenantBillingInfoEntity.
+   * Relationship to TenantBillingInfoEntity.
    * A tenant can have multiple billing info records.
    */
   @OneToMany(() => TenantBillingInfoEntity, (billingInfo) => billingInfo.tenant)
   billingInfo!: TenantBillingInfoEntity[];
 
   /**
-   * Inverse relationship to TenantSubscriptionEntity.
+   * Relationship to TenantSubscriptionEntity.
    * A tenant can have multiple subscriptions.
    */
   @OneToMany(
@@ -163,7 +164,7 @@ export class TenantEntity {
   subscriptions!: TenantSubscriptionEntity[];
 
   /**
-   * Inverse relationship to TenantConfigurationsEntity.
+   * Relationship to TenantConfigurationsEntity.
    * A tenant can have multiple configurations.
    */
   @OneToMany(
@@ -173,7 +174,7 @@ export class TenantEntity {
   configurations!: TenantConfigurationsEntity[];
 
   /**
-   * Inverse relationship to TenantUsersEntity.
+   * Relationship to TenantUsersEntity.
    * A tenant can have multiple tenant users.
    */
   @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.tenant)
@@ -190,9 +191,16 @@ export class TenantEntity {
   invitations!: TenantUserInvitationsEntity[];
 
   /**
-   * Inverse relationship to TenantTeamEntity.
+   * Relationship to TenantTeamEntity.
    * A tenant can have multiple teams.
    */
   @OneToMany(() => TenantTeamEntity, (team) => team.tenant)
   teams!: TenantTeamEntity[];
+
+   /**
+   * Reverse relationship to TenantOffDaysEntity.
+   * A tenant can have multiple off days.
+   */
+   @OneToMany(() => TenantOffDaysEntity, (offDay) => offDay.tenant)
+   offDays!: TenantOffDaysEntity[];
 }

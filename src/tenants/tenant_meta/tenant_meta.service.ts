@@ -20,27 +20,30 @@ export class TenantMetaService {
 
   /**
    * Creates a new tenant metadata record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param createTenantMetaDto - Data Transfer Object containing metadata details.
    * @returns The created TenantMetaEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     createTenantMetaDto: CreateTenantMetaDto,
   ): Promise<TenantMetaEntity> {
+    
+    console.log(createTenantMetaDto,'createTenantMetaDto');
+
     const newMeta = this.tenantMetaRepository.create(createTenantMetaDto);
     return this.tenantMetaRepository.save(newMeta);
   }
 
   /**
    * Retrieves all tenant metadata records for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @returns List of TenantMetaEntity records.
    * @throws RpcException if no records are found.
    */
   async findAllByTenantId(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
   ): Promise<TenantMetaEntity[]> {
     const tenantMeta = await this.tenantMetaRepository.find({
@@ -61,13 +64,13 @@ export class TenantMetaService {
 
   /**
    * Retrieves a single tenant metadata record by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantMetaId - ID of the tenant metadata record.
    * @returns The TenantMetaEntity matching the ID.
    * @throws RpcException if no record is found.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantMetaId: number,
   ): Promise<TenantMetaEntity> {
     const tenantMeta = await this.tenantMetaRepository.findOneByOrFail({
@@ -88,14 +91,14 @@ export class TenantMetaService {
 
   /**
    * Updates an existing tenant metadata record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantMetaId - ID of the tenant metadata record to update.
    * @param updateTenantMetaDto - Data Transfer Object containing updated details.
    * @returns The result of the update operation.
    * @throws RpcException if no record is found.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantMetaId: number,
     updateTenantMetaDto: UpdateTenantMetaDto,
   ): Promise<UpdateResult> {
@@ -116,12 +119,12 @@ export class TenantMetaService {
 
   /**
    * Deletes a tenant metadata record by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantMetaId - ID of the tenant metadata record to delete.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantMetaId: number,
   ): Promise<DeleteResult> {
     const tenantMeta = await this.tenantMetaRepository.findOneByOrFail({
@@ -142,14 +145,14 @@ export class TenantMetaService {
 
   /**
    * Finds the meta value for a specific tenant and meta key.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the metadata.
    * @param metaKey - The meta key to search for.
    * @returns The meta value as a string.
    * @throws RpcException if no record is found.
    */
   async findMetaValueByTenantIdAndMetaKey(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     metaKey: string,
   ): Promise<string> {

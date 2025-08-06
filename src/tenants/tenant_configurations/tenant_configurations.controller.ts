@@ -27,41 +27,38 @@ export class TenantConfigurationsController {
 
   /**
    * Handles the creation of a new tenant configuration.
-   * @param requestingUserId - ID of the user making the request
-   * @param tenantId - ID of the tenant
+   * @param userId - ID of the user making the request
    * @param createTenantConfigurationsDto - Data for the new configuration
    * @returns The created tenant configuration entity
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createConfiguration(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data')
     createTenantConfigurationsDto: CreateTenantConfigurationsDto,
   ): Promise<TenantConfigurationsEntity> {
     return this.tenantConfigurationsService.create(
-      requestingUserId,
-      tenantId,
+      userId,
       createTenantConfigurationsDto,
     );
   }
 
   /**
    * Retrieves a specific tenant configuration by its ID.
-   * @param requestingUserId - ID of the user making the request
+   * @param userId - ID of the user making the request
    * @param tenantId - ID of the tenant
    * @param id - ID of the configuration to retrieve
    * @returns The tenant configuration entity
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_CONFIGURATION_PATTERN)
   async findOneConfiguration(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantConfigurationsEntity> {
     return this.tenantConfigurationsService.findOne(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );
@@ -69,41 +66,41 @@ export class TenantConfigurationsController {
 
   /**
    * Retrieves all tenant configurations based on filters.
-   * @param requestingUserId - ID of the user making the request
+   * @param userId - ID of the user making the request
    * @param filtersDto - Filters for querying configurations
    * @returns A result object containing filtered configurations
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_CONFIGURATIONS_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantConfigurationsService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
    * Retrieves all configurations for a specific tenant.
-   * @param requestingUserId - ID of the user making the request
+   * @param userId - ID of the user making the request
    * @param tenantId - ID of the tenant
    * @returns An array of tenant configuration entities
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
   async findAllByTenantId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
   ): Promise<TenantConfigurationsEntity[]> {
     return this.tenantConfigurationsService.findAllByTenantId(
-      requestingUserId,
+      userId,
       tenantId,
     );
   }
 
   /**
    * Updates an existing tenant configuration.
-   * @param requestingUserId - ID of the user making the request
+   * @param userId - ID of the user making the request
    * @param tenantId - ID of the tenant
    * @param updateTenantConfigurationsDto - Data for updating the configuration
    * @returns The result of the update operation
@@ -111,13 +108,13 @@ export class TenantConfigurationsController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_CONFIGURATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateConfiguration(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data')
     updateTenantConfigurationsDto: UpdateTenantConfigurationsDto,
   ): Promise<UpdateResult> {
     return this.tenantConfigurationsService.update(
-      requestingUserId,
+      userId,
       tenantId,
       updateTenantConfigurationsDto.tenantConfigId,
       updateTenantConfigurationsDto,
@@ -126,19 +123,19 @@ export class TenantConfigurationsController {
 
   /**
    * Deletes a tenant configuration by its ID.
-   * @param requestingUserId - ID of the user making the request
+   * @param userId - ID of the user making the request
    * @param tenantId - ID of the tenant
    * @param id - ID of the configuration to delete
    * @returns The result of the delete operation
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_CONFIGURATION_PATTERN)
   async removeConfiguration(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantConfigurationsService.remove(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );

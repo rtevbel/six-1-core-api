@@ -5,7 +5,10 @@ import {
   IsEnum,
   IsBoolean,
   IsDate,
+  IsDateString,
 } from 'class-validator';
+import {IsTodayOrLater} from '../../../common/validators/is-today-or-later.validator';
+import {IsAfter} from '../../../common/validators/is-after.validator';
 
 /**
  * Create tenant subscription DTO class.
@@ -45,11 +48,12 @@ export class CreateTenantSubscriptionDto {
    * - Required field.
    * - Must be a valid date.
    *
-   * @type {Date}
+   * @type {string}
    */
-  @IsDate()
+  @IsDateString()
   @IsNotEmpty()
-  startDate!: Date;
+  @IsTodayOrLater({ message: 'startDate must be today or later' })
+  startDate!: string;
 
   /**
    * Subscription end date.
@@ -57,11 +61,13 @@ export class CreateTenantSubscriptionDto {
    * - Optional field.
    * - Must be a valid date.
    *
-   * @type {Date | null}
+   * @type {string | null}
    */
-  @IsDate()
   @IsOptional()
-  endDate!: Date | null;
+  @IsDateString()
+  @IsTodayOrLater({ message: 'endDate must be today or later' })
+  @IsAfter('startDate', { message: 'endDate must come after startDate' })
+  endDate!: string | null;
 
   /**
    * Is active.

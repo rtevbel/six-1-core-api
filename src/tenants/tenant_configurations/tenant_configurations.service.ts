@@ -22,19 +22,17 @@ export class TenantConfigurationsService {
 
   /**
    * Creates a new tenant configuration.
-   * @param requestingUserId - ID of the user making the request (used for auditing).
+   * @param userId - ID of the user making the request (used for auditing).
    * @param tenantId - ID of the tenant to associate the configuration with.
    * @param createTenantConfigurationsDto - Data transfer object containing configuration details.
    * @returns The newly created tenant configuration entity.
    */
   async create(
-    requestingUserId: number,
-    tenantId: number,
+    userId: number,
     createTenantConfigurationsDto: CreateTenantConfigurationsDto,
   ): Promise<TenantConfigurationsEntity> {
-    createTenantConfigurationsDto.createdBy = requestingUserId;
-    createTenantConfigurationsDto.tenantId = tenantId;
-
+    createTenantConfigurationsDto.createdBy = userId;
+   
     return await this.tenantConfigurationsRepository.save(
       this.tenantConfigurationsRepository.create(createTenantConfigurationsDto),
     );
@@ -42,13 +40,13 @@ export class TenantConfigurationsService {
 
   /**
    * Retrieves all configurations for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant whose configurations are being retrieved.
    * @returns An array of tenant configuration entities.
    * @throws RpcException if no configurations are found.
    */
   async findAllByTenantId(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
   ): Promise<TenantConfigurationsEntity[]> {
     const configurations = await this.tenantConfigurationsRepository.find({
@@ -69,13 +67,13 @@ export class TenantConfigurationsService {
 
   /**
    * Retrieves configurations based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching, sorting, and pagination.
    * @returns An object containing configurations and pagination details.
    * @throws RpcException if no configurations match the filters.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -100,14 +98,14 @@ export class TenantConfigurationsService {
 
   /**
    * Retrieves a single tenant configuration by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant whose configuration is being retrieved.
    * @param id - ID of the configuration.
    * @returns The tenant configuration entity.
    * @throws RpcException if the configuration is not found.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantConfigurationsEntity> {
@@ -128,7 +126,7 @@ export class TenantConfigurationsService {
 
   /**
    * Updates an existing tenant configuration.
-   * @param requestingUserId - ID of the user making the request (used for auditing).
+   * @param userId - ID of the user making the request (used for auditing).
    * @param tenantId - ID of the tenant whose configuration is being updated.
    * @param id - ID of the configuration to update.
    * @param updateTenantConfigurationsDto - Data transfer object containing updated configuration details.
@@ -136,7 +134,7 @@ export class TenantConfigurationsService {
    * @throws RpcException if the configuration is not found.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantConfigurationsDto: UpdateTenantConfigurationsDto,
@@ -154,7 +152,7 @@ export class TenantConfigurationsService {
       );
     }
 
-    updateTenantConfigurationsDto.updatedBy = requestingUserId;
+    updateTenantConfigurationsDto.updatedBy = userId;
 
     return await this.tenantConfigurationsRepository.update(
       id,
@@ -164,14 +162,14 @@ export class TenantConfigurationsService {
 
   /**
    * Deletes a tenant configuration.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant whose configuration is being deleted.
    * @param id - ID of the configuration to delete.
    * @returns The result of the delete operation.
    * @throws RpcException if the configuration is not found.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {

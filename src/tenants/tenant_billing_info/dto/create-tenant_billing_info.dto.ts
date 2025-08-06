@@ -5,11 +5,11 @@ import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
  *
  * @version 0.0.1
  *
- * Data transfer object for creating tenant billing information.
+ * Data transfer object for creating tenant billing info.
  */
 export class CreateTenantBillingInfoDto {
   /**
-   * Tenant ID.
+   * Tenant ID associated with the billing info.
    *
    * - Required field.
    * - Must be a number.
@@ -105,7 +105,19 @@ export class CreateTenantBillingInfoDto {
   billingPostalCode!: string;
 
   /**
-   * Created by user ID.
+   * Billing currency (e.g., USD, EUR).
+   *
+   * - Optional field.
+   * - Must be a string.
+   *
+   * @type {string}
+   */
+  @IsString()
+  @IsOptional()
+  billingCurrency!: string;
+
+  /**
+   * ID of the user who created the billing info.
    *
    * - Required field.
    * - Must be a number.
@@ -115,4 +127,16 @@ export class CreateTenantBillingInfoDto {
   @IsNumber()
   @IsNotEmpty()
   createdBy!: number;
+
+  /**
+   * ID of the user who last updated the billing info.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsNumber()
+  @IsOptional()
+  updatedBy!: number;
 }

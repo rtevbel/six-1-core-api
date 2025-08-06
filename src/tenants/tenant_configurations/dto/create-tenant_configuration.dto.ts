@@ -155,6 +155,6 @@ export class CreateTenantConfigurationsDto {
    * @type {number}
    */
   @IsNumber()
-  @IsNotEmpty()
+  @IsOptional()
   createdBy!: number;
 }

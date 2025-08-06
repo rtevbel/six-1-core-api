@@ -41,17 +41,17 @@ export class FiltersDto {
   @IsNumber()
   limit: number = 10;
 
-  /**
+ /**
    * Field to sort the results by.
-   * Optional field, defaults to 'billing_id'.
-   * Must be one of 'billing_id', 'tenant_id'.
+   * Optional field, defaults to 'tenantBillingId'.
+   * Must be one of 'tenantBillingId', 'tenantId'.
    */
   @IsOptional()
-  @IsIn(['billing_id', 'tenant_id'], {
-    message: 'sortBy key must be from this list (billing_id, tenant_id)',
+  @IsIn(['tenantBillingId', 'tenantId'], {
+    message: 'sortBy key must be from this list (tenantBillingId, tenantId)',
   })
   @IsString()
-  sortBy: string = 'billing_id';
+  sortBy: string = 'tenantBillingId';
 
   /**
    * Sort order for the results.

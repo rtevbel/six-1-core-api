@@ -23,7 +23,7 @@ export class TenantWorkingHoursController {
 
   /**
    * Handle the creation of tenant working hours.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param createTenantWorkingHoursDto - DTO containing working hours data.
    * @returns The created TenantWorkingHoursEntity.
@@ -31,12 +31,12 @@ export class TenantWorkingHoursController {
   @MessagePattern(MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') createTenantWorkingHoursDto: CreateTenantWorkingHoursDto,
   ): Promise<TenantWorkingHoursEntity> {
     return await this.tenantWorkingHoursService.create(
-      requestingUserId,
+      userId,
       tenantId,
       createTenantWorkingHoursDto,
     );
@@ -44,36 +44,36 @@ export class TenantWorkingHoursController {
 
   /**
    * Handle fetching all working hours for a tenant.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @returns Array of TenantWorkingHoursEntity.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_WORKING_HOURS_PATTERN)
   async findAllWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
   ): Promise<TenantWorkingHoursEntity[]> {
     return await this.tenantWorkingHoursService.findAllByTenant(
-      requestingUserId,
+      userId,
       tenantId,
     );
   }
 
   /**
    * Handle fetching a specific working hours record by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param id - ID of the working hours record.
    * @returns The TenantWorkingHoursEntity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_WORKING_HOURS_PATTERN)
   async findOneWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantWorkingHoursEntity> {
     return await this.tenantWorkingHoursService.findOne(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );
@@ -81,7 +81,7 @@ export class TenantWorkingHoursController {
 
   /**
    * Handle updating a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param updateTenantWorkingHoursDto - DTO containing updated working hours data.
    * @returns UpdateResult indicating the outcome of the update operation.
@@ -89,12 +89,12 @@ export class TenantWorkingHoursController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') updateTenantWorkingHoursDto: UpdateTenantWorkingHoursDto,
   ): Promise<UpdateResult> {
     return await this.tenantWorkingHoursService.update(
-      requestingUserId,
+      userId,
       tenantId,
       updateTenantWorkingHoursDto.tenantWorkingHourId,
       updateTenantWorkingHoursDto,
@@ -103,19 +103,19 @@ export class TenantWorkingHoursController {
 
   /**
    * Handle removing a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
    * @param id - ID of the working hours record.
    * @returns DeleteResult indicating the outcome of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_WORKING_HOURS_PATTERN)
   async removeWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return await this.tenantWorkingHoursService.remove(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );
