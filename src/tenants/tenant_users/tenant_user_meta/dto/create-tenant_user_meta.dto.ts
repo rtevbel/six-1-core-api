@@ -52,15 +52,4 @@ export class CreateTenantUserMetaDto {
   @IsOptional()
   metaValue?: string;
 
-  /**
-   * Created by user ID.
-   *
-   * - Required field.
-   * - Must be a number.
-   *
-   * @type {number}
-   */
-  @IsNumber()
-  @IsNotEmpty()
-  createdBy!: number;
 }

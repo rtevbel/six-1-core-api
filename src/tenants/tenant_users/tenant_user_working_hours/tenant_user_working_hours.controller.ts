@@ -14,8 +14,7 @@ import {
   MICROSERVICE_FIND_ALL_TENANT_USER_WORKING_HOURS_PATTERN,
   MICROSERVICE_FIND_ONE_TENANT_USER_WORKING_HOURS_PATTERN,
   MICROSERVICE_UPDATE_TENANT_USER_WORKING_HOURS_PATTERN,
-  MICROSERVICE_REMOVE_TENANT_USER_WORKING_HOURS_PATTERN,
-  MICROSERVICE_FIND_ALL_BY_TENANT_USER_ID_PATTERN,
+  MICROSERVICE_REMOVE_TENANT_USER_WORKING_HOURS_PATTERN
 } from './constants';
 
 /**
@@ -84,23 +83,6 @@ export class TenantUserWorkingHoursController {
     return await this.tenantUserWorkingHoursService.findAllByFilter(
       requestingUserId,
       filtersDto,
-    );
-  }
-
-  /**
-   * Retrieves all working hours for a specific tenant user ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @returns A list of tenant user working hours entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_USER_ID_PATTERN)
-  async findAllByTenantUserId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
-  ): Promise<TenantUserWorkingHoursEntity[]> {
-    return this.tenantUserWorkingHoursService.findAllByTenantUserId(
-      requestingUserId,
-      tenantUserId,
     );
   }
 

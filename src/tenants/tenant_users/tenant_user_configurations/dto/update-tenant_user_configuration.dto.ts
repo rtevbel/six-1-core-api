@@ -1,5 +1,7 @@
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import { CreateTenantUserConfigurationDto } from './create-tenant_user_configuration.dto';
+import { PartialType } from '@nestjs/mapped-types';
+
 
 /**
  * Update tenant user configuration DTO class.
@@ -8,7 +10,7 @@ import { CreateTenantUserConfigurationDto } from './create-tenant_user_configura
  *
  * Data transfer object for updating tenant user configurations.
  */
-export class UpdateTenantUserConfigurationDto extends CreateTenantUserConfigurationDto {
+export class UpdateTenantUserConfigurationDto extends PartialType(CreateTenantUserConfigurationDto) {
   /**
    * Tenant user configuration ID.
    *

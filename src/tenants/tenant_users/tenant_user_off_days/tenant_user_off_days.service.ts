@@ -22,58 +22,31 @@ export class TenantUserOffDaysService {
 
   /**
    * Creates a new TenantUserOffDaysEntity record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param CreateTenantUserOffDayDto - Data transfer object containing the details for the new record.
    * @returns The newly created TenantUserOffDaysEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     CreateTenantUserOffDayDto: CreateTenantUserOffDayDto,
   ): Promise<TenantUserOffDaysEntity> {
     return await this.tenantUserOffDaysRepository.save(
       this.tenantUserOffDaysRepository.create({
         ...CreateTenantUserOffDayDto,
-        createdBy: requestingUserId,
+        createdBy: userId,
       }),
     );
   }
 
   /**
-   * Retrieves all off-day records for a specific tenant user.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user whose off-days are being retrieved.
-   * @returns An array of TenantUserOffDaysEntity records.
-   * @throws RpcException if no records are found.
-   */
-  async findAllByTenantUserId(
-    requestingUserId: number,
-    tenantUserId: number,
-  ): Promise<TenantUserOffDaysEntity[]> {
-    const offDays = await this.tenantUserOffDaysRepository.find({
-      where: { tenantUserId },
-    });
-
-    if (offDays.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantUserOffDaysEntity.name,
-        ),
-      );
-    }
-
-    return offDays;
-  }
-
-  /**
    * Retrieves a single off-day record by its ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the off-day record to retrieve.
    * @returns The TenantUserOffDaysEntity record.
    * @throws RpcException if the record is not found.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     id: number,
   ): Promise<TenantUserOffDaysEntity> {
     const offDay = await this.tenantUserOffDaysRepository.findOne({
@@ -94,14 +67,14 @@ export class TenantUserOffDaysService {
 
   /**
    * Updates an existing off-day record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the off-day record to update.
    * @param UpdateTenantUserOffDayDto - Data transfer object containing the updated details.
    * @returns The result of the update operation.
    * @throws RpcException if the record is not found.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     id: number,
     UpdateTenantUserOffDayDto: UpdateTenantUserOffDayDto,
   ): Promise<UpdateResult> {
@@ -126,12 +99,12 @@ export class TenantUserOffDaysService {
 
   /**
    * Deletes an off-day record by its ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the off-day record to delete.
    * @returns The result of the delete operation.
    * @throws RpcException if the record is not found.
    */
-  async remove(requestingUserId: number, id: number): Promise<DeleteResult> {
+  async remove(userId: number, id: number): Promise<DeleteResult> {
     const offDay = await this.tenantUserOffDaysRepository.findOne({
       where: { tenantUserOffDayId: id },
     });
@@ -150,13 +123,13 @@ export class TenantUserOffDaysService {
 
   /**
    * Retrieves off-day records based on filters and pagination.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Data transfer object containing filter and pagination details.
    * @returns An object containing filtered records and pagination details.
    * @throws RpcException if no records match the filters.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);

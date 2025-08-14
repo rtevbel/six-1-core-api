@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult, Like , SelectQueryBuilder , Brackets } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUsersEntity } from './entities/tenant_user.entity';
 import { CreateTenantUserDto } from './dto/create-tenant_user.dto';
@@ -41,32 +41,6 @@ export class TenantUsersService {
   }
 
   /**
-   * Retrieves all tenant user records for a specific tenant ID.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns Array of tenant user entities.
-   */
-  async findAllByTenantId(
-    userId: number,
-    tenantId: number,
-  ): Promise<TenantUsersEntity[]> {
-    const tenantUsersRecords = await this.tenantUsersRepository.find({
-      where: { tenantId },
-    });
-
-    if (tenantUsersRecords.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantUsersEntity.name,
-        ),
-      );
-    }
-
-    return tenantUsersRecords;
-  }
-
-  /**
    * Retrieves tenant user records based on filters.
    * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying tenant user records.
@@ -76,10 +50,9 @@ export class TenantUsersService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
 
-    const [tenantUsers, total] =
-      await this.tenantUsersRepository.findAndCount(findQuery);
+    const findQuery = this.buildFindQuery(filtersDto);
+    const [tenantUsers, total] = await findQuery.getManyAndCount();
 
     if (tenantUsers.length === 0) {
       throw new RpcException(
@@ -192,41 +165,41 @@ export class TenantUsersService {
    * @param filtersDto - Filters for querying tenant user records.
    * @returns Query object for filtering.
    */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-
-    const query: Record<string, any> = {};
-
-    if (filtersDto.tenantId) {
-      query.where = [
-        {tenantId: filtersDto.tenantId} // Filter by tenantId
-      ];
-    }
+  private buildFindQuery(
+    filtersDto: FiltersDto,
+  ): SelectQueryBuilder<TenantUsersEntity> {
+    console.log(filtersDto,'filtersDto');
+    const qb = this.tenantUsersRepository
+      .createQueryBuilder('tu')
+      .leftJoinAndSelect('tu.user',   'u')
+      .leftJoinAndSelect('tu.status', 's');
+  
+    qb.andWhere('tu.tenantId = :tenantId', { tenantId: filtersDto.tenantId });
 
     if (filtersDto.search) {
-      query.where = [
-        { user: { first_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's first_name field
-        { user: { last_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's last_name field
-        { user: { username: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's username field
-        { user: { email: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's email field
-        { status: { name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on Statuses entity's name field
-      ];
+      qb.andWhere(
+        new Brackets(q => {
+          q.where('u.first_name LIKE :k', { k: `%${filtersDto.search}%` })
+           .orWhere('u.last_name  LIKE :k', { k: `%${filtersDto.search}%` })
+           .orWhere('u.username   LIKE :k', { k: `%${filtersDto.search}%` })
+           .orWhere('u.email      LIKE :k', { k: `%${filtersDto.search}%` })
+           .orWhere('s.name       LIKE :k', { k: `%${filtersDto.search}%` });
+        }),
+      );
     }
-
+  
+    // ---- ordering & pagination ---------------------------------------------
     if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
+      qb.orderBy(`tu.${filtersDto.sortBy}`, (filtersDto.sortOrder ?? 'ASC') as 'ASC' | 'DESC');
     }
-
+  
     if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+      const limit = Math.min(filtersDto.limit, 10);
+      const page  = filtersDto.page ?? 1;
+      qb.take(limit).skip((page - 1) * limit);
     }
-
-    return query;
+  
+    return qb;
   }
 
   /**

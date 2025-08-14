@@ -21,57 +21,33 @@ export class TenantUserConfigurationsService {
   ) {}
 
   /**
-   * Creates a new tenant user configuration record.
-   * @param requestingUserId - ID of the user making the request.
-   * @param createTenantUserConfigurationDto - Data transfer object containing configuration details.
-   * @returns The created configuration entity.
+   * Creates a new tenant user configuration.
+   * @param userId - The ID of the user performing the operation.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param createTenantUserConfigurationDto - The DTO containing the configuration details.
+   * @returns The created tenant user configuration entity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
+    tenantUserId: number,
     createTenantUserConfigurationDto: CreateTenantUserConfigurationDto,
   ): Promise<TenantUserConfigurationsEntity> {
     return await this.tenantUserConfigurationsRepository.save(
-      this.tenantUserConfigurationsRepository.create({
-        ...createTenantUserConfigurationDto,
-        createdBy: requestingUserId,
-      }),
+      this.tenantUserConfigurationsRepository.create(createTenantUserConfigurationDto),
     );
   }
 
   /**
-   * Retrieves all configurations for a specific tenant user ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @returns Array of configuration entities.
-   */
-  async findAllByTenantUserId(
-    requestingUserId: number,
-    tenantUserId: number,
-  ): Promise<TenantUserConfigurationsEntity[]> {
-    const configurations = await this.tenantUserConfigurationsRepository.find({
-      where: { tenantUserId },
-    });
-
-    if (configurations.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantUserConfigurationsEntity.name,
-        ),
-      );
-    }
-
-    return configurations;
-  }
-
-  /**
-   * Retrieves tenant user invitation records based on filters.
-   * @param requestingUserId - ID of the user making the request.
-   * @param filtersDto - Filters for querying tenant user invitation records.
-   * @returns Object containing tenant user invitation records and pagination details.
+   * Finds all tenant user configurations based on filters.
+   * @param userId - The ID of the user performing the operation.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param filtersDto - The filters to apply.
+   * @returns A result containing the configurations and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -95,20 +71,22 @@ export class TenantUserConfigurationsService {
   }
 
   /**
-   * Retrieves a single configuration record by ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param id - ID of the configuration.
-   * @returns The configuration entity.
+   * Finds a specific tenant user configuration by ID.
+   * @param userId - The ID of the user performing the operation.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the configuration to find.
+   * @returns The found tenant user configuration entity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
     id: number,
   ): Promise<TenantUserConfigurationsEntity> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne(
-      {
-        where: { tenantUserConfigId: id },
-      },
-    );
+    const configuration = await this.tenantUserConfigurationsRepository.findOne({
+      where: { tenantUserConfigId: id, tenantUserId },
+    });
 
     if (!configuration) {
       throw new RpcException(
@@ -123,22 +101,24 @@ export class TenantUserConfigurationsService {
   }
 
   /**
-   * Updates a configuration record.
-   * @param requestingUserId - ID of the user making the request.
-   * @param id - ID of the configuration.
-   * @param updateTenantUserConfigurationDto - Data transfer object containing updated configuration details.
+   * Updates a tenant user configuration by ID.
+   * @param userId - The ID of the user performing the operation.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the configuration to update.
+   * @param updateTenantUserConfigurationDto - The DTO containing the updated details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
     id: number,
     updateTenantUserConfigurationDto: UpdateTenantUserConfigurationDto,
   ): Promise<UpdateResult> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne(
-      {
-        where: { tenantUserConfigId: id },
-      },
-    );
+    const configuration = await this.tenantUserConfigurationsRepository.findOne({
+      where: { tenantUserConfigId: id, tenantUserId },
+    });
 
     if (!configuration) {
       throw new RpcException(
@@ -150,23 +130,28 @@ export class TenantUserConfigurationsService {
     }
 
     return await this.tenantUserConfigurationsRepository.update(
-      id,
+      { tenantUserConfigId: id, tenantUserId },
       updateTenantUserConfigurationDto,
     );
   }
 
   /**
-   * Deletes a configuration record.
-   * @param requestingUserId - ID of the user making the request.
-   * @param id - ID of the configuration.
+   * Deletes a tenant user configuration by ID.
+   * @param userId - The ID of the user performing the operation.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the configuration to delete.
    * @returns The result of the delete operation.
    */
-  async remove(requestingUserId: number, id: number): Promise<DeleteResult> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne(
-      {
-        where: { tenantUserConfigId: id },
-      },
-    );
+  async remove(
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
+    id: number,
+  ): Promise<DeleteResult> {
+    const configuration = await this.tenantUserConfigurationsRepository.findOne({
+      where: { tenantUserConfigId: id, tenantUserId },
+    });
 
     if (!configuration) {
       throw new RpcException(
@@ -176,26 +161,32 @@ export class TenantUserConfigurationsService {
         ),
       );
     }
-
-    return await this.tenantUserConfigurationsRepository.delete(id);
+    
+    return await this.tenantUserConfigurationsRepository.delete({
+      tenantUserConfigId: id,
+      tenantUserId,
+    });
   }
 
   /**
-   * Builds a query object for filtering tenant user records.
-   * Applies LIKE queries on tenant user fields and user entity fields.
-   * @param filtersDto - Filters for querying tenant user records.
-   * @returns Query object for filtering.
+   * Builds the query object for finding tenant user configurations.
+   * @param filtersDto - The filters to apply.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @returns The query object.
    */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
+  private buildFindQuery(
+    filtersDto: FiltersDto,
+  ): Record<string, any> {
+    
+    const query: Record<string, any> = { where: {tenantUserId:filtersDto.tenantUserId } };
 
     if (filtersDto.search) {
       query.where = [
-        { user: { first_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's first_name field
-        { user: { last_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's last_name field
-        { user: { username: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's username field
-        { user: { email: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's email field
-        { tenant: { name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on tenant entity's name field
+        { user: { first_name: Like(`%${filtersDto.search}%`) } },
+        { user: { last_name: Like(`%${filtersDto.search}%`) } },
+        { user: { username: Like(`%${filtersDto.search}%`) } },
+        { user: { email: Like(`%${filtersDto.search}%`) } },
       ];
     }
 
@@ -217,10 +208,10 @@ export class TenantUserConfigurationsService {
   }
 
   /**
-   * Builds pagination details for the filtered records.
-   * @param filtersDto - Filters for querying tenant user records.
-   * @param total - Total number of records matching the filters.
-   * @returns Pagination details.
+   * Builds the pagination object for the result.
+   * @param filtersDto - The filters containing pagination details.
+   * @param total - The total number of records.
+   * @returns The pagination object.
    */
   private buildPagination(
     filtersDto: FiltersDto,

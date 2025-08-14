@@ -14,6 +14,15 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
+
+   /**
+   * Tenant ID for filtering results.
+   * Required field, must be a number.
+   */
+   @Type(() => Number)
+   @IsNumber()
+   tenantId!:number;
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.
@@ -43,16 +52,16 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'invitation_id'.
-   * Must be one of 'invitation_id', 'tenant_id', 'user_id'.
+   * Optional field, defaults to 'invitationId'.
+   * Must be one of 'invitationId', 'tenantId', 'userId'.
    */
   @IsOptional()
-  @IsIn(['invitation_id', 'tenant_id', 'user_id'], {
+  @IsIn(['invitationId', 'tenantId', 'userId'], {
     message:
-      'sortBy key must be from this list (invitation_id, tenant_id , user_id)',
+      'sortBy key must be from this list (invitationId, tenantId , userId)',
   })
   @IsString()
-  sortBy: string = 'invitation_id';
+  sortBy: string = 'invitationId';
 
   /**
    * Sort order for the results.

@@ -22,12 +22,14 @@ export class TenantUserMetaService {
 
   /**
    * Creates a new tenant user metadata record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
+   * @param tenantId - ID of the tenant.
    * @param createTenantUserMetaDto - Data transfer object containing metadata details.
    * @returns The created metadata entity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     createTenantUserMetaDto: CreateTenantUserMetaDto,
   ): Promise<TenantUserMetaEntity> {
     return await this.tenantUserMetaRepository.save(
@@ -36,39 +38,15 @@ export class TenantUserMetaService {
   }
 
   /**
-   * Retrieves all metadata for a specific tenant user ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @returns Array of metadata entities.
-   */
-  async findAllByTenantUserId(
-    requestingUserId: number,
-    tenantUserId: number,
-  ): Promise<TenantUserMetaEntity[]> {
-    const metadata = await this.tenantUserMetaRepository.find({
-      where: { tenantUserId },
-    });
-
-    if (metadata.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantUserMetaEntity.name,
-        ),
-      );
-    }
-
-    return metadata;
-  }
-
-  /**
    * Retrieves tenant user metadata records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
+   * @param tenantId - ID of the tenant.
    * @param filtersDto - Filters for querying tenant user metadata records.
    * @returns Object containing tenant user metadata records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -93,16 +71,20 @@ export class TenantUserMetaService {
 
   /**
    * Retrieves a single metadata record by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
+   * @param tenantId - ID of the tenant.
+   * @param tenantUserId - ID of the tenant user.
    * @param id - ID of the metadata.
    * @returns The metadata entity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
     id: number,
   ): Promise<TenantUserMetaEntity> {
     const metadata = await this.tenantUserMetaRepository.findOne({
-      where: { tenantUserMetaId: id },
+      where: { tenantUserMetaId: id , tenantUserId },
     });
 
     if (!metadata) {
@@ -119,18 +101,22 @@ export class TenantUserMetaService {
 
   /**
    * Updates a metadata record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
+   * @param tenantId - ID of the tenant.
+   * @param tenantUserId - ID of the tenant user.
    * @param id - ID of the metadata.
    * @param updateTenantUserMetaDto - Data transfer object containing updated metadata details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
     id: number,
     updateTenantUserMetaDto: UpdateTenantUserMetaDto,
   ): Promise<UpdateResult> {
     const metadata = await this.tenantUserMetaRepository.findOne({
-      where: { tenantUserMetaId: id },
+      where: { tenantUserMetaId: id, tenantUserId },
     });
 
     if (!metadata) {
@@ -143,20 +129,27 @@ export class TenantUserMetaService {
     }
 
     return await this.tenantUserMetaRepository.update(
-      id,
+      { tenantUserMetaId: id, tenantUserId },
       updateTenantUserMetaDto,
     );
   }
 
   /**
    * Deletes a metadata record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
+   * @param tenantId - ID of the tenant.
+   * @param tenantUserId - ID of the tenant user.
    * @param id - ID of the metadata.
    * @returns The result of the delete operation.
    */
-  async remove(requestingUserId: number, id: number): Promise<DeleteResult> {
+  async remove(
+    userId: number,
+    tenantId: number,
+    tenantUserId: number,
+    id: number,
+  ): Promise<DeleteResult> {
     const metadata = await this.tenantUserMetaRepository.findOne({
-      where: { tenantUserMetaId: id },
+      where: { tenantUserMetaId: id, tenantUserId },
     });
 
     if (!metadata) {
@@ -168,17 +161,26 @@ export class TenantUserMetaService {
       );
     }
 
-    return await this.tenantUserMetaRepository.delete(id);
+    return await this.tenantUserMetaRepository.delete({
+      tenantUserMetaId: id,
+      tenantUserId,
+    });
   }
 
   /**
    * Builds a query object for filtering tenant user metadata records.
    * Applies LIKE queries on metadata fields.
+   * @param tenantId - ID of the tenant.
+   * @param tenantUserId - ID of the tenant user.
    * @param filtersDto - Filters for querying tenant user metadata records.
    * @returns Query object for filtering.
    */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
+  private buildFindQuery(
+    filtersDto: FiltersDto,
+  ): Record<string, any> {
+    const query: Record<string, any> = {
+      where: {tenantUserId:filtersDto.tenantUserId},
+    };
 
     if (filtersDto.search) {
       query.where = [

@@ -22,15 +22,15 @@ export class TenantUserInvitationsService {
 
   /**
    * Creates a new tenant user invitation record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param createTenantUserInvitationDto - Data transfer object containing invitation details.
    * @returns The created invitation entity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     createTenantUserInvitationDto: CreateTenantUserInvitationDto,
   ): Promise<TenantUserInvitationsEntity> {
-    // Optionally validate requestingUserId permissions here
+    // Optionally validate userId permissions here
     return await this.tenantUserInvitationsRepository.save(
       this.tenantUserInvitationsRepository.create(
         createTenantUserInvitationDto,
@@ -39,35 +39,13 @@ export class TenantUserInvitationsService {
   }
 
   /**
-   * Retrieves all invitations for a specific tenant ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns Array of invitation entities.
-   */
-  async findAllByTenantId(
-    requestingUserId: number,
-    tenantId: number,
-  ): Promise<TenantUserInvitationsEntity[]> {
-    // Optionally validate requestingUserId permissions here
-    const invitations = await this.tenantUserInvitationsRepository.find({
-      where: { tenantId },
-    });
-
-    if (invitations.length === 0) {
-      throw new RpcException('No invitations found for the specified tenant.');
-    }
-
-    return invitations;
-  }
-
-  /**
    * Retrieves tenant user invitation records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying tenant user invitation records.
    * @returns Object containing tenant user invitation records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -99,6 +77,8 @@ export class TenantUserInvitationsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+    query.where = {tenantId: filtersDto.tenantId}; // Filter by tenantId
+
     if (filtersDto.search) {
       query.where = [
         { user: { first_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's first_name field
@@ -106,6 +86,8 @@ export class TenantUserInvitationsService {
         { user: { username: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's username field
         { user: { email: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's email field
         { tenant: { name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on tenant entity's name field
+        { token: Like(`%${filtersDto.search}%`) }, // Apply LIKE query on token field
+        { status: Like(`%${filtersDto.search}%`) }, // Apply LIKE query on status field
       ];
     }
 
@@ -128,23 +110,26 @@ export class TenantUserInvitationsService {
 
   /**
    * Retrieves a single invitation record by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation.
    * @returns The invitation entity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantUserInvitationsEntity> {
-    // Optionally validate requestingUserId permissions here
+    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
 
     if (!invitation) {
-      throw new RpcException('Invitation not found.');
+      throw new RpcException( NO_RECORD_FOUND_MESSAGE.replace(
+        '{entity_name}',
+        TenantUserInvitationsEntity.name,
+      ));
     }
 
     return invitation;
@@ -152,25 +137,28 @@ export class TenantUserInvitationsService {
 
   /**
    * Updates an invitation record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation.
    * @param updateTenantUserInvitationDto - Data transfer object containing updated invitation details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantUserInvitationDto: UpdateTenantUserInvitationDto,
   ): Promise<UpdateResult> {
-    // Optionally validate requestingUserId permissions here
+    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
 
     if (!invitation) {
-      throw new RpcException('Invitation not found.');
+      throw new RpcException(NO_RECORD_FOUND_MESSAGE.replace(
+        '{entity_name}',
+        TenantUserInvitationsEntity.name,
+      ));
     }
 
     return await this.tenantUserInvitationsRepository.update(
@@ -181,23 +169,26 @@ export class TenantUserInvitationsService {
 
   /**
    * Deletes an invitation record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
-    // Optionally validate requestingUserId permissions here
+    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
 
     if (!invitation) {
-      throw new RpcException('Invitation not found.');
+      throw new RpcException(NO_RECORD_FOUND_MESSAGE.replace(
+        '{entity_name}',
+        TenantUserInvitationsEntity.name,
+      ));
     }
 
     return await this.tenantUserInvitationsRepository.delete({

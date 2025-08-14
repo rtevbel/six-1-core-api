@@ -80,23 +80,6 @@ export class TenantUsersController {
   }
 
   /**
-   * Retrieves all users for a specific tenant.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns A list of tenant user entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
-  async findAllByTenantId(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
-  ): Promise<TenantUsersEntity[]> {
-    return this.tenantUsersService.findAllByTenantId(
-      userId,
-      tenantId,
-    );
-  }
-
-  /**
    * Updates tenant user information.
    * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.

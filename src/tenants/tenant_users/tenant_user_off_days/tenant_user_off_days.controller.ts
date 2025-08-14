@@ -15,7 +15,6 @@ import {
   MICROSERVICE_FIND_ONE_TENANT_USER_OFF_DAY_PATTERN,
   MICROSERVICE_UPDATE_TENANT_USER_OFF_DAY_PATTERN,
   MICROSERVICE_REMOVE_TENANT_USER_OFF_DAY_PATTERN,
-  MICROSERVICE_FIND_ALL_BY_TENANT_USER_ID_PATTERN,
 } from './constants';
 
 /**
@@ -29,84 +28,67 @@ export class TenantUserOffDaysController {
 
   /**
    * Handles the creation of a tenant user off day.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param createTenantUserOffDayDto - Data transfer object containing off day details.
    * @returns The created tenant user off day entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_USER_OFF_DAY_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createTenantUserOffDay(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createTenantUserOffDayDto: CreateTenantUserOffDayDto,
   ): Promise<TenantUserOffDaysEntity> {
     return this.tenantUserOffDaysService.create(
-      requestingUserId,
+      userId,
       createTenantUserOffDayDto,
     );
   }
 
   /**
    * Retrieves a single tenant user off day by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the off day to retrieve.
    * @returns The tenant user off day entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_USER_OFF_DAY_PATTERN)
   async findOneTenantUserOffDay(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserOffDaysEntity> {
-    return this.tenantUserOffDaysService.findOne(requestingUserId, id);
+    return this.tenantUserOffDaysService.findOne(userId, id);
   }
 
   /**
    * Retrieves all tenant user off days based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying off days.
    * @returns A list of tenant user off days matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_USER_OFF_DAYS_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantUserOffDaysService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
-   * Retrieves all configurations for a specific tenant user ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @returns A list of tenant user configuration entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_USER_ID_PATTERN)
-  async findAllByTenantUserId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
-  ): Promise<TenantUserOffDaysEntity[]> {
-    return await this.tenantUserOffDaysService.findAllByTenantUserId(
-      requestingUserId,
-      tenantUserId,
-    );
-  }
-
-  /**
    * Updates tenant user off day information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param updateTenantUserOffDayDto - Data transfer object containing updated off day details.
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_USER_OFF_DAY_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateTenantUserOffDay(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') updateTenantUserOffDayDto: UpdateTenantUserOffDayDto,
   ): Promise<UpdateResult> {
     return this.tenantUserOffDaysService.update(
-      requestingUserId,
+      userId,
       updateTenantUserOffDayDto.tenantUserOffDayId,
       updateTenantUserOffDayDto,
     );
@@ -114,15 +96,15 @@ export class TenantUserOffDaysController {
 
   /**
    * Deletes a tenant user off day by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the off day to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_USER_OFF_DAY_PATTERN)
   async removeTenantUserOffDay(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantUserOffDaysService.remove(requestingUserId, id);
+    return this.tenantUserOffDaysService.remove(userId, id);
   }
 }

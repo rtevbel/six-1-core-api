@@ -9,7 +9,7 @@ export interface FindAllResultInterface {
   /**
    * Array of TenantUserRoleEntity objects representing the roles.
    */
-  userRoleRecords: TenantUserRoleEntity[];
+  tenantUserRolesRecords: TenantUserRoleEntity[];
 
   /**
    * Pagination details for the result set.

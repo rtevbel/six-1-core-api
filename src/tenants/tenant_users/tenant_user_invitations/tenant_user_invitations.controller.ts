@@ -15,7 +15,6 @@ import {
   MICROSERVICE_FIND_ONE_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_UPDATE_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_REMOVE_TENANT_USER_INVITATION_PATTERN,
-  MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN,
 } from './constants';
 
 /**
@@ -29,7 +28,7 @@ export class TenantUserInvitationsController {
 
   /**
    * Handles the creation of a tenant user invitation.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant for which the invitation is being created.
    * @param createTenantUserInvitationDto - Data transfer object containing invitation details.
    * @returns The created tenant user invitation entity.
@@ -37,31 +36,31 @@ export class TenantUserInvitationsController {
   @MessagePattern(MICROSERVICE_CREATE_TENANT_USER_INVITATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createTenantUserInvitation(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data')
     createTenantUserInvitationDto: CreateTenantUserInvitationDto,
   ): Promise<TenantUserInvitationsEntity> {
     return this.tenantUserInvitationsService.create(
-      requestingUserId,
+      userId,
       createTenantUserInvitationDto,
     );
   }
 
   /**
    * Retrieves a single tenant user invitation by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation to retrieve.
    * @returns The tenant user invitation entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_USER_INVITATION_PATTERN)
   async findOneTenantUserInvitation(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserInvitationsEntity> {
     return this.tenantUserInvitationsService.findOne(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );
@@ -69,41 +68,24 @@ export class TenantUserInvitationsController {
 
   /**
    * Retrieves all tenant user invitations based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying invitations.
    * @returns A list of tenant user invitations matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_USER_INVITATIONS_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantUserInvitationsService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
-   * Retrieves all invitations for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns A list of tenant user invitation entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
-  async findAllByTenantId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
-  ): Promise<TenantUserInvitationsEntity[]> {
-    return this.tenantUserInvitationsService.findAllByTenantId(
-      requestingUserId,
-      tenantId,
-    );
-  }
-
-  /**
    * Updates tenant user invitation information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param updateTenantUserInvitationDto - Data transfer object containing updated invitation details.
    * @returns The result of the update operation.
@@ -111,13 +93,13 @@ export class TenantUserInvitationsController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_USER_INVITATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateTenantUserInvitation(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data')
     updateTenantUserInvitationDto: UpdateTenantUserInvitationDto,
   ): Promise<UpdateResult> {
     return this.tenantUserInvitationsService.update(
-      requestingUserId,
+      userId,
       tenantId,
       updateTenantUserInvitationDto.invitationId,
       updateTenantUserInvitationDto,
@@ -126,19 +108,19 @@ export class TenantUserInvitationsController {
 
   /**
    * Deletes a tenant user invitation by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_USER_INVITATION_PATTERN)
   async removeTenantUserInvitation(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantUserInvitationsService.remove(
-      requestingUserId,
+      userId,
       tenantId,
       id,
     );

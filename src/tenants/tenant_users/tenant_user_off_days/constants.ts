@@ -9,8 +9,6 @@ export const MICROSERVICE_UPDATE_TENANT_USER_OFF_DAY_PATTERN =
   'v0.1_update_tenant_user_off_day';
 export const MICROSERVICE_REMOVE_TENANT_USER_OFF_DAY_PATTERN =
   'v0.1_remove_tenant_user_off_day';
-export const MICROSERVICE_FIND_ALL_BY_TENANT_USER_ID_PATTERN =
-  'v0.1_find_all_by_tenant_user_id';
 
 export const MESSAGE_BROKER_TENANT_USER_OFF_DAYS_SERVICE_CLIENT_TOKEN =
   'tenant_user_off_days_service_token';
