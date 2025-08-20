@@ -3,6 +3,7 @@ import {
   IsString,
   IsNumber,
   ValidateNested,
+  IsOptional,
   IsArray,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -26,7 +27,7 @@ export class CreateUserMetaDto {
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  user_id!: number;
+  userId!: number;
 
   /**
    * The metadata key.
@@ -38,19 +39,19 @@ export class CreateUserMetaDto {
    */
   @IsNotEmpty()
   @IsString()
-  meta_key!: string;
+  metaKey!: string;
 
   /**
    * The metadata value.
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a string.
    *
    * @type {string}
    */
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  meta_value!: string;
+  metaValue?: string;
 
   /**
    * Optional list of metadata keys for batch creation.
@@ -59,10 +60,11 @@ export class CreateUserMetaDto {
    *
    * @type {string[]}
    */
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => String)
-  meta_keys?: string[];
+  metaKeys?: string[];
 
   /**
    * Optional list of metadata values for batch creation.
@@ -71,8 +73,9 @@ export class CreateUserMetaDto {
    *
    * @type {string[]}
    */
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => String)
-  meta_values?: string[];
+  metaValues?: string[];
 }

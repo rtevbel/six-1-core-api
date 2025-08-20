@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, DeleteResult, UpdateResult } from 'typeorm';
+import { Repository, DeleteResult, UpdateResult , Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserMetaEntity } from './entities/user-meta.entity';
 import { CreateUserMetaDto } from './dto/create-user-meta.dto';
 import { UpdateUserMetaDto } from './dto/update-user-meta.dto';
 import { RpcException } from '@nestjs/microservices';
+import { FiltersDto } from './dto/filters.dto';
+import {FindAllResultInterface} from "./interfaces/findall-result.interface";
+
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -28,7 +31,7 @@ export class UserMetaService {
   /**
    * Creates a new user metadata record.
    *
-   * @param userId - ID of the user associated with the metadata.
+   * @param userId - ID of the user making request.
    * @param createUserMetaDto - DTO containing metadata details.
    * @returns The created UserMetaEntity.
    */
@@ -36,7 +39,6 @@ export class UserMetaService {
     userId: number,
     createUserMetaDto: CreateUserMetaDto,
   ): Promise<UserMetaEntity> {
-    createUserMetaDto.user_id = userId;
     const newMeta = this.userMetaRepository.create(createUserMetaDto);
     return this.userMetaRepository.save(newMeta);
   }
@@ -44,18 +46,20 @@ export class UserMetaService {
   /**
    * Retrieves all user metadata records for a specific user.
    *
-   * @param requestingUserId - ID of the user making the request.
-   * @param userId - ID of the user whose metadata is being retrieved.
+   * @param userId - ID of the user making the request.
    * @returns An array of UserMetaEntity objects.
    * @throws RpcException if no records are found.
    */
   async findAll(
-    requestingUserId: number,
     userId: number,
-  ): Promise<UserMetaEntity[]> {
-    const metas = await this.userMetaRepository.find({
-      where: { user_id: userId },
-    });
+    filtersDto:FiltersDto
+  ): Promise<FindAllResultInterface> {
+
+    const findQuery  = this.buildFindQuery(filtersDto);
+    
+    // Fetch user meta and count total records
+    const [metas, total] = await this.userMetaRepository.findAndCount(findQuery);
+    
     if (metas.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
@@ -64,7 +68,10 @@ export class UserMetaService {
         ),
       );
     }
-    return metas;
+    return {
+      userMeta:metas,
+      pagination: this.buildPagination(filtersDto, total),
+    };
   }
 
   /**
@@ -82,8 +89,8 @@ export class UserMetaService {
     id: number,
   ): Promise<UserMetaEntity> {
     const meta = await this.userMetaRepository.findOneBy({
-      user_meta_id: id,
-      user_id: userId,
+      userMetaId: id,
+      userId: userId,
     });
     if (!meta) {
       throw new RpcException(
@@ -99,22 +106,21 @@ export class UserMetaService {
   /**
    * Updates an existing user metadata record.
    *
-   * @param requestingUserId - ID of the user making the request.
-   * @param userId - ID of the user associated with the metadata.
+   * @param userId - ID of the user making the request.
    * @param id - ID of the metadata record to update.
    * @param updateUserMetaDto - DTO containing updated metadata details.
    * @returns The result of the update operation.
    * @throws RpcException if the record is not found.
    */
   async update(
-    requestingUserId: number,
     userId: number,
     id: number,
     updateUserMetaDto: UpdateUserMetaDto,
   ): Promise<UpdateResult> {
+    console.log(updateUserMetaDto,'updateUserMetaDtoupdateUserMetaDto');
     const meta = await this.userMetaRepository.findOneBy({
-      user_meta_id: id,
-      user_id: userId,
+      userMetaId: id,
+      userId: updateUserMetaDto.userId,
     });
     if (!meta) {
       throw new RpcException(
@@ -141,8 +147,8 @@ export class UserMetaService {
     id: number,
   ): Promise<DeleteResult> {
     const meta = await this.userMetaRepository.findOneBy({
-      user_meta_id: id,
-      user_id: userId,
+      userMetaId: id,
+      userId: userId,
     });
     if (!meta) {
       throw new RpcException(
@@ -152,23 +158,25 @@ export class UserMetaService {
         ),
       );
     }
-    return this.userMetaRepository.delete({ user_meta_id: id });
+    return this.userMetaRepository.delete({ userMetaId: id });
   }
 
   /**
    * Finds the meta value for a specific user and meta key.
    *
+   * @param requestingUserId - ID of the user making the request.
    * @param userId - ID of the user associated with the metadata.
    * @param metaKey - The meta key to search for.
    * @returns The meta value as a string.
    * @throws RpcException if no record is found.
    */
   async findMetaValueByUserIdAndMetaKey(
+    requestingUserId: number,
     userId: number,
     metaKey: string,
   ): Promise<string> {
     const meta = await this.userMetaRepository.findOne({
-      where: { user_id: userId, meta_key: metaKey },
+      where: { userId: userId, metaKey: metaKey },
     });
     if (!meta) {
       throw new RpcException(
@@ -178,6 +186,60 @@ export class UserMetaService {
         ),
       );
     }
-    return meta.meta_value;
+    return meta.metaValue;
   }
+
+    /**
+   * Builds the query object for filtering, sorting, and pagination.
+   * @param filtersDto - Filters for search, sorting, and pagination.
+   * @returns The query object for TypeORM's `findAndCount` method.
+   */
+    private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+      const query: Record<string, any> = {};
+  
+      query.where = {userId: filtersDto.userId};
+
+      // Apply search filters if provided
+      if (filtersDto.search) {
+        query.where = [
+          { metaKey: Like(`%${filtersDto.search}%`) },
+          { metaValue: Like(`%${filtersDto.search}%`) },
+        ];
+      }
+      
+      // Apply sorting if provided
+      if (filtersDto.sortBy) {
+        query.order = {
+          [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
+        };
+      }
+  
+      // Apply pagination if limit is provided
+      if (filtersDto.limit) {
+        filtersDto.page = filtersDto.page || 1;
+        filtersDto.limit = Math.min(filtersDto.limit, 10);
+  
+        query.take = filtersDto.limit;
+        query.skip = (filtersDto.page - 1) * filtersDto.limit;
+      }
+  
+      return query;
+    }
+  
+    /**
+     * Builds the pagination object for the response.
+     * @param filtersDto - Filters containing pagination details.
+     * @param total - Total number of records matching the query.
+     * @returns The pagination object.
+     */
+    private buildPagination(
+      filtersDto: FiltersDto,
+      total: number,
+    ): { total: number; page: number; limit: number } {
+      return {
+        total,
+        page: filtersDto.page || 1,
+        limit: filtersDto.limit || 10,
+      };
+    }
 }

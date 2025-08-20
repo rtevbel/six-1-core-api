@@ -20,58 +20,31 @@ export class TenantUserWorkingHoursService {
   ) {}
 
   /**
-   * Creates a new working hours record for a tenant user.
-   * @param requestingUserId - ID of the user making the request.
-   * @param createTenantUserWorkingHoursDto - DTO containing working hours data.
-   * @returns The created working hours entity.
+   * Creates a new TenantUserWorkingHours record.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param createTenantUserWorkingHoursDto - DTO containing the data to create the record.
+   * @returns The created TenantUserWorkingHoursEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
   ): Promise<TenantUserWorkingHoursEntity> {
-    return await this.tenantUserWorkingHoursRepository.save(
-      this.tenantUserWorkingHoursRepository.create(
-        createTenantUserWorkingHoursDto,
-      ),
-    );
+    const entity = this.tenantUserWorkingHoursRepository.create(createTenantUserWorkingHoursDto);
+    return await this.tenantUserWorkingHoursRepository.save(entity);
   }
 
   /**
-   * Retrieves all working hours for a specific tenant user.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @returns Array of working hours entities.
-   * @throws RpcException if no records are found.
-   */
-  async findAllByTenantUserId(
-    requestingUserId: number,
-    tenantUserId: number,
-  ): Promise<TenantUserWorkingHoursEntity[]> {
-    const workingHours = await this.tenantUserWorkingHoursRepository.find({
-      where: { tenantUserId },
-    });
-
-    if (workingHours.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantUserWorkingHoursEntity.name,
-        ),
-      );
-    }
-
-    return workingHours;
-  }
-
-  /**
-   * Retrieves working hours based on filters and pagination.
-   * @param requestingUserId - ID of the user making the request.
-   * @param filtersDto - DTO containing filter and pagination options.
-   * @returns Object containing filtered records and pagination details.
-   * @throws RpcException if no records are found.
+   * Finds all working hours based on filters.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param filtersDto - DTO containing filter options.
+   * @returns An object containing filtered records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -95,18 +68,23 @@ export class TenantUserWorkingHoursService {
   }
 
   /**
-   * Builds the query object for filtering and pagination.
-   * @param filtersDto - DTO containing filter and pagination options.
-   * @returns Query object for TypeORM.
+   * Builds the query object for filtering records.
+   * @param filtersDto - DTO containing filter options.
+   * @returns The query object.
    */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
+  private buildFindQuery(
+    filtersDto: FiltersDto,
+  ): Record<string, any> {
+
+    const query: Record<string, any> = {
+      where: { tenantUserId: filtersDto.tenantUserId },
+    };
 
     if (filtersDto.search) {
       query.where = [
-        { dayOfWeek: Like(`%${filtersDto.search}%`) },
-        { startTime: Like(`%${filtersDto.search}%`) },
-        { endTime: Like(`%${filtersDto.search}%`) },
+        { ...query.where, dayOfWeek: Like(`%${filtersDto.search}%`) },
+        { ...query.where, startTime: Like(`%${filtersDto.search}%`) },
+        { ...query.where, endTime: Like(`%${filtersDto.search}%`) },
       ];
     }
 
@@ -128,15 +106,16 @@ export class TenantUserWorkingHoursService {
   }
 
   /**
-   * Retrieves a specific working hours record by ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @param id - ID of the working hours record.
-   * @returns The working hours entity.
-   * @throws RpcException if the record is not found.
+   * Finds a specific working hour record by ID.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the working hour record.
+   * @returns The TenantUserWorkingHoursEntity.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     tenantUserId: number,
     id: number,
   ): Promise<TenantUserWorkingHoursEntity> {
@@ -157,16 +136,17 @@ export class TenantUserWorkingHoursService {
   }
 
   /**
-   * Updates a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @param id - ID of the working hours record.
-   * @param updateTenantUserWorkingHoursDto - DTO containing updated data.
-   * @returns UpdateResult indicating the outcome of the update operation.
-   * @throws RpcException if the record is not found.
+   * Updates a specific working hour record by ID.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the working hour record.
+   * @param updateTenantUserWorkingHoursDto - DTO containing the updated data.
+   * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     tenantUserId: number,
     id: number,
     updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
@@ -185,21 +165,22 @@ export class TenantUserWorkingHoursService {
     }
 
     return await this.tenantUserWorkingHoursRepository.update(
-      id,
+      { tenantUserWorkingHourId: id, tenantUserId },
       updateTenantUserWorkingHoursDto,
     );
   }
 
   /**
-   * Deletes a specific working hours record.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @param id - ID of the working hours record.
-   * @returns DeleteResult indicating the outcome of the delete operation.
-   * @throws RpcException if the record is not found.
+   * Deletes a specific working hour record by ID.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the working hour record.
+   * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
+    tenantId: number,
     tenantUserId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -224,9 +205,9 @@ export class TenantUserWorkingHoursService {
 
   /**
    * Builds pagination details for the response.
-   * @param filtersDto - DTO containing pagination options.
+   * @param filtersDto - DTO containing filter options.
    * @param total - Total number of records.
-   * @returns Pagination details object.
+   * @returns An object containing pagination details.
    */
   private buildPagination(
     filtersDto: FiltersDto,

@@ -17,6 +17,7 @@ import {
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../common/constants';
 import { EventListenersModule } from './event_listeners/event_listeners.module';
+import { EventLogsModule } from './event_logs/event_logs.module';
 
 /**
  * EventsModule is responsible for managing events.
@@ -72,6 +73,7 @@ import { EventListenersModule } from './event_listeners/event_listeners.module';
       },
     ]),
     EventListenersModule,
+    EventLogsModule,
   ],
   controllers: [EventsController],
   providers: [EventsService],

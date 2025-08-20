@@ -1,5 +1,4 @@
 import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
-import { PartialType } from '@nestjs/mapped-types';
 
 /**
  * Create tenant DTO class.

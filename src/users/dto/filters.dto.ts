@@ -44,15 +44,15 @@ export class FiltersDto {
   /**
    * Field to sort the results by.
    * Optional field, defaults to 'role_id'.
-   * Must be one of 'role_id', 'name', or 'description'.
+   * Must be one of 'userId', 'email', or 'username'.
    */
   @IsOptional()
-  @IsIn(['user_id', 'email', 'username', 'first_name', 'last_name'], {
+  @IsIn(['userId', 'email', 'username', 'firstName', 'lastName'], {
     message:
-      'sortBy key must be from this list (user_id, email, username ,first_name , last_name)',
+      'sortBy key must be from this list (userId, email, username ,firstName , lastName)',
   })
   @IsString()
-  sortBy: string = 'user_id';
+  sortBy: string = 'userId';
 
   /**
    * Sort order for the results.

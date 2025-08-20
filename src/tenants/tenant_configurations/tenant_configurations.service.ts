@@ -39,33 +39,6 @@ export class TenantConfigurationsService {
   }
 
   /**
-   * Retrieves all configurations for a specific tenant.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant whose configurations are being retrieved.
-   * @returns An array of tenant configuration entities.
-   * @throws RpcException if no configurations are found.
-   */
-  async findAllByTenantId(
-    userId: number,
-    tenantId: number,
-  ): Promise<TenantConfigurationsEntity[]> {
-    const configurations = await this.tenantConfigurationsRepository.find({
-      where: { tenantId },
-    });
-
-    if (configurations.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantConfigurationsEntity.name,
-        ),
-      );
-    }
-
-    return configurations;
-  }
-
-  /**
    * Retrieves configurations based on filters.
    * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching, sorting, and pagination.
@@ -200,6 +173,9 @@ export class TenantConfigurationsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+    // Ensure tenantId is always included in the query
+    query.where = { tenantId: filtersDto.tenantId };
+    
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',

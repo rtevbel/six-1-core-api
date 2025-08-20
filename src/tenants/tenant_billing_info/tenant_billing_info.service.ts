@@ -22,56 +22,29 @@ export class TenantBillingInfoService {
 
   /**
    * Creates a new tenant billing info record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param createTenantBillingInfoDto - DTO containing billing info details.
    * @returns The created TenantBillingInfoEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
-    createTenantBillingInfoDto.createdBy = requestingUserId;
+    createTenantBillingInfoDto.createdBy = userId;
    
     return await this.tenantBillingInfoRepository.save(
       this.tenantBillingInfoRepository.create(createTenantBillingInfoDto),
     );
   }
-
-  /**
-   * Retrieves all billing info records for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns An array of TenantBillingInfoEntity records.
-   */
-  async findAllByTenantId(
-    requestingUserId: number,
-    tenantId: number,
-  ): Promise<TenantBillingInfoEntity[]> {
-    const billingInfoRecords = await this.tenantBillingInfoRepository.find({
-      where: { tenantId },
-    });
-
-    if (billingInfoRecords.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantBillingInfoEntity.name,
-        ),
-      );
-    }
-
-    return billingInfoRecords;
-  }
-
   /**
    * Retrieves billing info records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching and sorting records.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -96,13 +69,13 @@ export class TenantBillingInfoService {
 
   /**
    * Retrieves a specific billing info record by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the billing info record.
    * @returns The TenantBillingInfoEntity record.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantBillingInfoEntity> {
@@ -123,14 +96,14 @@ export class TenantBillingInfoService {
 
   /**
    * Updates a specific billing info record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the billing info record.
    * @param updateTenantBillingInfoDto - DTO containing updated billing info details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantBillingInfoDto: UpdateTenantBillingInfoDto,
@@ -148,7 +121,7 @@ export class TenantBillingInfoService {
       );
     }
 
-    updateTenantBillingInfoDto.updatedBy = requestingUserId;
+    updateTenantBillingInfoDto.updatedBy = userId;
 
     return await this.tenantBillingInfoRepository.update(
       id,
@@ -158,13 +131,13 @@ export class TenantBillingInfoService {
 
   /**
    * Deletes a specific billing info record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the billing info record.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -194,6 +167,8 @@ export class TenantBillingInfoService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
+    
+    query.where = { tenantId: filtersDto.tenantId };
 
     if (filtersDto.search) {
       query.where = [

@@ -1,5 +1,6 @@
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import { CreateEventDto } from './create-event.dto';
+import {PartialType} from "@nestjs/mapped-types";
 
 /**
  * Update Event DTO class.
@@ -8,7 +9,7 @@ import { CreateEventDto } from './create-event.dto';
  *
  * Data transfer object for updating an event.
  */
-export class UpdateEventDto extends CreateEventDto {
+export class UpdateEventDto extends PartialType(CreateEventDto) {
   /**
    * Event ID.
    *

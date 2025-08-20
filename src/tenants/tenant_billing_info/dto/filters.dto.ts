@@ -14,6 +14,15 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
+
+  /**
+   * Tenant ID for filtering results.
+   * Required field, must be a number.
+   */
+  @Type(() => Number)
+  @IsNumber()
+  tenantId!:number;
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.

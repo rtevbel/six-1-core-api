@@ -133,7 +133,7 @@ export class AuthService {
    * and refresh JWT tokens.
    */
   async login(user: any): Promise<UserJWTTokenResponseInterface> {
-    const payload = { username: user.username, userId: user.user_id };
+    const payload = { username: user.username, userId: user.userId};
     const response = {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {
@@ -157,7 +157,7 @@ export class AuthService {
 
     const hased_refresh_token = await hash_content(response.refresh_token);
     this.redisClient.set(
-      REDIS_USER_REFRESH_TOKEN_IDENTIFIER.replaceAll('{user_id}', user.user_id),
+      REDIS_USER_REFRESH_TOKEN_IDENTIFIER.replaceAll('{user_id}', user.userId),
       hased_refresh_token,
       'EX',
       expiresIn,

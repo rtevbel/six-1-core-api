@@ -9,6 +9,7 @@ import { UserMetaService } from './user-meta.service';
 import { CreateUserMetaDto } from './dto/create-user-meta.dto';
 import { UpdateUserMetaDto } from './dto/update-user-meta.dto';
 import { AppRpcValidationPipe } from 'src/common/pipes/app-rpc-validation.pipe';
+import {FiltersDto} from "./dto/filters.dto"
 import {
   V0_1_CREATE_USER_META_PATTERN,
   V0_1_FIND_ALL_USER_META_PATTERN,
@@ -28,7 +29,7 @@ export class UserMetaController {
 
   /**
    * Create a new user metadata entry.
-   * @param userId - ID of the user to associate the metadata with.
+   * @param userId - ID of the user making the request.
    * @param createUserMetaDto - Data transfer object containing metadata details.
    * @returns The created metadata entry.
    */
@@ -43,16 +44,15 @@ export class UserMetaController {
 
   /**
    * Retrieve all metadata entries for a user.
-   * @param requestingUserId - ID of the user making the request.
-   * @param userId - ID of the user whose metadata entries are to be retrieved.
+   * @param userId - ID of the user making the request.
    * @returns An array of metadata entries.
    */
   @MessagePattern(V0_1_FIND_ALL_USER_META_PATTERN)
   async findAllMeta(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') filtersDto: FiltersDto,
   ): Promise<any> {
-    return await this.userMetaService.findAll(requestingUserId, userId);
+    return await this.userMetaService.findAll(userId, filtersDto);
   }
 
   /**
@@ -73,22 +73,19 @@ export class UserMetaController {
 
   /**
    * Update a metadata entry.
-   * @param requestingUserId - ID of the user making the request.
-   * @param userId - ID of the user associated with the metadata.
+   * @param userId - ID of the user making the request.
    * @param updateUserMetaDto - Data transfer object containing updated metadata details.
    * @returns The result of the update operation.
    */
   @MessagePattern(V0_1_UPDATE_USER_META_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateMeta(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') updateUserMetaDto: UpdateUserMetaDto,
   ): Promise<any> {
     return await this.userMetaService.update(
-      requestingUserId,
       userId,
-      updateUserMetaDto.user_meta_id,
+      updateUserMetaDto.userMetaId,
       updateUserMetaDto,
     );
   }

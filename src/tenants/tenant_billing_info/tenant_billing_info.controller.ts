@@ -84,22 +84,6 @@ export class TenantBillingInfoController {
     );
   }
 
-  /**
-   * Retrieves all billing information for a specific tenant.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns A list of tenant billing information entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
-  async findAllByTenantId(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
-  ): Promise<TenantBillingInfoEntity[]> {
-    return this.tenantBillingInfoService.findAllByTenantId(
-      userId,
-      tenantId,
-    );
-  }
 
   /**
    * Updates tenant billing information.

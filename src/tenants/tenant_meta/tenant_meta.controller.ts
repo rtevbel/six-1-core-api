@@ -6,6 +6,8 @@ import { UpdateTenantMetaDto } from './dto/update-tenant_meta.dto';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
 import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
+import {FiltersDto} from "./dto/filters.dto";
+import {FindAllResultInterface} from "./interfaces/findall-result.interface";
 
 import {
   MICROSERVICE_CREATE_TENANT_META_PATTERN,
@@ -38,16 +40,15 @@ export class TenantMetaController {
   /**
    * Retrieves all tenant metadata records for a specific tenant.
    * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns List of tenant metadata entities.
+   * @returns Array of TenantMetaEntity matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_META_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllTenantMeta(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data', ParseIntPipe) tenantId: number,
-  ): Promise<TenantMetaEntity[]> {
-    return this.tenantMetaService.findAllByTenantId(userId, tenantId);
+    @Payload('data') filtersDto: FiltersDto,
+  ): Promise<FindAllResultInterface> {
+    return this.tenantMetaService.findAllByFilters(userId, filtersDto);
   }
 
   /**

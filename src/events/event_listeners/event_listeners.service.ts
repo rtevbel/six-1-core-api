@@ -66,39 +66,6 @@ export class EventListenersService {
   }
 
   /**
-   * Retrieves all event listeners by event ID with pagination.
-   * @param userId - ID of the user requesting the data.
-   * @param eventId - ID of the event.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An array of EventListenerEntity records.
-   * @throws RpcException if no records match the filters.
-   */
-  async findAllByEventId(
-    userId: number,
-    eventId: number,
-    filtersDto:FiltersDto,
-  ): Promise<FindAllResultInterface> {
-    const query = this.buildFindQuery(filtersDto);
-    query.where = { eventId };
-
-    const [eventListeners, total] = await this.eventListenerRepository.findAndCount(query);
-
-    if (eventListeners.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          EventListenerEntity.name,
-        ),
-      );
-    }
-
-    return {
-      eventListenerRecords: eventListeners,
-      pagination: this.buildPagination(filtersDto, total),
-    };
-  }
-
-  /**
    * Retrieves a single event listener by ID.
    * @param userId - ID of the user requesting the data.
    * @param id - ID of the event listener to retrieve.
@@ -137,9 +104,8 @@ export class EventListenersService {
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventListenerEntity.name),
       );
     }
-
+    
     updateEventListenerDto.updatedBy = userId;
-
     return await this.eventListenerRepository.update(id, updateEventListenerDto);
   }
 
@@ -161,6 +127,12 @@ export class EventListenersService {
   private buildFindQuery(filters: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+    // If an eventId is provided, filter by it.
+    if(filters.eventId){
+      query.where = { eventId: filters.eventId };
+    }
+
+    // If a search term is provided, filter by eventId, channelId, or templateId.
     if (filters.search) {
       query.where = [
         { eventId: filters.search },
@@ -169,6 +141,7 @@ export class EventListenersService {
       ];
     }
 
+    // If sorting is specified, add it to the query.
     if (filters.sortBy) {
       query.order = {
         [filters.sortBy]: filters.sortOrder || 'ASC',

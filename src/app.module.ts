@@ -37,6 +37,7 @@ import { TenantUserConfigurationsModule } from './tenants/tenant_users/tenant_us
 import { TenantUserWorkingHoursModule } from './tenants/tenant_users/tenant_user_working_hours/tenant_user_working_hours.module';
 import { TenantUserOffDaysModule } from './tenants/tenant_users/tenant_user_off_days/tenant_user_off_days.module';
 import { TenantsModule } from './tenants/tenants.module';
+import { ProcessTemplatesModule } from './process_templates/process_templates.module';
 
 /**
  * Root module of the application.
@@ -100,6 +101,7 @@ import { TenantsModule } from './tenants/tenants.module';
     TenantUserConfigurationsModule,
     TenantUserWorkingHoursModule,
     TenantUserOffDaysModule,
+    ProcessTemplatesModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

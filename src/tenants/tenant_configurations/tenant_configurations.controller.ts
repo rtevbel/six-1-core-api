@@ -82,23 +82,6 @@ export class TenantConfigurationsController {
   }
 
   /**
-   * Retrieves all configurations for a specific tenant.
-   * @param userId - ID of the user making the request
-   * @param tenantId - ID of the tenant
-   * @returns An array of tenant configuration entities
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN)
-  async findAllByTenantId(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('tenantId', ParseIntPipe) tenantId: number,
-  ): Promise<TenantConfigurationsEntity[]> {
-    return this.tenantConfigurationsService.findAllByTenantId(
-      userId,
-      tenantId,
-    );
-  }
-
-  /**
    * Updates an existing tenant configuration.
    * @param userId - ID of the user making the request
    * @param tenantId - ID of the tenant

@@ -22,17 +22,17 @@ export class TenantContactInfoService {
 
   /**
    * Creates a new tenant contact information record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param createTenantContactInfoDto - Data transfer object containing the contact info details.
    * @returns The created TenantContactInfoEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     createTenantContactInfoDto: CreateTenantContactInfoDto,
   ): Promise<TenantContactInfoEntity> {
-    createTenantContactInfoDto.createdBy = requestingUserId;
+    createTenantContactInfoDto.createdBy = userId;
     createTenantContactInfoDto.tenantId = tenantId;
 
     return await this.tenantContactInfoRepository.save(
@@ -42,12 +42,12 @@ export class TenantContactInfoService {
   
   /**
    * Retrieves contact information records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching and sorting records.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilters(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -72,13 +72,13 @@ export class TenantContactInfoService {
 
   /**
    * Retrieves a specific contact information record by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the contact information record.
    * @returns The TenantContactInfoEntity record.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantContactInfoEntity> {
@@ -99,14 +99,14 @@ export class TenantContactInfoService {
 
   /**
    * Updates a specific contact information record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the contact information record.
    * @param updateTenantContactInfoDto - Data transfer object containing updated contact info details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantContactInfoDto: UpdateTenantContactInfoDto,
@@ -124,7 +124,7 @@ export class TenantContactInfoService {
       );
     }
 
-    updateTenantContactInfoDto.updatedBy = requestingUserId;
+    updateTenantContactInfoDto.updatedBy = userId;
 
     return await this.tenantContactInfoRepository.update(
       id,
@@ -134,13 +134,13 @@ export class TenantContactInfoService {
 
   /**
    * Deletes a specific contact information record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the contact information record.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -170,6 +170,9 @@ export class TenantContactInfoService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
+
+    // Ensure tenantId is always included in the query
+    query.where = { tenantId: filtersDto.tenantId };
 
     if (filtersDto.search) {
       query.where = [

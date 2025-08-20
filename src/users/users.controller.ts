@@ -85,7 +85,7 @@ export class UserController {
   ): Promise<UpdateResult> {
     return this.userService.update(
       userId,
-      updateUserDto.user_id,
+      updateUserDto.userId,
       updateUserDto,
     );
   }

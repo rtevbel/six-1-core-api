@@ -1,260 +1,296 @@
 import {
   Entity,
-  PrimaryGeneratedColumn,
   Column,
+  PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  Index,
   OneToMany,
+  OneToOne,
   BeforeInsert,
   BeforeUpdate,
-  OneToOne,
-  JoinColumn,
 } from 'typeorm';
+import { hash_content } from '../../common/functions';
 import { UserRoleEntity } from '../user-roles/entities/user-role.entity';
 import { UserMetaEntity } from '../user-meta/entities/user-meta.entity';
-import { hash_content } from '../../common/functions';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantWorkingHoursEntity } from '../../tenants/tenant_working_hours/entities/tenant_working_hour.entity';
-import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 import { NotificationChannelEntity } from '../../notifications/notification_channels/entities/notification_channel.entity';
 import { NotificationTemplateEntity } from '../../notifications/notification_templates/entities/notification_template.entity';
 import { EventEntity } from '../../events/entities/event.entity';
 import { EventListenerEntity } from '../../events/event_listeners/entities/event_listener.entity';
+import {TenantUsersEntity} from "../../tenants/tenant_users/entities/tenant_user.entity";
+import { NotificationEntity } from '../../notifications/entities/notification.entity';
+import { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 
 /**
- * Represents the `users` table in the database.
+ * Entity class for `users` table.
  *
- * @version 1.0.0
+ * Represents the users in the system.
  */
 @Entity('users')
 export class UserEntity {
-  /**
-   * Primary key: Unique identifier for the user.
-   */
-  @PrimaryGeneratedColumn({ type: 'bigint', unsigned: true })
-  user_id!: number;
+  @PrimaryGeneratedColumn({
+    name: 'user_id',
+    type: 'bigint',
+    unsigned: true,
+  })
+  userId!: number;
 
-  /**
-   * User's email address (must be unique).
-   */
-  @Column({ type: 'varchar', length: 255, unique: true, nullable: false })
+  @Column({
+    name: 'email',
+    type: 'varchar',
+    length: 255,
+    unique: true,
+    nullable: false,
+  })
+  @Index('users_email')
   email!: string;
 
-  /**
-   * User's username (must be unique).
-   */
-  @Column({ type: 'varchar', length: 100, unique: true, nullable: false })
+  @Column({
+    name: 'username',
+    type: 'varchar',
+    length: 255,
+    unique: true,
+    nullable: false,
+  })
+  @Index('users_username')
   username!: string;
 
-  /**
-   * User's first name.
-   */
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  first_name!: string;
+  @Column({
+    name: 'first_name',
+    type: 'varchar',
+    length: 255,
+    nullable: false,
+  })
+  firstName!: string;
 
-  /**
-   * User's last name.
-   */
-  @Column({ type: 'varchar', length: 100, nullable: true })
-  last_name!: string;
+  @Column({
+    name: 'last_name',
+    type: 'varchar',
+    length: 255,
+    nullable: false,
+  })
+  lastName!: string;
 
-  /**
-   * Hashed password for the user.
-   */
-  @Column({ type: 'varchar', length: 255, nullable: false })
+  @Column({
+    name: 'password',
+    type: 'varchar',
+    length: 255,
+    nullable: false,
+  })
   password!: string;
 
-  /**
-   * Display name for the user.
-   */
-  @Column({ type: 'varchar', length: 250, default: '', nullable: false })
-  display_name!: string;
-
-  /**
-   * URL for the user's dashboard.
-   */
-  @Column({ type: 'varchar', length: 100, default: '', nullable: false })
-  dashboard_url!: string;
-
-  /**
-   * Activation key for the user (used for account activation).
-   */
-  @Column({ type: 'varchar', length: 255, default: '', nullable: false })
-  activation_key!: string;
-
-  /**
-   * Status of the user (e.g., active, inactive).
-   */
-  @Column({ type: 'int', default: 0, nullable: false })
+  @Column({
+    name: 'status',
+    type: 'tinyint',
+    unsigned: true,
+    nullable: false,
+    default: 1,
+  })
   status!: number;
 
-  /**
-   * Timestamp of the user's last successful login.
-   */
   @Column({
+    name: 'display_name',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  displayName!: string;
+
+  @Column({
+    name: 'dashboard_url',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  dashboardUrl!: string;
+
+  @Column({
+    name: 'activation_key',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+  })
+  activationKey!: string;
+
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+  })
+  createdAt!: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'timestamp',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
+  })
+  updatedAt!: Date;
+
+  @Column({
+    name: 'last_login_at',
     type: 'datetime',
     nullable: true,
-    comment: 'Latest successful login',
   })
-  last_login_at!: Date;
+  lastLoginAt!: Date;
 
   /**
-   * Timestamp when the user was created.
+   * Relationship to TenantEntity.
+   * A user can belong to one tenant.
    */
-  @CreateDateColumn({ type: 'datetime', default: () => 'CURRENT_TIMESTAMP' })
-  created_at!: Date;
+  @OneToOne(() => TenantEntity, (tenant) => tenant.user, { onDelete: 'CASCADE' })
+  tenant!: TenantEntity;
 
   /**
-   * Timestamp when the user was last updated.
+   * Relationship to UserRoleEntity.
+   * A user can have multiple roles.
    */
-  @UpdateDateColumn({
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
-  })
-  updated_at!: Date;
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, { cascade: true })
+  userRoles!: UserRoleEntity[];
 
-  @BeforeInsert()
-  @BeforeUpdate()
-  async hashPassword() {
-    if (this.password) {
-      this.password = await hash_content(this.password);
-    }
-  }
 
-  /**
-   * One-to-many relationship with `UserRoleEntity`.
-   *
-   * Represents the roles associated with the user.
+   /**
+   * Relationship to UserRoleEntity.
+   * A user can have multiple roles.
    */
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, {
-    cascade: true,
-    onDelete: 'CASCADE',
-  })
-  user_roles!: UserRoleEntity[];
+   @OneToMany(() => UserRoleEntity, (userRole) => userRole.creator, { cascade: true })
+   createdUserRoles!: UserRoleEntity[];
+
 
   /**
    * Relationship to UserMetaEntity.
    * A user can have multiple metadata records.
    */
-  @OneToMany(() => UserMetaEntity, (userMeta) => userMeta.user, {
-    cascade: true,
-  })
-  user_meta!: UserMetaEntity[];
+  @OneToMany(() => UserMetaEntity, (userMeta) => userMeta.user, { cascade: true })
+  userMeta!: UserMetaEntity[];
 
-  /**
-   * Relationship to TenantEntity.
-   * A user can have one Tenant record.
-   */
-  @OneToOne(() => TenantEntity, (tenant) => tenant.user, { cascade: true })
-  @JoinColumn({ name: 'user_id' })
-  tenant!: TenantEntity;
 
-  /**
-   * Inverse relationship to TenantWorkingHoursEntity for createdBy.
-   * A user can create multiple working hour records.
-   */
-  @OneToMany(
-    () => TenantWorkingHoursEntity,
-    (workingHour) => workingHour.createdByUser,
-  )
-  createdWorkingHours!: TenantWorkingHoursEntity[];
-
-  /**
-   * Inverse relationship to TenantWorkingHoursEntity for updatedByUser.
-   * A user can update multiple working hour records.
-   */
-  @OneToMany(
-    () => TenantWorkingHoursEntity,
-    (workingHour) => workingHour.updatedByUser,
-  )
-  updatedWorkingHours!: TenantWorkingHoursEntity[];
-
-  /**
+   /**
    * Relationship to TenantUsersEntity.
-   * A user can be linked to multiple tenant users.
+   * A user can have multiple tenant user records.
    */
-  @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user)
-  tenantUsers!: TenantUsersEntity[];
+   @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user, { cascade: true })
+   tenantUsers!: TenantUsersEntity[];
 
   /**
-   * Relationship to NotificationChannelEntity for created_by.
+   * Relationship to TenantWorkingHoursEntity.
+   * A user can create multiple tenant working hours.
+   */
+  @OneToMany(
+    () => TenantWorkingHoursEntity,
+    (workingHours) => workingHours.createdBy,
+  )
+  createdTenantWorkingHours!: TenantWorkingHoursEntity[];
+
+    /**
+   * Relationship to TenantWorkingHoursEntity.
+   * A user can update multiple tenant working hours.
+   */
+    @OneToMany(
+      () => TenantWorkingHoursEntity,
+      (workingHours) => workingHours.updatedBy,
+    )
+    updatedTenantWorkingHours!: TenantWorkingHoursEntity[];
+
+  /**
+   * Relationship to NotificationChannelEntity.
    * A user can create multiple notification channels.
    */
   @OneToMany(
     () => NotificationChannelEntity,
-    (notificationChannel) => notificationChannel.creator,
+    (notificationChannel) => notificationChannel.createdBy,
   )
   createdNotificationChannels!: NotificationChannelEntity[];
 
-  /**
- * Relationship to NotificationChannelEntity for updated_by.
- * A user can update multiple notification channels.
- */
-  @OneToMany(
-    () => NotificationChannelEntity,
-    (notificationChannel) => notificationChannel.updater,
-  )
-  updatedNotificationChannels!: NotificationChannelEntity[];
-
-   /**
-   * Relationship to NotificationTemplateEntity for created_by.
+    /**
+   * Relationship to NotificationChannelEntity.
+   * A user can update multiple notification channels.
    */
-   @OneToMany(() => NotificationTemplateEntity, (template) => template.creator, {
-    cascade: true,
-  })
+    @OneToMany(
+      () => NotificationChannelEntity,
+      (notificationChannel) => notificationChannel.updatedBy,
+    )
+    updatedNotificationChannels!: NotificationChannelEntity[];
+
+  /**
+   * Relationship to NotificationTemplateEntity.
+   * A user can create multiple notification templates.
+   */
+  @OneToMany(
+    () => NotificationTemplateEntity,
+    (notificationTemplate) => notificationTemplate.createdBy,
+  )
   createdNotificationTemplates!: NotificationTemplateEntity[];
 
-   /**
-   * Relationship to NotificationTemplateEntity for updated_by.
+  /**
+   * Relationship to NotificationTemplateEntity.
+   * A user can updated multiple notification templates.
    */
-    @OneToMany(() => NotificationTemplateEntity, (template) => template.updater, {
-      cascade: true,
-    })
-    updatedNotificationTemplates!: NotificationTemplateEntity[];
+  @OneToMany(
+    () => NotificationTemplateEntity,
+    (notificationTemplate) => notificationTemplate.updatedBy,
+  )
+  updatedNotificationTemplates!: NotificationTemplateEntity[];
 
-     /**
-   * Relationship to EventEntity for events created by the user.
+  /**
+   * Relationship to EventEntity.
+   * A user can create multiple events.
    */
-  @OneToMany(() => EventEntity, (event) => event.creator)
+  @OneToMany(() => EventEntity, (event) => event.createdBy)
   createdEvents!: EventEntity[];
 
   /**
-   * Relationship to EventEntity for events updated by the user.
+   * Relationship to EventEntity.
+   * A user can update multiple events.
    */
-  @OneToMany(() => EventEntity, (event) => event.updater)
+  @OneToMany(() => EventEntity, (event) => event.updatedBy)
   updatedEvents!: EventEntity[];
 
-   /**
-   * Relationship to EventListenerEntity for created_by.
+  /**
+   * Relationship to EventListenerEntity.
+   * A user can create multiple event listeners.
    */
-    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.creator)
-    createdEventListeners!: EventListenerEntity[];
+  @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.createdBy)
+  createdEventListeners!: EventListenerEntity[];
+
+    /**
+   * Relationship to EventListenerEntity.
+   * A user can update multiple event listeners.
+   */
+    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.updatedBy)
+    updatedEventListeners!: EventListenerEntity[];
 
   /**
-   * Relationship to EventListenerEntity for updated_by.
+   * Relationship to NotificationEntity.
+   * A user can have multiple notifications.
    */
-   @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.updater)
-   updatedEventListeners!: EventListenerEntity[];
-   
-   /**
- * One-to-many relationship with `UserRoleEntity`.
- *
- * Represents the roles associated with this user.
+  @OneToMany(() => NotificationEntity, (notification) => notification.user)
+  notifications!: NotificationEntity[];
+
+ /**
+  * Relationship to EventLogEntity.
+  * A user can have multiple event logs linked to them.
+  */
+  @OneToMany(() => EventLogEntity, (eventLog) => eventLog.user)
+  eventLogs!: EventLogEntity[];
+
+/**
+ * Relationship to EventLogEntity.
+ * A user can have multiple event logs they created.
  */
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, {
-    cascade: true,
-  })
-  userRoles!: UserRoleEntity[];
+  @OneToMany(() => EventLogEntity, (eventLog) => eventLog.creator)
+  createdEventLogs!: EventLogEntity[];
 
   /**
- * One-to-many relationship with `UserRoleEntity` for created_by.
- *
- * Represents the mappings created by this user.
- */
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.creator, {
-    cascade: true,
-  })
-  createdUserRoles!: UserRoleEntity[];
-
+   * Hash the password before inserting or updating the user record.
+   */
+  @BeforeInsert()
+  @BeforeUpdate()
+  async hashPassword(): Promise<void> {
+    if (this.password) {
+      this.password = await hash_content(this.password);
+    }
+  }
 }

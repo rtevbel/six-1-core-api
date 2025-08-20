@@ -16,7 +16,6 @@ import {
   MICROSERVICE_CREATE_EVENT_LISTENER_PATTERN,
   MICROSERVICE_FIND_ALL_EVENT_LISTENER_PATTERN,
   MICROSERVICE_FIND_ONE_EVENT_LISTENER_PATTERN,
-  MICROSERVICE_FIND_ALL_EVENT_LISTENER_BY_EVENT_ID_PATTERN,
   MICROSERVICE_UPDATE_EVENT_LISTENER_PATTERN,
   MICROSERVICE_REMOVE_EVENT_LISTENER_PATTERN,
 } from './constants';
@@ -56,23 +55,6 @@ export class EventListenersController {
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface | never> {
     return this.eventListenersService.findAll(userId, filtersDto);
-  }
-
-  /**
-   * Retrieves all event listeners by event ID.
-   * @param userId - ID of the user making the request.
-   * @param eventId - ID of the event to get all it's listiners.
-   * @param filtersDto - Filters for querying event listeners by event ID.
-   * @returns A list of event listeners matching the event ID.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_EVENT_LISTENER_BY_EVENT_ID_PATTERN)
-  @UsePipes(AppRpcValidationPipe)
-  findAllEventListenersByEventId(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('eventId', ParseIntPipe) eventId: number,
-    @Payload('data') filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface | never> {
-    return this.eventListenersService.findAllByEventId(userId, eventId , filtersDto);
   }
 
   /**

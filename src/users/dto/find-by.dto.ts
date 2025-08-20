@@ -9,7 +9,7 @@ import {
 /**
  * Data Transfer Object (DTO) for filtering and pagination.
  *
- * @version 0.0.1
+ * @version 1.0.0
  *
  * Data transfer object for filtering users.
  */
@@ -26,8 +26,8 @@ export class FindByDTO {
    */
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  first_name?: string;
+  @MaxLength(40)
+  firstName?: string;
 
   /**
    * Last name of the user for filtering results.
@@ -39,8 +39,8 @@ export class FindByDTO {
    */
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  last_name?: string;
+  @MaxLength(40)
+  lastName?: string;
 
   /**
    * Email of the user for filtering results.
@@ -54,7 +54,7 @@ export class FindByDTO {
   @IsOptional()
   @IsString()
   @IsEmail()
-  @MaxLength(255)
+  @MaxLength(150)
   email?: string;
 
   /**
@@ -67,7 +67,7 @@ export class FindByDTO {
    */
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(40)
   username?: string;
 
   /**
@@ -81,4 +81,5 @@ export class FindByDTO {
   @IsOptional()
   @IsNumber()
   status?: number;
+
 }

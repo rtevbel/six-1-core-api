@@ -14,7 +14,7 @@ import {
   MICROSERVICE_FIND_ALL_TENANT_USER_WORKING_HOURS_PATTERN,
   MICROSERVICE_FIND_ONE_TENANT_USER_WORKING_HOURS_PATTERN,
   MICROSERVICE_UPDATE_TENANT_USER_WORKING_HOURS_PATTERN,
-  MICROSERVICE_REMOVE_TENANT_USER_WORKING_HOURS_PATTERN
+  MICROSERVICE_REMOVE_TENANT_USER_WORKING_HOURS_PATTERN,
 } from './constants';
 
 /**
@@ -28,40 +28,43 @@ export class TenantUserWorkingHoursController {
 
   /**
    * Handles the creation of tenant user working hours.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
    * @param createTenantUserWorkingHoursDto - Data transfer object containing working hours details.
    * @returns The created tenant user working hours entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_USER_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createTenantUserWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
-    @Payload('data')
-    createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
+    @Payload('data') createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
   ): Promise<TenantUserWorkingHoursEntity> {
     return this.tenantUserWorkingHoursService.create(
-      requestingUserId,
+      userId,
+      tenantId,
       createTenantUserWorkingHoursDto,
     );
   }
 
   /**
-   * Retrieves a single tenant user working hours record by ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @param id - ID of the working hours record to retrieve.
+   * Retrieves a single tenant user working hours by ID.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the working hours to retrieve.
    * @returns The tenant user working hours entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_USER_WORKING_HOURS_PATTERN)
   async findOneTenantUserWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserWorkingHoursEntity> {
     return this.tenantUserWorkingHoursService.findOne(
-      requestingUserId,
+      userId,
+      tenantId,
       tenantUserId,
       id,
     );
@@ -69,40 +72,43 @@ export class TenantUserWorkingHoursController {
 
   /**
    * Retrieves all tenant user working hours based on filters.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
    * @param filtersDto - Filters for querying working hours.
    * @returns A list of tenant user working hours matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_USER_WORKING_HOURS_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantUserWorkingHoursService.findAllByFilter(
-      requestingUserId,
+      userId,
+      tenantId,
       filtersDto,
     );
   }
 
   /**
    * Updates tenant user working hours information.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
    * @param updateTenantUserWorkingHoursDto - Data transfer object containing updated working hours details.
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_USER_WORKING_HOURS_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateTenantUserWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
-    @Payload('data')
-    updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
+    @Payload('data') updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
   ): Promise<UpdateResult> {
     return this.tenantUserWorkingHoursService.update(
-      requestingUserId,
+      userId,
+      tenantId,
       tenantUserId,
       updateTenantUserWorkingHoursDto.tenantUserWorkingHourId,
       updateTenantUserWorkingHoursDto,
@@ -110,20 +116,23 @@ export class TenantUserWorkingHoursController {
   }
 
   /**
-   * Deletes a tenant user working hours record by ID.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantUserId - ID of the tenant user.
-   * @param id - ID of the working hours record to delete.
+   * Deletes tenant user working hours by ID.
+   * @param userId - The ID of the user making the request.
+   * @param tenantId - The ID of the tenant.
+   * @param tenantUserId - The ID of the tenant user.
+   * @param id - The ID of the working hours to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_USER_WORKING_HOURS_PATTERN)
   async removeTenantUserWorkingHours(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantUserWorkingHoursService.remove(
-      requestingUserId,
+      userId,
+      tenantId,
       tenantUserId,
       id,
     );

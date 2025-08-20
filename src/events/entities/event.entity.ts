@@ -10,6 +10,8 @@ import {
   } from 'typeorm';
   import { UserEntity } from '../../users/entities/user.entity';
 import { EventListenerEntity } from '../event_listeners/entities/event_listener.entity';
+import { NotificationEntity } from '../../notifications/entities/notification.entity';
+import { EventLogEntity } from '../event_logs/entities/event_log.entity';
   
   /**
    * Entity class for `events` table.
@@ -100,4 +102,18 @@ import { EventListenerEntity } from '../event_listeners/entities/event_listener.
      */
      @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.event)
      eventListeners!: EventListenerEntity[];
+
+   /**
+   * Relationship to NotificationEntity.
+   * An event can have multiple notifications linked to it.
+   */
+    @OneToMany(() => NotificationEntity, (notification) => notification.event)
+    notifications!: NotificationEntity[];
+
+    /**
+    * Relationship to EventLogEntity.
+    * An event can have multiple event logs linked to it.
+    */
+    @OneToMany(() => EventLogEntity, (eventLog) => eventLog.event)
+    eventLogs!: EventLogEntity[];
   }

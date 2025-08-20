@@ -12,6 +12,7 @@ import {
   import { UserEntity } from '../../../users/entities/user.entity';
 import { NotificationTemplateEntity } from '../../notification_templates/entities/notification_template.entity';
 import { EventListenerEntity } from '../../../events/event_listeners/entities/event_listener.entity';
+import { NotificationLogEntity } from '../../notification_logs/entities/notification_log.entity';
   
   /**
    * Entity class for `notification_channels` table.
@@ -112,4 +113,13 @@ import { EventListenerEntity } from '../../../events/event_listeners/entities/ev
     */
     @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.channel)
     eventListeners!: EventListenerEntity[];
+
+    /**
+ * Relationship to NotificationLogEntity.
+ * A notification channel can have multiple logs.
+ */
+  @OneToMany(() => NotificationLogEntity, (log) => log.channel, {
+    cascade: true,
+  })
+   logs!: NotificationLogEntity[];
   }

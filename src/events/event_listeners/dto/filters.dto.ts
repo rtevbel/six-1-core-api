@@ -14,6 +14,17 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
+  
+  /*
+    * ID of the event to filter listeners by.
+    * Optional field, must be a number if provided.
+    * If not provided, all listeners for all events will be returned.
+  */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  eventId?: number;
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.

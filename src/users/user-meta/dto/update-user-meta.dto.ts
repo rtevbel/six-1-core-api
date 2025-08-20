@@ -13,7 +13,7 @@ import { Type } from 'class-transformer';
 /**
  * Update user meta DTO class.
  *
- * @version 1.0.0
+ * @version 0.0.1
  *
  * Data transfer object for updating user metadata.
  */
@@ -29,8 +29,8 @@ export class UpdateUserMetaDto extends PartialType(CreateUserMetaDto) {
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  user_meta_id!: number;
-
+  userMetaId!: number;
+  
   /**
    * Optional list of updated metadata keys.
    *
@@ -42,7 +42,7 @@ export class UpdateUserMetaDto extends PartialType(CreateUserMetaDto) {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => String)
-  meta_keys?: string[];
+  metaKeys?: string[];
 
   /**
    * Optional list of updated metadata values.
@@ -55,5 +55,5 @@ export class UpdateUserMetaDto extends PartialType(CreateUserMetaDto) {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => String)
-  meta_values?: string[];
+  metaValues?: string[];
 }

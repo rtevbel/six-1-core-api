@@ -5,8 +5,10 @@ import {
   IsNumber,
   IsOptional,
   IsDateString,
+  IsString,
+  MaxLength,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 
 /**
  * Update user DTO class.
@@ -16,7 +18,7 @@ import { Type } from 'class-transformer';
  * Data transfer object for updating a user.
  */
 export class UpdateUserDto extends PartialType(
-  OmitType(CreateUserDto, ['created_at', 'updated_at'] as const),
+  OmitType(CreateUserDto, ['createdAt', 'updatedAt'] as const),
 ) {
   /**
    * The ID of the user.
@@ -29,7 +31,22 @@ export class UpdateUserDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  user_id!: number;
+  userId!: number;
+
+  /**
+   * Email address of the user.
+   *
+   * - Optional field.
+   * - Must be a valid email address.
+   * - Maximum length of 255 characters.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => value.toLowerCase())
+  @MaxLength(255)
+  email?: string;
 
   /**
    * Last login date of the user.
@@ -41,7 +58,7 @@ export class UpdateUserDto extends PartialType(
    */
   @IsOptional()
   @IsDateString()
-  last_login_at?: string;
+  lastLoginAt?: string;
 
   /**
    * Update date of the user.
@@ -53,5 +70,5 @@ export class UpdateUserDto extends PartialType(
    */
   @IsOptional()
   @IsDateString()
-  updated_at?: string;
+  updatedAt?: string;
 }

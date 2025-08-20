@@ -1,10 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult , Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
 import { CreateTenantMetaDto } from './dto/create-tenant_meta.dto';
 import { UpdateTenantMetaDto } from './dto/update-tenant_meta.dto';
 import { RpcException } from '@nestjs/microservices';
+import {FiltersDto} from "./dto/filters.dto";
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -38,19 +40,20 @@ export class TenantMetaService {
   /**
    * Retrieves all tenant metadata records for a specific tenant.
    * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns List of TenantMetaEntity records.
+   * @param filtersDto - Filters for searching and sorting records.
+   * @returns An object containing the filtered records and pagination details.
    * @throws RpcException if no records are found.
    */
-  async findAllByTenantId(
+  async findAllByFilters(
     userId: number,
-    tenantId: number,
-  ): Promise<TenantMetaEntity[]> {
-    const tenantMeta = await this.tenantMetaRepository.find({
-      where: { tenantId },
-    });
+    filtersDto: FiltersDto,
+  ): Promise<FindAllResultInterface> {
+    const findQuery = this.buildFindQuery(filtersDto);
 
-    if (tenantMeta.length === 0) {
+    const [tenantMetaRecords, total] =
+      await this.tenantMetaRepository.findAndCount(findQuery);
+
+    if (tenantMetaRecords.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -58,8 +61,10 @@ export class TenantMetaService {
         ),
       );
     }
-
-    return tenantMeta;
+    return {
+      tenantMetaRecords,
+      pagination: this.buildPagination(filtersDto, total),
+    };
   }
 
   /**
@@ -171,4 +176,60 @@ export class TenantMetaService {
 
     return meta.metaValue;
   }
+
+
+  /**
+   * Builds a query object for filtering and sorting records.
+   * @param filtersDto - Filters for searching and sorting records.
+   * @returns The query object.
+   */
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {};
+
+    // Ensure tenantId is always included in the query
+    query.where = { tenantId: filtersDto.tenantId };
+
+    if (filtersDto.search) {
+      query.where = [
+        { phone: Like(`%${filtersDto.search}%`) },
+        { email: Like(`%${filtersDto.search}%`) },
+        { address: Like(`%${filtersDto.search}%`) },
+        { postal_code: Like(`%${filtersDto.search}%`) },
+      ];
+    }
+
+    if (filtersDto.sortBy) {
+      query.order = {
+        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
+      };
+    }
+
+    if (filtersDto.limit) {
+      filtersDto.page = filtersDto.page || 1;
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+
+      query.take = filtersDto.limit;
+      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds pagination details for the filtered records.
+   * @param filtersDto - Filters for pagination.
+   * @param total - Total number of records.
+   * @returns An object containing pagination details.
+   */
+  private buildPagination(
+    filtersDto: FiltersDto,
+    total: number,
+  ): { total: number; page: number; limit: number } {
+    return {
+      total,
+      page: filtersDto.page || 1,
+      limit: filtersDto.limit || 10,
+    };
+  }
+
 }

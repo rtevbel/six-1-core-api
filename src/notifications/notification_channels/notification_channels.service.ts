@@ -67,42 +67,6 @@ export class NotificationChannelsService {
       pagination: this.buildPagination(filtersDto, total),
     };
   }
-
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    if (filtersDto.search) {
-      query.where = [{ name: Like(`%${filtersDto.search}%`) }];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  private buildPagination(
-    filtersDto: FiltersDto,
-    total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
-      total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
-  }
-
   /**
    * Retrieves a single notification channel by ID.
    * @param userId - ID of the user requesting the data.
@@ -170,4 +134,55 @@ export class NotificationChannelsService {
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.notificationChannelRepository.delete({ channelId: id });
   }
+
+
+  /**
+   * Builds a query object for finding notification channels based on filters.
+   * @param filtersDto - Filters for search, sorting, and pagination.
+   * @returns A query object compatible with TypeORM find methods.
+   */
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {};
+
+    if (filtersDto.search) {
+      query.where = [
+        { name: Like(`%${filtersDto.search}%`) },
+        { description: Like(`%${filtersDto.search}%`) }
+      ];
+    }
+    
+    if (filtersDto.sortBy) {
+      query.order = {
+        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
+      };
+    }
+
+    if (filtersDto.limit) {
+      filtersDto.page = filtersDto.page || 1;
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+
+      query.take = filtersDto.limit;
+      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+    }
+
+    return query;
+  }
+  
+  /** 
+    * Builds pagination details based on total records and filters.
+    * @param filtersDto - Filters for pagination.
+    * @param total - Total number of records found.
+    * @returns An object containing total records, current page, and limit.
+  */
+  private buildPagination(
+    filtersDto: FiltersDto,
+    total: number,
+  ): { total: number; page: number; limit: number } {
+    return {
+      total,
+      page: filtersDto.page || 1,
+      limit: filtersDto.limit || 10,
+    };
+  }
+
 }

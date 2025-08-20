@@ -5,9 +5,9 @@ import { UserEntity } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { FiltersDto } from './dto/filters.dto';
-import { FindByDTO } from './dto/find-by.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import {FindByDTO} from "./dto/find-by.dto"
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -77,7 +77,9 @@ export class UserService {
       query.where = [
         { email: Like(`%${filtersDto.search}%`) },
         { username: Like(`%${filtersDto.search}%`) },
-        { display_name: Like(`%${filtersDto.search}%`) },
+        { first_name: Like(`%${filtersDto.search}%`) },
+        { last_name: Like(`%${filtersDto.search}%`) },
+        { activation_key: Like(`%${filtersDto.search}%`) }
       ];
     }
 
@@ -125,8 +127,9 @@ export class UserService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<UserEntity> {
+
     const user = await this.userRepository.findOneByOrFail({
-      user_id: id,
+      userId: id,
     });
 
     if (!user) {
@@ -165,6 +168,8 @@ export class UserService {
     return user;
   }
 
+
+
   /**
    * Updates an existing user record.
    * @param userId - ID of the user updating the record.
@@ -179,7 +184,7 @@ export class UserService {
     updateUserDto: UpdateUserDto,
   ): Promise<UpdateResult> {
     const user = await this.userRepository.findOneByOrFail({
-      user_id: id,
+      userId: id,
     });
 
     if (!user) {
@@ -198,6 +203,6 @@ export class UserService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.userRepository.delete({ user_id: id });
+    return await this.userRepository.delete({ userId: id });
   }
 }

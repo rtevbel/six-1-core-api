@@ -18,9 +18,11 @@ export class JwtStrategy extends PassportStrategy(
   JWT_STRATEGY_IDENTIFIER,
 ) {
   constructor() {
+    
     // Retrieve the secret key from environment variables.
     const secretKey = process.env.JWT_SECRET_KEY;
     if (!secretKey) {
+      console.log(process.env,'process.env');
       // Throw an error if the secret key is not defined.
       throw new Error('JWT_SECRET_KEY must be defined');
     }

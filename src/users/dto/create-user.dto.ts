@@ -23,7 +23,7 @@ export class CreateUserDto {
    */
   @IsOptional()
   @IsNumber()
-  user_id?: number;
+  userId?: number;
 
   /**
    * Email address of the user.
@@ -45,43 +45,43 @@ export class CreateUserDto {
    * Username of the user.
    *
    * - Required field.
-   * - Must be a string with a maximum length of 100 characters.
+   * - Must be a string with a maximum length of 255 characters.
    *
    * @type {string}
    */
   @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value.trim())
-  @MaxLength(100)
+  @MaxLength(255)
   username!: string;
 
   /**
    * First name of the user.
    *
-   * - Optional field.
-   * - Must be a string with a maximum length of 100 characters.
+   * - Required field.
+   * - Must be a string with a maximum length of 255 characters.
    *
    * @type {string}
    */
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value.trim())
-  @MaxLength(100)
-  first_name?: string;
+  @MaxLength(255)
+  firstName!: string;
 
   /**
    * Last name of the user.
    *
-   * - Optional field.
-   * - Must be a string with a maximum length of 100 characters.
+   * - Required field.
+   * - Must be a string with a maximum length of 255 characters.
    *
    * @type {string}
    */
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
   @Transform(({ value }) => value.trim())
-  @MaxLength(100)
-  last_name?: string;
+  @MaxLength(255)
+  lastName!: string;
 
   /**
    * Password of the user.
@@ -100,27 +100,27 @@ export class CreateUserDto {
    * Display name of the user.
    *
    * - Optional field.
-   * - Must be a string with a maximum length of 250 characters.
+   * - Must be a string with a maximum length of 255 characters.
    *
    * @type {string}
    */
   @IsOptional()
   @IsString()
-  @MaxLength(250)
-  display_name?: string;
+  @MaxLength(255)
+  displayName?: string;
 
   /**
    * Dashboard URL of the user.
    *
    * - Optional field.
-   * - Must be a string with a maximum length of 100 characters.
+   * - Must be a string with a maximum length of 255 characters.
    *
    * @type {string}
    */
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  dashboard_url?: string;
+  @MaxLength(255)
+  dashboardUrl?: string;
 
   /**
    * Activation key of the user.
@@ -133,7 +133,7 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  activation_key?: string;
+  activationKey?: string;
 
   /**
    * Status of the user.
@@ -157,7 +157,7 @@ export class CreateUserDto {
    */
   @IsOptional()
   @IsDateString()
-  last_login_at?: string;
+  lastLoginAt?: string;
 
   /**
    * Creation date of the user.
@@ -169,7 +169,7 @@ export class CreateUserDto {
    */
   @IsOptional()
   @IsDateString()
-  created_at?: string;
+  createdAt?: string;
 
   /**
    * Update date of the user.
@@ -181,5 +181,5 @@ export class CreateUserDto {
    */
   @IsOptional()
   @IsDateString()
-  updated_at?: string;
+  updatedAt?: string;
 }

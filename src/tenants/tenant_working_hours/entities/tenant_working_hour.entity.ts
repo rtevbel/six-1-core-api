@@ -93,7 +93,7 @@ export class TenantWorkingHoursEntity {
    * Relationship to UserEntity for createdBy.
    * A working hour record is created by one user.
    */
-  @ManyToOne(() => UserEntity, (user) => user.user_id, { onDelete: 'SET NULL' })
+  @ManyToOne(() => UserEntity, (user) => user.userId, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'created_by' })
   createdByUser!: UserEntity;
 
@@ -101,7 +101,7 @@ export class TenantWorkingHoursEntity {
    * Relationship to UserEntity for updatedBy.
    * A working hour record is updated by one user.
    */
-  @ManyToOne(() => UserEntity, (user) => user.user_id, { onDelete: 'SET NULL' })
+  @ManyToOne(() => UserEntity, (user) => user.userId, { onDelete: 'SET NULL' })
   @JoinColumn({ name: 'updated_by' })
   updatedByUser!: UserEntity;
 }

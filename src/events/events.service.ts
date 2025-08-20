@@ -145,7 +145,6 @@ export class EventsService {
     }
 
     updateEventDto.updatedBy = userId;
-
     return await this.eventRepository.update(id, updateEventDto);
   }
 
