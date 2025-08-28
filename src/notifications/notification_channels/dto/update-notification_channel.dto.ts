@@ -9,7 +9,9 @@ import { CreateNotificationChannelDto } from './create-notification_channel.dto'
  *
  * Data transfer object for updating a notification channel.
  */
-export class UpdateNotificationChannelDto extends PartialType(CreateNotificationChannelDto) {
+export class UpdateNotificationChannelDto extends PartialType(
+  CreateNotificationChannelDto,
+) {
   /**
    * Notification Channel ID.
    *

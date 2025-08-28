@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, DeleteResult, UpdateResult , Like } from 'typeorm';
+import { Repository, DeleteResult, UpdateResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserMetaEntity } from './entities/user-meta.entity';
 import { CreateUserMetaDto } from './dto/create-user-meta.dto';
 import { UpdateUserMetaDto } from './dto/update-user-meta.dto';
 import { RpcException } from '@nestjs/microservices';
 import { FiltersDto } from './dto/filters.dto';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface";
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -52,14 +52,14 @@ export class UserMetaService {
    */
   async findAll(
     userId: number,
-    filtersDto:FiltersDto
+    filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
+    const findQuery = this.buildFindQuery(filtersDto);
 
-    const findQuery  = this.buildFindQuery(filtersDto);
-    
     // Fetch user meta and count total records
-    const [metas, total] = await this.userMetaRepository.findAndCount(findQuery);
-    
+    const [metas, total] =
+      await this.userMetaRepository.findAndCount(findQuery);
+
     if (metas.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
@@ -69,7 +69,7 @@ export class UserMetaService {
       );
     }
     return {
-      userMeta:metas,
+      userMeta: metas,
       pagination: this.buildPagination(filtersDto, total),
     };
   }
@@ -117,7 +117,7 @@ export class UserMetaService {
     id: number,
     updateUserMetaDto: UpdateUserMetaDto,
   ): Promise<UpdateResult> {
-    console.log(updateUserMetaDto,'updateUserMetaDtoupdateUserMetaDto');
+    console.log(updateUserMetaDto, 'updateUserMetaDtoupdateUserMetaDto');
     const meta = await this.userMetaRepository.findOneBy({
       userMetaId: id,
       userId: updateUserMetaDto.userId,
@@ -189,57 +189,57 @@ export class UserMetaService {
     return meta.metaValue;
   }
 
-    /**
+  /**
    * Builds the query object for filtering, sorting, and pagination.
    * @param filtersDto - Filters for search, sorting, and pagination.
    * @returns The query object for TypeORM's `findAndCount` method.
    */
-    private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-      const query: Record<string, any> = {};
-  
-      query.where = {userId: filtersDto.userId};
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {};
 
-      // Apply search filters if provided
-      if (filtersDto.search) {
-        query.where = [
-          { metaKey: Like(`%${filtersDto.search}%`) },
-          { metaValue: Like(`%${filtersDto.search}%`) },
-        ];
-      }
-      
-      // Apply sorting if provided
-      if (filtersDto.sortBy) {
-        query.order = {
-          [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-        };
-      }
-  
-      // Apply pagination if limit is provided
-      if (filtersDto.limit) {
-        filtersDto.page = filtersDto.page || 1;
-        filtersDto.limit = Math.min(filtersDto.limit, 10);
-  
-        query.take = filtersDto.limit;
-        query.skip = (filtersDto.page - 1) * filtersDto.limit;
-      }
-  
-      return query;
+    query.where = { userId: filtersDto.userId };
+
+    // Apply search filters if provided
+    if (filtersDto.search) {
+      query.where = [
+        { metaKey: Like(`%${filtersDto.search}%`) },
+        { metaValue: Like(`%${filtersDto.search}%`) },
+      ];
     }
-  
-    /**
-     * Builds the pagination object for the response.
-     * @param filtersDto - Filters containing pagination details.
-     * @param total - Total number of records matching the query.
-     * @returns The pagination object.
-     */
-    private buildPagination(
-      filtersDto: FiltersDto,
-      total: number,
-    ): { total: number; page: number; limit: number } {
-      return {
-        total,
-        page: filtersDto.page || 1,
-        limit: filtersDto.limit || 10,
+
+    // Apply sorting if provided
+    if (filtersDto.sortBy) {
+      query.order = {
+        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
       };
     }
+
+    // Apply pagination if limit is provided
+    if (filtersDto.limit) {
+      filtersDto.page = filtersDto.page || 1;
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+
+      query.take = filtersDto.limit;
+      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds the pagination object for the response.
+   * @param filtersDto - Filters containing pagination details.
+   * @param total - Total number of records matching the query.
+   * @returns The pagination object.
+   */
+  private buildPagination(
+    filtersDto: FiltersDto,
+    total: number,
+  ): { total: number; page: number; limit: number } {
+    return {
+      total,
+      page: filtersDto.page || 1,
+      limit: filtersDto.limit || 10,
+    };
+  }
 }

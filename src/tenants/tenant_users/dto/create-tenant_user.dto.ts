@@ -64,7 +64,7 @@ export class CreateTenantUserDto {
    *
    * @type {number}
    */
-   @IsNumber()
-   @IsOptional()
-   updatedBy!: number;
+  @IsNumber()
+  @IsOptional()
+  updatedBy!: number;
 }

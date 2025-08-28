@@ -47,8 +47,9 @@ export class FiltersDto {
    * Must be one of 'tenant_team_member_id', tenant_team_id , 'tenant_user_id'.
    */
   @IsOptional()
-  @IsIn(['tenant_team_member_id', 'tenant_team_id' ,'tenant_user_id'], {
-    message: 'sortBy key must be from this list (tenant_team_member_id, tenant_team_id , tenant_user_id)',
+  @IsIn(['tenant_team_member_id', 'tenant_team_id', 'tenant_user_id'], {
+    message:
+      'sortBy key must be from this list (tenant_team_member_id, tenant_team_id , tenant_user_id)',
   })
   @IsString()
   sortBy: string = 'tenant_team_member_id';

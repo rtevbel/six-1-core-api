@@ -45,10 +45,7 @@ export class TenantUserOffDaysService {
    * @returns The TenantUserOffDaysEntity record.
    * @throws RpcException if the record is not found.
    */
-  async findOne(
-    userId: number,
-    id: number,
-  ): Promise<TenantUserOffDaysEntity> {
+  async findOne(userId: number, id: number): Promise<TenantUserOffDaysEntity> {
     const offDay = await this.tenantUserOffDaysRepository.findOne({
       where: { tenantUserOffDayId: id },
     });

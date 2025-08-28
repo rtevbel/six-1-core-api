@@ -44,11 +44,14 @@ export class EventListenersService {
    * @returns An array of EventListenerEntity records.
    * @throws RpcException if no records match the filters.
    */
-  async findAll(userId: number, filtersDto: FiltersDto): Promise<FindAllResultInterface> {
-
+  async findAll(
+    userId: number,
+    filtersDto: FiltersDto,
+  ): Promise<FindAllResultInterface> {
     const query = this.buildFindQuery(filtersDto);
 
-    const [eventListeners, total] = await this.eventListenerRepository.findAndCount(query);
+    const [eventListeners, total] =
+      await this.eventListenerRepository.findAndCount(query);
 
     if (eventListeners.length === 0) {
       throw new RpcException(
@@ -72,12 +75,17 @@ export class EventListenersService {
    * @returns The EventListenerEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId:number , id: number): Promise<EventListenerEntity> {
-    const eventListener = await this.eventListenerRepository.findOneByOrFail({ listenerId: id });
+  async findOne(userId: number, id: number): Promise<EventListenerEntity> {
+    const eventListener = await this.eventListenerRepository.findOneByOrFail({
+      listenerId: id,
+    });
 
     if (!eventListener) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventListenerEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          EventListenerEntity.name,
+        ),
       );
     }
 
@@ -97,16 +105,24 @@ export class EventListenersService {
     id: number,
     updateEventListenerDto: UpdateEventListenerDto,
   ): Promise<UpdateResult> {
-    const eventListener = await this.eventListenerRepository.findOneByOrFail({ listenerId: id });
+    const eventListener = await this.eventListenerRepository.findOneByOrFail({
+      listenerId: id,
+    });
 
     if (!eventListener) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventListenerEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          EventListenerEntity.name,
+        ),
       );
     }
-    
+
     updateEventListenerDto.updatedBy = userId;
-    return await this.eventListenerRepository.update(id, updateEventListenerDto);
+    return await this.eventListenerRepository.update(
+      id,
+      updateEventListenerDto,
+    );
   }
 
   /**
@@ -128,7 +144,7 @@ export class EventListenersService {
     const query: Record<string, any> = {};
 
     // If an eventId is provided, filter by it.
-    if(filters.eventId){
+    if (filters.eventId) {
       query.where = { eventId: filters.eventId };
     }
 

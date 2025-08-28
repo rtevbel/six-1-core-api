@@ -24,7 +24,10 @@ export class UserRolesService {
    * @param createUserRoleDto - Data Transfer Object containing user-role details.
    * @returns The created UserRoleEntity.
    */
-  async create(requestingUserId: number, createUserRoleDto: CreateUserRoleDto): Promise<UserRoleEntity> {
+  async create(
+    requestingUserId: number,
+    createUserRoleDto: CreateUserRoleDto,
+  ): Promise<UserRoleEntity> {
     createUserRoleDto.createdBy = requestingUserId;
 
     return await this.userRoleRepository.save(
@@ -60,11 +63,16 @@ export class UserRolesService {
    * @throws RpcException if no record is found.
    */
   async findOne(requestingUserId: number, id: number): Promise<UserRoleEntity> {
-    const userRole = await this.userRoleRepository.findOneByOrFail({ userRoleId: id });
+    const userRole = await this.userRoleRepository.findOneByOrFail({
+      userRoleId: id,
+    });
 
     if (!userRole) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserRoleEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          UserRoleEntity.name,
+        ),
       );
     }
 
@@ -84,11 +92,16 @@ export class UserRolesService {
     id: number,
     updateUserRoleDto: UpdateUserRoleDto,
   ): Promise<UpdateResult> {
-    const userRole = await this.userRoleRepository.findOneByOrFail({ userRoleId: id });
+    const userRole = await this.userRoleRepository.findOneByOrFail({
+      userRoleId: id,
+    });
 
     if (!userRole) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserRoleEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          UserRoleEntity.name,
+        ),
       );
     }
 

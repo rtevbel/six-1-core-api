@@ -77,7 +77,7 @@ export class TenantUserInvitationsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.where = {tenantId: filtersDto.tenantId}; // Filter by tenantId
+    query.where = { tenantId: filtersDto.tenantId }; // Filter by tenantId
 
     if (filtersDto.search) {
       query.where = [
@@ -126,10 +126,12 @@ export class TenantUserInvitationsService {
     });
 
     if (!invitation) {
-      throw new RpcException( NO_RECORD_FOUND_MESSAGE.replace(
-        '{entity_name}',
-        TenantUserInvitationsEntity.name,
-      ));
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replace(
+          '{entity_name}',
+          TenantUserInvitationsEntity.name,
+        ),
+      );
     }
 
     return invitation;
@@ -155,10 +157,12 @@ export class TenantUserInvitationsService {
     });
 
     if (!invitation) {
-      throw new RpcException(NO_RECORD_FOUND_MESSAGE.replace(
-        '{entity_name}',
-        TenantUserInvitationsEntity.name,
-      ));
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replace(
+          '{entity_name}',
+          TenantUserInvitationsEntity.name,
+        ),
+      );
     }
 
     return await this.tenantUserInvitationsRepository.update(
@@ -185,10 +189,12 @@ export class TenantUserInvitationsService {
     });
 
     if (!invitation) {
-      throw new RpcException(NO_RECORD_FOUND_MESSAGE.replace(
-        '{entity_name}',
-        TenantUserInvitationsEntity.name,
-      ));
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replace(
+          '{entity_name}',
+          TenantUserInvitationsEntity.name,
+        ),
+      );
     }
 
     return await this.tenantUserInvitationsRepository.delete({

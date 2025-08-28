@@ -4,7 +4,7 @@ import {
   IsOptional,
   IsString,
   IsEnum,
-  IsDateString
+  IsDateString,
 } from 'class-validator';
 import { IsTodayOrLater } from 'src/common/validators/is-today-or-later.validator';
 
@@ -100,7 +100,7 @@ export class CreateTenantUserInvitationDto {
   @IsNotEmpty()
   invitedBy!: number;
 
-/**
+  /**
    * Expiration date of the invitation.
    *
    * - Optional field.
@@ -108,8 +108,8 @@ export class CreateTenantUserInvitationDto {
    *
    * @type {Date}
    */
-@IsDateString()
-@IsOptional()
-@IsTodayOrLater({ message: 'Expiration date must be today or later.' })
-expiresAt?: string;
+  @IsDateString()
+  @IsOptional()
+  @IsTodayOrLater({ message: 'Expiration date must be today or later.' })
+  expiresAt?: string;
 }

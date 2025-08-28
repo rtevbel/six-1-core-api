@@ -38,7 +38,11 @@ export class TenantUserMetaController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createTenantUserMetaDto: CreateTenantUserMetaDto,
   ): Promise<TenantUserMetaEntity> {
-    return this.tenantUserMetaService.create(userId , tenantId,createTenantUserMetaDto);
+    return this.tenantUserMetaService.create(
+      userId,
+      tenantId,
+      createTenantUserMetaDto,
+    );
   }
 
   /**
@@ -56,7 +60,12 @@ export class TenantUserMetaController {
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserMetaEntity> {
-    return this.tenantUserMetaService.findOne( userId , tenantId, tenantUserId, id);
+    return this.tenantUserMetaService.findOne(
+      userId,
+      tenantId,
+      tenantUserId,
+      id,
+    );
   }
 
   /**
@@ -72,7 +81,11 @@ export class TenantUserMetaController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    return this.tenantUserMetaService.findAllByFilter(userId , tenantId, filtersDto);
+    return this.tenantUserMetaService.findAllByFilter(
+      userId,
+      tenantId,
+      filtersDto,
+    );
   }
 
   /**
@@ -115,6 +128,11 @@ export class TenantUserMetaController {
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantUserMetaService.remove(userId , tenantId, tenantUserId, id);
+    return this.tenantUserMetaService.remove(
+      userId,
+      tenantId,
+      tenantUserId,
+      id,
+    );
   }
 }

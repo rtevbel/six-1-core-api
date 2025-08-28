@@ -136,7 +136,7 @@ export class CreateTenantUserConfigurationDto {
   @IsNotEmpty()
   createdBy!: number;
 
-   /**
+  /**
    * Updated by user ID.
    *
    * - Optional field.
@@ -144,7 +144,7 @@ export class CreateTenantUserConfigurationDto {
    *
    * @type {number}
    */
-   @IsNumber()
-   @IsOptional()
-   updatedBy!: number;
+  @IsNumber()
+  @IsOptional()
+  updatedBy!: number;
 }

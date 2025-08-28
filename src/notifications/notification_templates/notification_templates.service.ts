@@ -80,16 +80,16 @@ export class NotificationTemplatesService {
       query.where = [
         { name: Like(`%${filtersDto.search}%`) },
         { subject: Like(`%${filtersDto.search}%`) },
-        { message: Like(`%${filtersDto.search}%`) }
+        { message: Like(`%${filtersDto.search}%`) },
       ];
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
       };
     }
-    
+
     if (filtersDto.limit) {
       filtersDto.page = filtersDto.page || 1;
       filtersDto.limit = Math.min(filtersDto.limit, 10);
@@ -119,7 +119,10 @@ export class NotificationTemplatesService {
    * @returns The NotificationTemplateEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId: number, id: number): Promise<NotificationTemplateEntity> {
+  async findOne(
+    userId: number,
+    id: number,
+  ): Promise<NotificationTemplateEntity> {
     const template = await this.notificationTemplateRepository.findOneByOrFail({
       templateId: id,
     });

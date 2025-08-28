@@ -1,6 +1,6 @@
 // Constants for Tenant Configurations Microservice
 
-  export const MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN =
+export const MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN =
   'v0.1_create_tenant_configuration';
 export const MICROSERVICE_FIND_ALL_TENANT_CONFIGURATIONS_PATTERN =
   'v0.1_find_all_tenant_configurations';

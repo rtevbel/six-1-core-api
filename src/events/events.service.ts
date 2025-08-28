@@ -26,7 +26,10 @@ export class EventsService {
    * @param createEventDto - Data Transfer Object containing event details.
    * @returns The created EventEntity.
    */
-  async create(userId: number, createEventDto: CreateEventDto): Promise<EventEntity> {
+  async create(
+    userId: number,
+    createEventDto: CreateEventDto,
+  ): Promise<EventEntity> {
     createEventDto.createdBy = userId;
 
     return await this.eventRepository.save(
@@ -41,7 +44,10 @@ export class EventsService {
    * @returns An object containing the list of events and pagination details.
    * @throws RpcException if no records match the filters.
    */
-  async findAll(userId: number, filtersDto: FiltersDto): Promise<FindAllResultInterface> {
+  async findAll(
+    userId: number,
+    filtersDto: FiltersDto,
+  ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [events, total] = await this.eventRepository.findAndCount(findQuery);

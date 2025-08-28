@@ -1,6 +1,6 @@
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import { CreateTenantUserMetaDto } from './create-tenant_user_meta.dto';
-import {PartialType} from "@nestjs/mapped-types";
+import { PartialType } from '@nestjs/mapped-types';
 
 /**
  * Update tenant user metadata DTO class.
@@ -9,7 +9,9 @@ import {PartialType} from "@nestjs/mapped-types";
  *
  * Data transfer object for updating tenant user metadata.
  */
-export class UpdateTenantUserMetaDto extends PartialType(CreateTenantUserMetaDto){
+export class UpdateTenantUserMetaDto extends PartialType(
+  CreateTenantUserMetaDto,
+) {
   /**
    * Tenant user metadata ID.
    *
@@ -21,5 +23,4 @@ export class UpdateTenantUserMetaDto extends PartialType(CreateTenantUserMetaDto
   @IsNumber()
   @IsNotEmpty()
   tenantUserMetaId!: number;
-
 }

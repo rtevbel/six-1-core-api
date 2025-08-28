@@ -9,7 +9,9 @@ import { CreateTenantTeamMemberDto } from './create-tenant_team_member.dto';
  *
  * Data transfer object for updating a tenant team member.
  */
-export class UpdateTenantTeamMemberDto extends PartialType(CreateTenantTeamMemberDto) {
+export class UpdateTenantTeamMemberDto extends PartialType(
+  CreateTenantTeamMemberDto,
+) {
   /**
    * Tenant team member ID.
    *

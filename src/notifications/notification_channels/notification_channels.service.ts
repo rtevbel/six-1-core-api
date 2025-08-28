@@ -74,7 +74,10 @@ export class NotificationChannelsService {
    * @returns The NotificationChannelEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId: number, id: number): Promise<NotificationChannelEntity> {
+  async findOne(
+    userId: number,
+    id: number,
+  ): Promise<NotificationChannelEntity> {
     const channel = await this.notificationChannelRepository.findOneByOrFail({
       channelId: id,
     });
@@ -135,7 +138,6 @@ export class NotificationChannelsService {
     return await this.notificationChannelRepository.delete({ channelId: id });
   }
 
-
   /**
    * Builds a query object for finding notification channels based on filters.
    * @param filtersDto - Filters for search, sorting, and pagination.
@@ -147,10 +149,10 @@ export class NotificationChannelsService {
     if (filtersDto.search) {
       query.where = [
         { name: Like(`%${filtersDto.search}%`) },
-        { description: Like(`%${filtersDto.search}%`) }
+        { description: Like(`%${filtersDto.search}%`) },
       ];
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
@@ -167,13 +169,13 @@ export class NotificationChannelsService {
 
     return query;
   }
-  
-  /** 
-    * Builds pagination details based on total records and filters.
-    * @param filtersDto - Filters for pagination.
-    * @param total - Total number of records found.
-    * @returns An object containing total records, current page, and limit.
-  */
+
+  /**
+   * Builds pagination details based on total records and filters.
+   * @param filtersDto - Filters for pagination.
+   * @param total - Total number of records found.
+   * @returns An object containing total records, current page, and limit.
+   */
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
@@ -184,5 +186,4 @@ export class NotificationChannelsService {
       limit: filtersDto.limit || 10,
     };
   }
-
 }

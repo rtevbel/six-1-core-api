@@ -1,5 +1,6 @@
 import { IsNumber, IsNotEmpty } from 'class-validator';
 import { CreateNotificationTemplateDto } from './create-notification_template.dto';
+import { PartialType } from '@nestjs/mapped-types';
 
 /**
  * Update Notification Template DTO class.
@@ -8,7 +9,9 @@ import { CreateNotificationTemplateDto } from './create-notification_template.dt
  *
  * Data transfer object for updating a notification template.
  */
-export class UpdateNotificationTemplateDto extends CreateNotificationTemplateDto {
+export class UpdateNotificationTemplateDto extends PartialType(
+  CreateNotificationTemplateDto,
+) {
   /**
    * Notification Template ID.
    *

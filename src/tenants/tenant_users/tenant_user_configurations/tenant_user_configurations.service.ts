@@ -34,7 +34,9 @@ export class TenantUserConfigurationsService {
     createTenantUserConfigurationDto: CreateTenantUserConfigurationDto,
   ): Promise<TenantUserConfigurationsEntity> {
     return await this.tenantUserConfigurationsRepository.save(
-      this.tenantUserConfigurationsRepository.create(createTenantUserConfigurationDto),
+      this.tenantUserConfigurationsRepository.create(
+        createTenantUserConfigurationDto,
+      ),
     );
   }
 
@@ -84,9 +86,11 @@ export class TenantUserConfigurationsService {
     tenantUserId: number,
     id: number,
   ): Promise<TenantUserConfigurationsEntity> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne({
-      where: { tenantUserConfigId: id, tenantUserId },
-    });
+    const configuration = await this.tenantUserConfigurationsRepository.findOne(
+      {
+        where: { tenantUserConfigId: id, tenantUserId },
+      },
+    );
 
     if (!configuration) {
       throw new RpcException(
@@ -116,9 +120,11 @@ export class TenantUserConfigurationsService {
     id: number,
     updateTenantUserConfigurationDto: UpdateTenantUserConfigurationDto,
   ): Promise<UpdateResult> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne({
-      where: { tenantUserConfigId: id, tenantUserId },
-    });
+    const configuration = await this.tenantUserConfigurationsRepository.findOne(
+      {
+        where: { tenantUserConfigId: id, tenantUserId },
+      },
+    );
 
     if (!configuration) {
       throw new RpcException(
@@ -149,9 +155,11 @@ export class TenantUserConfigurationsService {
     tenantUserId: number,
     id: number,
   ): Promise<DeleteResult> {
-    const configuration = await this.tenantUserConfigurationsRepository.findOne({
-      where: { tenantUserConfigId: id, tenantUserId },
-    });
+    const configuration = await this.tenantUserConfigurationsRepository.findOne(
+      {
+        where: { tenantUserConfigId: id, tenantUserId },
+      },
+    );
 
     if (!configuration) {
       throw new RpcException(
@@ -161,7 +169,7 @@ export class TenantUserConfigurationsService {
         ),
       );
     }
-    
+
     return await this.tenantUserConfigurationsRepository.delete({
       tenantUserConfigId: id,
       tenantUserId,
@@ -175,11 +183,10 @@ export class TenantUserConfigurationsService {
    * @param tenantUserId - The ID of the tenant user.
    * @returns The query object.
    */
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): Record<string, any> {
-    
-    const query: Record<string, any> = { where: {tenantUserId:filtersDto.tenantUserId } };
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {
+      where: { tenantUserId: filtersDto.tenantUserId },
+    };
 
     if (filtersDto.search) {
       query.where = [

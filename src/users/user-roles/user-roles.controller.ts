@@ -1,8 +1,4 @@
-import {
-  Controller,
-  ParseIntPipe,
-  UsePipes,
-} from '@nestjs/common';
+import { Controller, ParseIntPipe, UsePipes } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { UserRolesService } from './user-roles.service';
 import { CreateUserRoleDto } from './dto/create-user-role.dto';
@@ -35,7 +31,7 @@ export class UserRolesController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createUserRoleDto: CreateUserRoleDto,
   ): Promise<UserRoleEntity> {
-    console.log(createUserRoleDto,'createUserRoleDto createUserRoleDto');
+    console.log(createUserRoleDto, 'createUserRoleDto createUserRoleDto');
     return this.userRolesService.create(userId, createUserRoleDto);
   }
 

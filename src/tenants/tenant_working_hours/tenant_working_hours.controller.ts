@@ -8,7 +8,7 @@ import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
 
 import {
-MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN,
+  MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN,
   MICROSERVICE_FIND_ALL_TENANT_WORKING_HOURS_PATTERN,
   MICROSERVICE_FIND_ONE_TENANT_WORKING_HOURS_PATTERN,
   MICROSERVICE_UPDATE_TENANT_WORKING_HOURS_PATTERN,
@@ -72,11 +72,7 @@ export class TenantWorkingHoursController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantWorkingHoursEntity> {
-    return await this.tenantWorkingHoursService.findOne(
-      userId,
-      tenantId,
-      id,
-    );
+    return await this.tenantWorkingHoursService.findOne(userId, tenantId, id);
   }
 
   /**
@@ -114,10 +110,6 @@ export class TenantWorkingHoursController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return await this.tenantWorkingHoursService.remove(
-      userId,
-      tenantId,
-      id,
-    );
+    return await this.tenantWorkingHoursService.remove(userId, tenantId, id);
   }
 }

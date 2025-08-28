@@ -30,7 +30,7 @@ export class UpdateUserMetaDto extends PartialType(CreateUserMetaDto) {
   @Type(() => Number)
   @IsNumber()
   userMetaId!: number;
-  
+
   /**
    * Optional list of updated metadata keys.
    *

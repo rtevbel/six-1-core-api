@@ -11,7 +11,9 @@ describe('ProcessTemplatesController', () => {
       providers: [ProcessTemplatesService],
     }).compile();
 
-    controller = module.get<ProcessTemplatesController>(ProcessTemplatesController);
+    controller = module.get<ProcessTemplatesController>(
+      ProcessTemplatesController,
+    );
   });
 
   it('should be defined', () => {

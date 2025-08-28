@@ -1,4 +1,4 @@
-import { IsNumber, IsNotEmpty , IsOptional } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
 
 /**
  * Create UserRole DTO class.
@@ -43,6 +43,4 @@ export class CreateUserRoleDto {
   @IsNumber()
   @IsOptional()
   createdBy!: number;
-
-  
 }

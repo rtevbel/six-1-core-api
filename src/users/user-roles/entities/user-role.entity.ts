@@ -90,5 +90,4 @@ export class UserRoleEntity {
   })
   @JoinColumn({ name: 'created_by' })
   creator!: UserEntity;
-
 }

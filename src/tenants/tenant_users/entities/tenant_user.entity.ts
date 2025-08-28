@@ -20,7 +20,12 @@ import { TenantUserMetaEntity } from '../tenant_user_meta/entities/tenant_user_m
 import { TenantUserRoleEntity } from '../tenant_user_roles/entities/tenant_user_role.entity';
 import { TenantTeamEntity } from '../../tenant_teams/entities/tenant_team.entity';
 import { TenantTeamMemberEntity } from '../../tenant_teams/tenant_team_members/entities/tenant_team_member.entity';
-
+import { CategoryEntity } from '../../../categories/entities/category.entity';
+import { ProcessTemplateEntity } from '../../../process_templates/entities/process_template.entity';
+import { ProcessTemplateStepEntity } from '../../../process_templates/process_template_steps/entities/process_template_step.entity';
+import { ProcessTemplateStepRequirementEntity } from '../../../process_templates/process_template_steps/process_template_step_requirements/entities/process_template_step_requirement.entity';
+import { ProcessTemplateStepRequirementSubmissionEntity } from '../../../process_templates/process_template_steps/process_template_step_requirement_submissions/entities/process_template_step_requirement_submission.entity';
+import { ProcessTemplateStepTriggerConditionEntity } from '../../../process_templates/process_template_steps/process_template_step_trigger_conditions/entities/process_template_step_trigger_condition.entity';
 /**
  * Entity class for `tenant_users` table.
  *
@@ -277,40 +282,160 @@ export class TenantUsersEntity {
   )
   meta!: TenantUserMetaEntity[];
 
-   /**
+  /**
    * Relationship to TenantUserRoleEntity.
    * A tenant user can have multiple roles assigned.
    */
-   @OneToMany(() => TenantUserRoleEntity, (tenantUserRole) => tenantUserRole.tenantUser)
-   roles!: TenantUserRoleEntity[];
+  @OneToMany(
+    () => TenantUserRoleEntity,
+    (tenantUserRole) => tenantUserRole.tenantUser,
+  )
+  roles!: TenantUserRoleEntity[];
 
   /**
    * Relationship to TenantUserRoleEntity.
    * A tenant user can assign roles to other users.
    */
-  @OneToMany(() => TenantUserRoleEntity, (tenantUserRole) => tenantUserRole.createdByUser)
+  @OneToMany(
+    () => TenantUserRoleEntity,
+    (tenantUserRole) => tenantUserRole.createdByUser,
+  )
   assignedRoles!: TenantUserRoleEntity[];
 
-   /**
+  /**
    * Inverse relationship to TenantTeamEntity.
    * A tenant user can create multiple teams.
    */
-   @OneToMany(() => TenantTeamEntity, (team) => team.createdByUser)
-   createdTeams!: TenantTeamEntity[];
- 
-   /**
-    * Inverse relationship to TenantTeamEntity.
-    * A tenant user can update multiple teams.
-    */
-   @OneToMany(() => TenantTeamEntity, (team) => team.updatedByUser)
-   updatedTeams!: TenantTeamEntity[];
+  @OneToMany(() => TenantTeamEntity, (team) => team.createdByUser)
+  createdTeams!: TenantTeamEntity[];
 
-   /**
- * Relationship to TenantTeamMemberEntity.
- * A tenant user has many team memberships.
- */
+  /**
+   * Inverse relationship to TenantTeamEntity.
+   * A tenant user can update multiple teams.
+   */
+  @OneToMany(() => TenantTeamEntity, (team) => team.updatedByUser)
+  updatedTeams!: TenantTeamEntity[];
+
+  /**
+   * Relationship to TenantTeamMemberEntity.
+   * A tenant user has many team memberships.
+   */
   @OneToMany(() => TenantTeamMemberEntity, (member) => member.user, {
     cascade: true,
   })
   teamMemberships!: TenantTeamMemberEntity[];
+
+  /**
+   * One-to-many relationship with `CategoryEntity` for `created_by`.
+   *
+   * Represents the categories created by this tenant user.
+   */
+  @OneToMany(() => CategoryEntity, (category) => category.createdByUser)
+  createdCategories!: CategoryEntity[];
+
+  /**
+   * One-to-many relationship with `CategoryEntity` for `updated_by`.
+   *
+   * Represents the categories last updated by this tenant user.
+   */
+  @OneToMany(() => CategoryEntity, (category) => category.updatedByUser)
+  updatedCategories!: CategoryEntity[];
+
+  /**
+   * Relationship to ProcessTemplateEntity for createdBy.
+   * A tenant user can create multiple process templates.
+   */
+  @OneToMany(
+    () => ProcessTemplateEntity,
+    (processTemplate) => processTemplate.createdByUser,
+  )
+  createdProcessTemplates!: ProcessTemplateEntity[];
+
+  /**
+   * Relationship to ProcessTemplateEntity for updatedBy.
+   * A tenant user can update multiple process templates.
+   */
+  @OneToMany(
+    () => ProcessTemplateEntity,
+    (processTemplate) => processTemplate.updatedByUser,
+    {
+      nullable: true,
+    },
+  )
+  updatedProcessTemplates!: ProcessTemplateEntity[];
+
+  /**
+   * Relationship to ProcessTemplateStepEntity for created steps.
+   * A tenant user can create multiple steps.
+   */
+  @OneToMany(() => ProcessTemplateStepEntity, (step) => step.createdByUser)
+  createdSteps!: ProcessTemplateStepEntity[];
+
+  /**
+   * Relationship to ProcessTemplateStepEntity for updated steps.
+   * A tenant user can update multiple steps.
+   */
+  @OneToMany(() => ProcessTemplateStepEntity, (step) => step.updatedByUser)
+  updatedSteps!: ProcessTemplateStepEntity[];
+
+  /**
+   * Relationship to ProcessTemplateStepRequirementEntity.
+   * A user can create multiple requirements.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepRequirementEntity,
+    (requirement) => requirement.createdByUser,
+  )
+  createdRequirements!: ProcessTemplateStepRequirementEntity[];
+
+  /**
+   * Relationship to ProcessTemplateStepRequirementEntity.
+   * A user can update multiple requirements.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepRequirementEntity,
+    (requirement) => requirement.updatedByUser,
+  )
+  updatedRequirements!: ProcessTemplateStepRequirementEntity[];
+
+    /**
+   * Relationship to ProcessTemplateStepRequirementSubmissionEntity.
+   * A tenant user can create multiple submissions.
+   */
+    @OneToMany(
+      () => ProcessTemplateStepRequirementSubmissionEntity,
+      (submission) => submission.createdByUser,
+    )
+    createdSubmissions!: ProcessTemplateStepRequirementSubmissionEntity[];
+
+     /**
+   * Relationship to ProcessTemplateStepRequirementSubmissionEntity.
+   * A tenant user can review multiple submissions.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepRequirementSubmissionEntity,
+    (submission) => submission.reviewedByUser,
+  )
+  reviewedSubmissions!: ProcessTemplateStepRequirementSubmissionEntity[];
+
+
+    /**
+   * Relationship to ProcessTemplateStepTriggerConditionEntity for createdBy.
+   * A user can create multiple trigger conditions.
+   */
+    @OneToMany(
+      () => ProcessTemplateStepTriggerConditionEntity,
+      (triggerCondition) => triggerCondition.createdByUser,
+    )
+    createdConditions!: ProcessTemplateStepTriggerConditionEntity[];
+  
+    /**
+     * Relationship to ProcessTemplateStepTriggerConditionEntity for updatedBy.
+     * A user can update multiple trigger conditions.
+     */
+    @OneToMany(
+      () => ProcessTemplateStepTriggerConditionEntity,
+      (triggerCondition) => triggerCondition.updatedByUser,
+    )
+    updatedConditions!: ProcessTemplateStepTriggerConditionEntity[];
 }

@@ -14,14 +14,13 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
   /**
    * Tenant ID for filtering results.
    * Required field, must be a number.
    */
   @Type(() => Number)
   @IsNumber()
-  tenantId!:number;
+  tenantId!: number;
 
   /**
    * Search keyword for filtering results.
@@ -50,7 +49,7 @@ export class FiltersDto {
   @IsNumber()
   limit: number = 10;
 
- /**
+  /**
    * Field to sort the results by.
    * Optional field, defaults to 'tenantBillingId'.
    * Must be one of 'tenantBillingId', 'tenantId'.

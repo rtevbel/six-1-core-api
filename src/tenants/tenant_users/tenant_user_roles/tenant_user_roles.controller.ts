@@ -7,7 +7,7 @@ import { TenantUserRoleEntity } from './entities/tenant_user_role.entity';
 import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
 import { FiltersDto } from './dto/filters.dto';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface"
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   MICROSERVICE_CREATE_TENANT_USER_ROLE_PATTERN,
@@ -76,7 +76,12 @@ export class TenantUserRoleController {
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserRoleEntity> {
-    return this.tenantUserRoleService.findOne(userId, tenantId, tenantUserId, id);
+    return this.tenantUserRoleService.findOne(
+      userId,
+      tenantId,
+      tenantUserId,
+      id,
+    );
   }
 
   /**
@@ -93,11 +98,10 @@ export class TenantUserRoleController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') updateTenantUserRoleDto: UpdateTenantUserRoleDto,
   ): Promise<UpdateResult> {
-
     if (updateTenantUserRoleDto.tenantUserId === undefined) {
       throw new Error('tenantUserId is required');
     }
-    
+
     return this.tenantUserRoleService.update(
       userId,
       tenantId,
@@ -122,6 +126,11 @@ export class TenantUserRoleController {
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantUserRoleService.remove(userId, tenantId, tenantUserId, id);
+    return this.tenantUserRoleService.remove(
+      userId,
+      tenantId,
+      tenantUserId,
+      id,
+    );
   }
 }

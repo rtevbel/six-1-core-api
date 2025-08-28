@@ -136,15 +136,13 @@ export class NotificationsService {
     });
   }
 
-  /** 
-    * Builds a query object for finding notifications based on filters.
-    * @param userId - ID of the user requesting the data.
-    * @param filtersDto - Filters for search, sorting, and pagination.
-    * @returns A query object compatible with TypeORM's find method.
-  */ 
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): Record<string, any> {
+  /**
+   * Builds a query object for finding notifications based on filters.
+   * @param userId - ID of the user requesting the data.
+   * @param filtersDto - Filters for search, sorting, and pagination.
+   * @returns A query object compatible with TypeORM's find method.
+   */
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
     if (filtersDto.search) {
@@ -171,13 +169,13 @@ export class NotificationsService {
     return query;
   }
 
-  /** 
-    * Builds pagination details for the response.
-    * @param filtersDto - Filters for pagination.
-    * @param total - Total number of records found.
-    * @returns An object containing total records, current page, and limit.
-  */
-   private buildPagination(
+  /**
+   * Builds pagination details for the response.
+   * @param filtersDto - Filters for pagination.
+   * @param total - Total number of records found.
+   * @returns An object containing total records, current page, and limit.
+   */
+  private buildPagination(
     filtersDto: FiltersDto,
     total: number,
   ): { total: number; page: number; limit: number } {

@@ -14,12 +14,11 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-  
   /*
-    * ID of the event to filter listeners by.
-    * Optional field, must be a number if provided.
-    * If not provided, all listeners for all events will be returned.
-  */
+   * ID of the event to filter listeners by.
+   * Optional field, must be a number if provided.
+   * If not provided, all listeners for all events will be returned.
+   */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -58,7 +57,7 @@ export class FiltersDto {
    * Must be one of 'logId','eventId'.
    */
   @IsOptional()
-  @IsIn(['logId','eventId'], {
+  @IsIn(['logId', 'eventId'], {
     message: 'sortBy key must be from this list (logId , eventId)',
   })
   @IsString()

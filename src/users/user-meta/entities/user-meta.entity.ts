@@ -25,14 +25,18 @@ export class UserMetaEntity {
    * Primary key for the `user_meta` table.
    * Auto-incremented big integer.
    */
-  @PrimaryGeneratedColumn({ type: 'bigint', name: 'user_meta_id' , unsigned: true })
+  @PrimaryGeneratedColumn({
+    type: 'bigint',
+    name: 'user_meta_id',
+    unsigned: true,
+  })
   userMetaId!: number;
 
   /**
    * Foreign key referencing the `user_id` column in the `user` table.
    * Indexed for faster lookups.
    */
-  @Column({ type: 'bigint', name: 'user_id' , unsigned: true, nullable: false })
+  @Column({ type: 'bigint', name: 'user_id', unsigned: true, nullable: false })
   @Index('user_meta_user_id')
   userId!: number;
 
@@ -40,7 +44,7 @@ export class UserMetaEntity {
    * Key for the metadata entry.
    * Indexed for faster lookups.
    */
-  @Column({ type: 'varchar', name: 'meta_key' , length: 255, nullable: false })
+  @Column({ type: 'varchar', name: 'meta_key', length: 255, nullable: false })
   @Index('user_meta_key')
   metaKey!: string;
 

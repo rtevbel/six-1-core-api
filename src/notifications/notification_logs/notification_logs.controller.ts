@@ -41,7 +41,10 @@ export class NotificationLogsController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createNotificationLogDto: CreateNotificationLogDto,
   ): Promise<NotificationLogEntity> {
-    return this.notificationLogsService.create(userId, createNotificationLogDto);
+    return this.notificationLogsService.create(
+      userId,
+      createNotificationLogDto,
+    );
   }
 
   /**

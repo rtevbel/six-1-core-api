@@ -84,7 +84,7 @@ export class TenantUserMetaService {
     id: number,
   ): Promise<TenantUserMetaEntity> {
     const metadata = await this.tenantUserMetaRepository.findOne({
-      where: { tenantUserMetaId: id , tenantUserId },
+      where: { tenantUserMetaId: id, tenantUserId },
     });
 
     if (!metadata) {
@@ -175,11 +175,9 @@ export class TenantUserMetaService {
    * @param filtersDto - Filters for querying tenant user metadata records.
    * @returns Query object for filtering.
    */
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): Record<string, any> {
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
-      where: {tenantUserId:filtersDto.tenantUserId},
+      where: { tenantUserId: filtersDto.tenantUserId },
     };
 
     if (filtersDto.search) {

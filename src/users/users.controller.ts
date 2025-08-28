@@ -83,11 +83,7 @@ export class UserController {
     @Payload('userId') userId: number,
     @Payload('data') updateUserDto: UpdateUserDto,
   ): Promise<UpdateResult> {
-    return this.userService.update(
-      userId,
-      updateUserDto.userId,
-      updateUserDto,
-    );
+    return this.userService.update(userId, updateUserDto.userId, updateUserDto);
   }
 
   /**

@@ -4,7 +4,7 @@ import {
   IsOptional,
   IsDateString,
   IsString,
-  MaxLength
+  MaxLength,
 } from 'class-validator';
 import { IsTodayOrLater } from '../../../../common/validators/is-today-or-later.validator';
 
@@ -28,7 +28,7 @@ export class CreateTenantUserOffDayDto {
   @IsNotEmpty()
   tenantUserId!: number;
 
-   /**
+  /**
    * Date of the off day.
    *
    * - Required field.
@@ -36,10 +36,10 @@ export class CreateTenantUserOffDayDto {
    *
    * @type {Date}
    */
- @IsDateString()
- @IsNotEmpty()
- @IsTodayOrLater({ message: 'offDate must be today or later' })
- offDate!: string;
+  @IsDateString()
+  @IsNotEmpty()
+  @IsTodayOrLater({ message: 'offDate must be today or later' })
+  offDate!: string;
 
   /**
    * Description of the off day.

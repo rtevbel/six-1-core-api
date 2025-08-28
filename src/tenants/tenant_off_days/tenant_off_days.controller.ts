@@ -38,7 +38,11 @@ export class TenantOffDaysController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') createTenantOffDaysDto: CreateTenantOffDaysDto,
   ): Promise<TenantOffDaysEntity> {
-    return this.tenantOffDaysService.create(userId, tenantId, createTenantOffDaysDto);
+    return this.tenantOffDaysService.create(
+      userId,
+      tenantId,
+      createTenantOffDaysDto,
+    );
   }
 
   /**
@@ -107,7 +111,7 @@ export class TenantOffDaysController {
       updateTenantOffDaysDto,
     );
   }
-  
+
   /**
    * Deletes tenant off-days by ID.
    * @param userId - ID of the user making the request.

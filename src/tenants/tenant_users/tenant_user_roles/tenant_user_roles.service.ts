@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult , Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUserRoleEntity } from './entities/tenant_user_role.entity';
 import { CreateTenantUserRoleDto } from './dto/create-tenant_user_role.dto';
 import { UpdateTenantUserRoleDto } from './dto/update-tenant_user_role.dto';
 import { RpcException } from '@nestjs/microservices';
 import { FiltersDto } from './dto/filters.dto';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface"
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -35,7 +35,7 @@ export class TenantUserRoleService {
   ): Promise<TenantUserRoleEntity> {
     createTenantUserRoleDto.tenantUserId = tenantUserId;
     createTenantUserRoleDto.createdBy = userId;
-    
+
     return await this.tenantUserRoleRepository.save(
       this.tenantUserRoleRepository.create(createTenantUserRoleDto),
     );
@@ -55,7 +55,7 @@ export class TenantUserRoleService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
     const [userRoles, total] =
-    await this.tenantUserRoleRepository.findAndCount(findQuery);
+      await this.tenantUserRoleRepository.findAndCount(findQuery);
 
     if (userRoles.length === 0) {
       throw new RpcException(
@@ -86,7 +86,7 @@ export class TenantUserRoleService {
     id: number,
   ): Promise<TenantUserRoleEntity> {
     const userRole = await this.tenantUserRoleRepository.findOne({
-      where: {tenantUserId:tenantUserId , tenantUserRoleId: id },
+      where: { tenantUserId: tenantUserId, tenantUserRoleId: id },
     });
 
     if (!userRole) {
@@ -117,7 +117,7 @@ export class TenantUserRoleService {
     updateTenantUserRoleDto: UpdateTenantUserRoleDto,
   ): Promise<UpdateResult> {
     const userRole = await this.tenantUserRoleRepository.findOne({
-      where: {tenantUserId:tenantUserId , tenantUserRoleId: id },
+      where: { tenantUserId: tenantUserId, tenantUserRoleId: id },
     });
 
     if (!userRole) {
@@ -130,7 +130,7 @@ export class TenantUserRoleService {
     }
 
     return await this.tenantUserRoleRepository.update(
-      {tenantUserRoleId: id},
+      { tenantUserRoleId: id },
       updateTenantUserRoleDto,
     );
   }
@@ -150,7 +150,7 @@ export class TenantUserRoleService {
     id: number,
   ): Promise<DeleteResult> {
     const userRole = await this.tenantUserRoleRepository.findOne({
-      where: {tenantUserId:tenantUserId , tenantUserRoleId: id },
+      where: { tenantUserId: tenantUserId, tenantUserRoleId: id },
     });
 
     if (!userRole) {
@@ -163,11 +163,10 @@ export class TenantUserRoleService {
     }
 
     return await this.tenantUserRoleRepository.delete({
-      tenantUserId:tenantUserId,
+      tenantUserId: tenantUserId,
       tenantUserRoleId: id,
     });
   }
-
 
   /**
    * Builds a query object for filtering and pagination.
@@ -177,11 +176,11 @@ export class TenantUserRoleService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.where = {tenantUserId: filtersDto.tenantUserId};
+    query.where = { tenantUserId: filtersDto.tenantUserId };
     if (filtersDto.search) {
       query.where['roleName'] = Like(`%${filtersDto.search}%`);
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
@@ -215,5 +214,4 @@ export class TenantUserRoleService {
       limit: filtersDto.limit || 10,
     };
   }
-
 }

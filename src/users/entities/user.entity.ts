@@ -19,7 +19,7 @@ import { NotificationChannelEntity } from '../../notifications/notification_chan
 import { NotificationTemplateEntity } from '../../notifications/notification_templates/entities/notification_template.entity';
 import { EventEntity } from '../../events/entities/event.entity';
 import { EventListenerEntity } from '../../events/event_listeners/entities/event_listener.entity';
-import {TenantUsersEntity} from "../../tenants/tenant_users/entities/tenant_user.entity";
+import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 import { NotificationEntity } from '../../notifications/entities/notification.entity';
 import { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 
@@ -140,39 +140,46 @@ export class UserEntity {
    * Relationship to TenantEntity.
    * A user can belong to one tenant.
    */
-  @OneToOne(() => TenantEntity, (tenant) => tenant.user, { onDelete: 'CASCADE' })
+  @OneToOne(() => TenantEntity, (tenant) => tenant.user, {
+    onDelete: 'CASCADE',
+  })
   tenant!: TenantEntity;
 
   /**
    * Relationship to UserRoleEntity.
    * A user can have multiple roles.
    */
-  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, { cascade: true })
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.user, {
+    cascade: true,
+  })
   userRoles!: UserRoleEntity[];
 
-
-   /**
+  /**
    * Relationship to UserRoleEntity.
    * A user can have multiple roles.
    */
-   @OneToMany(() => UserRoleEntity, (userRole) => userRole.creator, { cascade: true })
-   createdUserRoles!: UserRoleEntity[];
-
+  @OneToMany(() => UserRoleEntity, (userRole) => userRole.creator, {
+    cascade: true,
+  })
+  createdUserRoles!: UserRoleEntity[];
 
   /**
    * Relationship to UserMetaEntity.
    * A user can have multiple metadata records.
    */
-  @OneToMany(() => UserMetaEntity, (userMeta) => userMeta.user, { cascade: true })
+  @OneToMany(() => UserMetaEntity, (userMeta) => userMeta.user, {
+    cascade: true,
+  })
   userMeta!: UserMetaEntity[];
 
-
-   /**
+  /**
    * Relationship to TenantUsersEntity.
    * A user can have multiple tenant user records.
    */
-   @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user, { cascade: true })
-   tenantUsers!: TenantUsersEntity[];
+  @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.user, {
+    cascade: true,
+  })
+  tenantUsers!: TenantUsersEntity[];
 
   /**
    * Relationship to TenantWorkingHoursEntity.
@@ -184,15 +191,15 @@ export class UserEntity {
   )
   createdTenantWorkingHours!: TenantWorkingHoursEntity[];
 
-    /**
+  /**
    * Relationship to TenantWorkingHoursEntity.
    * A user can update multiple tenant working hours.
    */
-    @OneToMany(
-      () => TenantWorkingHoursEntity,
-      (workingHours) => workingHours.updatedBy,
-    )
-    updatedTenantWorkingHours!: TenantWorkingHoursEntity[];
+  @OneToMany(
+    () => TenantWorkingHoursEntity,
+    (workingHours) => workingHours.updatedBy,
+  )
+  updatedTenantWorkingHours!: TenantWorkingHoursEntity[];
 
   /**
    * Relationship to NotificationChannelEntity.
@@ -204,15 +211,15 @@ export class UserEntity {
   )
   createdNotificationChannels!: NotificationChannelEntity[];
 
-    /**
+  /**
    * Relationship to NotificationChannelEntity.
    * A user can update multiple notification channels.
    */
-    @OneToMany(
-      () => NotificationChannelEntity,
-      (notificationChannel) => notificationChannel.updatedBy,
-    )
-    updatedNotificationChannels!: NotificationChannelEntity[];
+  @OneToMany(
+    () => NotificationChannelEntity,
+    (notificationChannel) => notificationChannel.updatedBy,
+  )
+  updatedNotificationChannels!: NotificationChannelEntity[];
 
   /**
    * Relationship to NotificationTemplateEntity.
@@ -252,15 +259,21 @@ export class UserEntity {
    * Relationship to EventListenerEntity.
    * A user can create multiple event listeners.
    */
-  @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.createdBy)
+  @OneToMany(
+    () => EventListenerEntity,
+    (eventListener) => eventListener.createdBy,
+  )
   createdEventListeners!: EventListenerEntity[];
 
-    /**
+  /**
    * Relationship to EventListenerEntity.
    * A user can update multiple event listeners.
    */
-    @OneToMany(() => EventListenerEntity, (eventListener) => eventListener.updatedBy)
-    updatedEventListeners!: EventListenerEntity[];
+  @OneToMany(
+    () => EventListenerEntity,
+    (eventListener) => eventListener.updatedBy,
+  )
+  updatedEventListeners!: EventListenerEntity[];
 
   /**
    * Relationship to NotificationEntity.
@@ -269,17 +282,17 @@ export class UserEntity {
   @OneToMany(() => NotificationEntity, (notification) => notification.user)
   notifications!: NotificationEntity[];
 
- /**
-  * Relationship to EventLogEntity.
-  * A user can have multiple event logs linked to them.
-  */
+  /**
+   * Relationship to EventLogEntity.
+   * A user can have multiple event logs linked to them.
+   */
   @OneToMany(() => EventLogEntity, (eventLog) => eventLog.user)
   eventLogs!: EventLogEntity[];
 
-/**
- * Relationship to EventLogEntity.
- * A user can have multiple event logs they created.
- */
+  /**
+   * Relationship to EventLogEntity.
+   * A user can have multiple event logs they created.
+   */
   @OneToMany(() => EventLogEntity, (eventLog) => eventLog.creator)
   createdEventLogs!: EventLogEntity[];
 

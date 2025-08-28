@@ -34,8 +34,8 @@ export class TenantOffDaysService {
   ): Promise<TenantOffDaysEntity> {
     // Set the createdBy field for auditing purposes
     createTenantOffDaysDto.createdBy = userId;
-    console.log(createTenantOffDaysDto,'createTenantOffDaysDto');
-    
+    console.log(createTenantOffDaysDto, 'createTenantOffDaysDto');
+
     // Save the new record to the database
     return await this.tenantOffDaysRepository.save(
       this.tenantOffDaysRepository.create(createTenantOffDaysDto),
@@ -52,10 +52,9 @@ export class TenantOffDaysService {
     userId: number,
     tenantId: number,
   ): Promise<TenantOffDaysEntity[]> {
-  
-    // Fetch records 
-    const offDays = await this.tenantOffDaysRepository.findBy({tenantId});
-    
+    // Fetch records
+    const offDays = await this.tenantOffDaysRepository.findBy({ tenantId });
+
     // Throw an exception if no records are found
     if (offDays.length === 0) {
       throw new RpcException(
@@ -65,7 +64,7 @@ export class TenantOffDaysService {
         ),
       );
     }
-    
+
     return offDays;
   }
 
@@ -79,7 +78,6 @@ export class TenantOffDaysService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-  
     const findQuery = this.buildFindQuery(filtersDto);
 
     // Fetch records based on filters
@@ -214,16 +212,12 @@ export class TenantOffDaysService {
 
     // Add tenantId criteria
     if (filtersDto.tenantId) {
-      query.where = [
-        { tenantId: filtersDto.tenantId},
-      ];
+      query.where = [{ tenantId: filtersDto.tenantId }];
     }
 
     // Add search criteria
     if (filtersDto.search) {
-      query.where = [
-        { description: Like(`%${filtersDto.search}%`) },
-      ];
+      query.where = [{ description: Like(`%${filtersDto.search}%`) }];
     }
 
     // Add sorting criteria

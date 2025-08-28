@@ -39,9 +39,13 @@ export class NotificationTemplatesController {
   @UsePipes(AppRpcValidationPipe)
   createNotificationTemplate(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') createNotificationTemplateDto: CreateNotificationTemplateDto,
+    @Payload('data')
+    createNotificationTemplateDto: CreateNotificationTemplateDto,
   ): Promise<NotificationTemplateEntity> {
-    return this.notificationTemplatesService.create(userId, createNotificationTemplateDto);
+    return this.notificationTemplatesService.create(
+      userId,
+      createNotificationTemplateDto,
+    );
   }
 
   /**
@@ -83,7 +87,8 @@ export class NotificationTemplatesController {
   @UsePipes(AppRpcValidationPipe)
   updateNotificationTemplate(
     @Payload('userId') userId: number,
-    @Payload('data') updateNotificationTemplateDto: UpdateNotificationTemplateDto,
+    @Payload('data')
+    updateNotificationTemplateDto: UpdateNotificationTemplateDto,
   ): Promise<UpdateResult> {
     return this.notificationTemplatesService.update(
       userId,

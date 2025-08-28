@@ -6,8 +6,8 @@ import { UpdateTenantMetaDto } from './dto/update-tenant_meta.dto';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
 import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
-import {FiltersDto} from "./dto/filters.dto";
-import {FindAllResultInterface} from "./interfaces/findall-result.interface";
+import { FiltersDto } from './dto/filters.dto';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   MICROSERVICE_CREATE_TENANT_META_PATTERN,

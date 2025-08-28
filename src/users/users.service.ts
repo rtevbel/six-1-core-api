@@ -7,7 +7,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {FindByDTO} from "./dto/find-by.dto"
+import { FindByDTO } from './dto/find-by.dto';
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -79,7 +79,7 @@ export class UserService {
         { username: Like(`%${filtersDto.search}%`) },
         { first_name: Like(`%${filtersDto.search}%`) },
         { last_name: Like(`%${filtersDto.search}%`) },
-        { activation_key: Like(`%${filtersDto.search}%`) }
+        { activation_key: Like(`%${filtersDto.search}%`) },
       ];
     }
 
@@ -127,7 +127,6 @@ export class UserService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<UserEntity> {
-
     const user = await this.userRepository.findOneByOrFail({
       userId: id,
     });
@@ -167,8 +166,6 @@ export class UserService {
 
     return user;
   }
-
-
 
   /**
    * Updates an existing user record.

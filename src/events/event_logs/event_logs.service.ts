@@ -26,7 +26,10 @@ export class EventLogsService {
    * @param createEventLogDto - Data Transfer Object containing event log details.
    * @returns The created EventLogEntity.
    */
-  async create(userId: number, createEventLogDto: CreateEventLogDto): Promise<EventLogEntity> {
+  async create(
+    userId: number,
+    createEventLogDto: CreateEventLogDto,
+  ): Promise<EventLogEntity> {
     createEventLogDto.createdBy = userId;
 
     return await this.eventLogRepository.save(
@@ -41,10 +44,14 @@ export class EventLogsService {
    * @returns An object containing the list of event logs and pagination details.
    * @throws RpcException if no records match the filters.
    */
-  async findAll(userId: number, filtersDto: FiltersDto): Promise<FindAllResultInterface> {
+  async findAll(
+    userId: number,
+    filtersDto: FiltersDto,
+  ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [eventLogs, total] = await this.eventLogRepository.findAndCount(findQuery);
+    const [eventLogs, total] =
+      await this.eventLogRepository.findAndCount(findQuery);
 
     if (eventLogs.length === 0) {
       throw new RpcException(
@@ -69,11 +76,16 @@ export class EventLogsService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<EventLogEntity> {
-    const eventLog = await this.eventLogRepository.findOneByOrFail({ logId: id });
+    const eventLog = await this.eventLogRepository.findOneByOrFail({
+      logId: id,
+    });
 
     if (!eventLog) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventLogEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          EventLogEntity.name,
+        ),
       );
     }
 
@@ -93,11 +105,16 @@ export class EventLogsService {
     id: number,
     updateEventLogDto: UpdateEventLogDto,
   ): Promise<UpdateResult> {
-    const eventLog = await this.eventLogRepository.findOneByOrFail({ logId: id });
+    const eventLog = await this.eventLogRepository.findOneByOrFail({
+      logId: id,
+    });
 
     if (!eventLog) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventLogEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          EventLogEntity.name,
+        ),
       );
     }
 
@@ -114,22 +131,22 @@ export class EventLogsService {
     return await this.eventLogRepository.delete({ logId: id });
   }
 
-   /**
+  /**
    * Builds the query object for finding event logs based on filters.
    * @param filtersDto - Filters for search, sorting, and pagination.
    * @returns A query object compatible with TypeORM's find method.
    */
-   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
     if (filtersDto.search) {
-        query.where = {
-          event: {
-            name: Like(`%${filtersDto.search}%`),
-          }
-      }
+      query.where = {
+        event: {
+          name: Like(`%${filtersDto.search}%`),
+        },
+      };
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
@@ -147,12 +164,12 @@ export class EventLogsService {
     return query;
   }
 
-  /** 
-    * Builds pagination details for the response.
-    * @param filtersDto - Filters for pagination.
-    * @param total - Total number of records found.
-    * @returns An object containing total records, current page, and limit.
-  */
+  /**
+   * Builds pagination details for the response.
+   * @param filtersDto - Filters for pagination.
+   * @param total - Total number of records found.
+   * @returns An object containing total records, current page, and limit.
+   */
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
@@ -163,5 +180,4 @@ export class EventLogsService {
       limit: filtersDto.limit || 10,
     };
   }
-
 }

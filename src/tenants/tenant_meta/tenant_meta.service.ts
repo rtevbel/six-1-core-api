@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult , Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
 import { CreateTenantMetaDto } from './dto/create-tenant_meta.dto';
 import { UpdateTenantMetaDto } from './dto/update-tenant_meta.dto';
 import { RpcException } from '@nestjs/microservices';
-import {FiltersDto} from "./dto/filters.dto";
+import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
@@ -30,8 +30,7 @@ export class TenantMetaService {
     userId: number,
     createTenantMetaDto: CreateTenantMetaDto,
   ): Promise<TenantMetaEntity> {
-    
-    console.log(createTenantMetaDto,'createTenantMetaDto');
+    console.log(createTenantMetaDto, 'createTenantMetaDto');
 
     const newMeta = this.tenantMetaRepository.create(createTenantMetaDto);
     return this.tenantMetaRepository.save(newMeta);
@@ -128,10 +127,7 @@ export class TenantMetaService {
    * @param tenantMetaId - ID of the tenant metadata record to delete.
    * @returns The result of the delete operation.
    */
-  async remove(
-    userId: number,
-    tenantMetaId: number,
-  ): Promise<DeleteResult> {
+  async remove(userId: number, tenantMetaId: number): Promise<DeleteResult> {
     const tenantMeta = await this.tenantMetaRepository.findOneByOrFail({
       tenantMetaId,
     });
@@ -176,7 +172,6 @@ export class TenantMetaService {
 
     return meta.metaValue;
   }
-
 
   /**
    * Builds a query object for filtering and sorting records.
@@ -231,5 +226,4 @@ export class TenantMetaService {
       limit: filtersDto.limit || 10,
     };
   }
-
 }

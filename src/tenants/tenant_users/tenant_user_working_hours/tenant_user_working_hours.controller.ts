@@ -38,7 +38,8 @@ export class TenantUserWorkingHoursController {
   async createTenantUserWorkingHours(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
-    @Payload('data') createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
+    @Payload('data')
+    createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
   ): Promise<TenantUserWorkingHoursEntity> {
     return this.tenantUserWorkingHoursService.create(
       userId,
@@ -104,7 +105,8 @@ export class TenantUserWorkingHoursController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('tenantUserId', ParseIntPipe) tenantUserId: number,
-    @Payload('data') updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
+    @Payload('data')
+    updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
   ): Promise<UpdateResult> {
     return this.tenantUserWorkingHoursService.update(
       userId,

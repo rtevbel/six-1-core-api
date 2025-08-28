@@ -77,4 +77,3 @@ export class CreateEventLogDto {
   @IsNotEmpty()
   createdBy!: number;
 }
-

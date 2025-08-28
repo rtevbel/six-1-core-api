@@ -21,7 +21,9 @@ import { TenantConfigurationsEntity } from '../tenant_configurations/entities/te
 import { TenantUsersEntity } from '../tenant_users/entities/tenant_user.entity';
 import { TenantUserInvitationsEntity } from '../tenant_users/tenant_user_invitations/entities/tenant_user_invitation.entity';
 import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
-import {TenantOffDaysEntity} from '../tenant_off_days/entities/tenant_off_day.entity'
+import { TenantOffDaysEntity } from '../tenant_off_days/entities/tenant_off_day.entity';
+import { CategoryEntity } from '../../categories/entities/category.entity';
+import { ProcessTemplateEntity } from '../../process_templates/entities/process_template.entity';
 
 /**
  * Entity class for `tenants` table.
@@ -197,10 +199,34 @@ export class TenantEntity {
   @OneToMany(() => TenantTeamEntity, (team) => team.tenant)
   teams!: TenantTeamEntity[];
 
-   /**
+  /**
    * Reverse relationship to TenantOffDaysEntity.
    * A tenant can have multiple off days.
    */
-   @OneToMany(() => TenantOffDaysEntity, (offDay) => offDay.tenant)
-   offDays!: TenantOffDaysEntity[];
+  @OneToMany(() => TenantOffDaysEntity, (offDay) => offDay.tenant)
+  offDays!: TenantOffDaysEntity[];
+
+  /**
+   * One-to-many relationship with `CategoryEntity`.
+   *
+   * Represents the categories associated with the tenant.
+   */
+  @OneToMany(() => CategoryEntity, (category) => category.tenant, {
+    cascade: true,
+    onDelete: 'CASCADE',
+  })
+  categories!: CategoryEntity[];
+
+  /**
+   * Relationship to ProcessTemplateEntity.
+   * A tenant can have multiple process templates.
+   */
+  @OneToMany(
+    () => ProcessTemplateEntity,
+    (processTemplate) => processTemplate.tenant,
+    {
+      cascade: true,
+    },
+  )
+  processTemplates!: ProcessTemplateEntity[];
 }

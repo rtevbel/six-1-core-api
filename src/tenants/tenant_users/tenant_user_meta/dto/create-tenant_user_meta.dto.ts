@@ -51,5 +51,4 @@ export class CreateTenantUserMetaDto {
   @IsString()
   @IsOptional()
   metaValue?: string;
-
 }

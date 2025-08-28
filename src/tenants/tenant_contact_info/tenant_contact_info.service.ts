@@ -39,7 +39,7 @@ export class TenantContactInfoService {
       this.tenantContactInfoRepository.create(createTenantContactInfoDto),
     );
   }
-  
+
   /**
    * Retrieves contact information records based on filters.
    * @param userId - ID of the user making the request.

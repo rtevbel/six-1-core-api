@@ -9,7 +9,7 @@ import { UserMetaService } from './user-meta.service';
 import { CreateUserMetaDto } from './dto/create-user-meta.dto';
 import { UpdateUserMetaDto } from './dto/update-user-meta.dto';
 import { AppRpcValidationPipe } from 'src/common/pipes/app-rpc-validation.pipe';
-import {FiltersDto} from "./dto/filters.dto"
+import { FiltersDto } from './dto/filters.dto';
 import {
   V0_1_CREATE_USER_META_PATTERN,
   V0_1_FIND_ALL_USER_META_PATTERN,

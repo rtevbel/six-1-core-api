@@ -48,7 +48,8 @@ export class FiltersDto {
    */
   @IsOptional()
   @IsIn(['notificationId', 'userId', 'eventId'], {
-    message: 'sortBy key must be from this list (tenantTypeId, userId , eventId)',
+    message:
+      'sortBy key must be from this list (tenantTypeId, userId , eventId)',
   })
   @IsString()
   sortBy: string = 'notificationId';

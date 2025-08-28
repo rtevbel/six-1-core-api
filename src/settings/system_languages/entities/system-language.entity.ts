@@ -7,6 +7,9 @@ import {
 } from 'typeorm';
 import { RoleDescriptionEntity } from '../../../roles/entities/role-description.entity';
 import { TenantUserConfigurationsEntity } from '../../../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
+import { CategoryDescriptionEntity } from '../../../categories/entities/category-description.entity';
+import { ProcessTemplateDescriptionEntity } from '../../../process_templates/entities/process_template_description.entity';
+import { ProcessTemplateStepDescriptionEntity } from '../../../process_templates/process_template_steps/entities/process_template_step_description.entity';
 
 /**
  * Entity class for `system_languages` table.
@@ -70,4 +73,35 @@ export class SystemLanguageEntity {
     (configuration) => configuration.language,
   )
   tenantUserConfigurations!: TenantUserConfigurationsEntity[];
+
+  /**
+   * One-to-many relationship with `CategoryDescriptionEntity`.
+   *
+   * Represents the category descriptions associated with the language.
+   */
+  @OneToMany(
+    () => CategoryDescriptionEntity,
+    (description) => description.language,
+  )
+  categoryDescriptions!: CategoryDescriptionEntity[];
+
+  /**
+   * Relationship to ProcessTemplateDescriptionEntity.
+   * A system language can be associated with multiple process template descriptions.
+   */
+  @OneToMany(
+    () => ProcessTemplateDescriptionEntity,
+    (description) => description.language,
+  )
+  processTemplateDescriptions!: ProcessTemplateDescriptionEntity[];
+
+  /**
+   *Relationship to ProcessTemplateStepDescriptionEntity.
+   * A language can have multiple step descriptions.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepDescriptionEntity,
+    (description) => description.language,
+  )
+  processTemplateStepDescriptions!: ProcessTemplateStepDescriptionEntity[];
 }

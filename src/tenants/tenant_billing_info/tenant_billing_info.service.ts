@@ -32,7 +32,7 @@ export class TenantBillingInfoService {
     createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
     createTenantBillingInfoDto.createdBy = userId;
-   
+
     return await this.tenantBillingInfoRepository.save(
       this.tenantBillingInfoRepository.create(createTenantBillingInfoDto),
     );
@@ -167,7 +167,7 @@ export class TenantBillingInfoService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
-    
+
     query.where = { tenantId: filtersDto.tenantId };
 
     if (filtersDto.search) {

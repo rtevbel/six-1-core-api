@@ -9,7 +9,9 @@ import { CreateTenantOffDaysDto } from './create-tenant_off_day.dto';
  *
  * Data transfer object for updating tenant off days.
  */
-export class UpdateTenantOffDaysDto extends PartialType(CreateTenantOffDaysDto) {
+export class UpdateTenantOffDaysDto extends PartialType(
+  CreateTenantOffDaysDto,
+) {
   /**
    * Unique identifier for the tenant off day.
    *

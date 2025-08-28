@@ -205,8 +205,6 @@ export class RolesService {
       }
     }
 
-    console.log(roleUpdateData, 'roleUpdateData');
-
     return await this.roleRepository.update(id, roleUpdateData);
   }
 

@@ -23,7 +23,9 @@ import {
  */
 @Controller('tenant-team-member')
 export class TenantTeamMemberController {
-  constructor(private readonly tenantTeamMemberService: TenantTeamMemberService) {}
+  constructor(
+    private readonly tenantTeamMemberService: TenantTeamMemberService,
+  ) {}
 
   /**
    * Handles the creation of tenant team member information.
@@ -59,7 +61,11 @@ export class TenantTeamMemberController {
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantTeamMemberEntity> {
-    return this.tenantTeamMemberService.findOne(requestingUserId, tenantTeamId, id);
+    return this.tenantTeamMemberService.findOne(
+      requestingUserId,
+      tenantTeamId,
+      id,
+    );
   }
 
   /**
@@ -90,7 +96,10 @@ export class TenantTeamMemberController {
     @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
   ): Promise<TenantTeamMemberEntity[]> {
-    return this.tenantTeamMemberService.findAllByTenantTeamId(requestingUserId, tenantTeamId);
+    return this.tenantTeamMemberService.findAllByTenantTeamId(
+      requestingUserId,
+      tenantTeamId,
+    );
   }
 
   /**
@@ -128,6 +137,10 @@ export class TenantTeamMemberController {
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantTeamMemberService.remove(requestingUserId, tenantTeamId, id);
+    return this.tenantTeamMemberService.remove(
+      requestingUserId,
+      tenantTeamId,
+      id,
+    );
   }
 }

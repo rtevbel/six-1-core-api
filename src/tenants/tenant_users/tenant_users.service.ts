@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like , SelectQueryBuilder , Brackets } from 'typeorm';
+import {
+  Repository,
+  UpdateResult,
+  DeleteResult,
+  Like,
+  SelectQueryBuilder,
+  Brackets,
+} from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUsersEntity } from './entities/tenant_user.entity';
 import { CreateTenantUserDto } from './dto/create-tenant_user.dto';
@@ -50,7 +57,6 @@ export class TenantUsersService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-
     const findQuery = this.buildFindQuery(filtersDto);
     const [tenantUsers, total] = await findQuery.getManyAndCount();
 
@@ -168,37 +174,40 @@ export class TenantUsersService {
   private buildFindQuery(
     filtersDto: FiltersDto,
   ): SelectQueryBuilder<TenantUsersEntity> {
-    console.log(filtersDto,'filtersDto');
+    console.log(filtersDto, 'filtersDto');
     const qb = this.tenantUsersRepository
       .createQueryBuilder('tu')
-      .leftJoinAndSelect('tu.user',   'u')
+      .leftJoinAndSelect('tu.user', 'u')
       .leftJoinAndSelect('tu.status', 's');
-  
+
     qb.andWhere('tu.tenantId = :tenantId', { tenantId: filtersDto.tenantId });
 
     if (filtersDto.search) {
       qb.andWhere(
-        new Brackets(q => {
+        new Brackets((q) => {
           q.where('u.first_name LIKE :k', { k: `%${filtersDto.search}%` })
-           .orWhere('u.last_name  LIKE :k', { k: `%${filtersDto.search}%` })
-           .orWhere('u.username   LIKE :k', { k: `%${filtersDto.search}%` })
-           .orWhere('u.email      LIKE :k', { k: `%${filtersDto.search}%` })
-           .orWhere('s.name       LIKE :k', { k: `%${filtersDto.search}%` });
+            .orWhere('u.last_name  LIKE :k', { k: `%${filtersDto.search}%` })
+            .orWhere('u.username   LIKE :k', { k: `%${filtersDto.search}%` })
+            .orWhere('u.email      LIKE :k', { k: `%${filtersDto.search}%` })
+            .orWhere('s.name       LIKE :k', { k: `%${filtersDto.search}%` });
         }),
       );
     }
-  
+
     // ---- ordering & pagination ---------------------------------------------
     if (filtersDto.sortBy) {
-      qb.orderBy(`tu.${filtersDto.sortBy}`, (filtersDto.sortOrder ?? 'ASC') as 'ASC' | 'DESC');
+      qb.orderBy(
+        `tu.${filtersDto.sortBy}`,
+        (filtersDto.sortOrder ?? 'ASC') as 'ASC' | 'DESC',
+      );
     }
-  
+
     if (filtersDto.limit) {
       const limit = Math.min(filtersDto.limit, 10);
-      const page  = filtersDto.page ?? 1;
+      const page = filtersDto.page ?? 1;
       qb.take(limit).skip((page - 1) * limit);
     }
-  
+
     return qb;
   }
 

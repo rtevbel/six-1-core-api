@@ -1,4 +1,4 @@
-import {IsNumber, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsNotEmpty } from 'class-validator';
 import { CreateEventLogDto } from './create-event_log.dto';
 import { PartialType } from '@nestjs/mapped-types';
 

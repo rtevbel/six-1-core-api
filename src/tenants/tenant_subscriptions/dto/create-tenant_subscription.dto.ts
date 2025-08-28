@@ -7,8 +7,8 @@ import {
   IsDate,
   IsDateString,
 } from 'class-validator';
-import {IsTodayOrLater} from '../../../common/validators/is-today-or-later.validator';
-import {IsAfter} from '../../../common/validators/is-after.validator';
+import { IsTodayOrLater } from '../../../common/validators/is-today-or-later.validator';
+import { IsAfter } from '../../../common/validators/is-after.validator';
 
 /**
  * Create tenant subscription DTO class.

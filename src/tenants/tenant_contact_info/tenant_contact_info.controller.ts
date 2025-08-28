@@ -58,11 +58,7 @@ export class TenantContactInfoController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantContactInfoEntity> {
-    return this.tenantContactInfoService.findOne(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantContactInfoService.findOne(userId, tenantId, id);
   }
 
   /**

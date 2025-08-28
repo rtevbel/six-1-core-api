@@ -32,7 +32,7 @@ export class TenantConfigurationsService {
     createTenantConfigurationsDto: CreateTenantConfigurationsDto,
   ): Promise<TenantConfigurationsEntity> {
     createTenantConfigurationsDto.createdBy = userId;
-   
+
     return await this.tenantConfigurationsRepository.save(
       this.tenantConfigurationsRepository.create(createTenantConfigurationsDto),
     );
@@ -175,7 +175,7 @@ export class TenantConfigurationsService {
 
     // Ensure tenantId is always included in the query
     query.where = { tenantId: filtersDto.tenantId };
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',

@@ -10,6 +10,7 @@ import {
 import { TenantEntity } from '../../../tenants/entities/tenant.entity';
 import { TenantTypeEntity } from '../../../tenants/tenant_types/entities/tenant_type.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
+import { CategoryEntity } from '../../../categories/entities/category.entity';
 
 /**
  * Entity class for `system_statuses` table.
@@ -69,4 +70,12 @@ export class SystemStatusEntity {
    */
   @OneToMany(() => TenantUsersEntity, (tenantUser) => tenantUser.status)
   tenantUsers!: TenantUsersEntity[];
+
+  /**
+   * One-to-many relationship with `CategoryEntity`.
+   *
+   * Represents the categories associated with the system status.
+   */
+  @OneToMany(() => CategoryEntity, (category) => category.status)
+  categories!: CategoryEntity[];
 }

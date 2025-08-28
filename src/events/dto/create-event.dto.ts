@@ -56,4 +56,3 @@ export class CreateEventDto {
   @IsOptional()
   updatedBy?: number;
 }
-

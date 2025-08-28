@@ -9,7 +9,9 @@ describe('ProcessTemplateStepsService', () => {
       providers: [ProcessTemplateStepsService],
     }).compile();
 
-    service = module.get<ProcessTemplateStepsService>(ProcessTemplateStepsService);
+    service = module.get<ProcessTemplateStepsService>(
+      ProcessTemplateStepsService,
+    );
   });
 
   it('should be defined', () => {

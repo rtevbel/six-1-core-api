@@ -31,7 +31,9 @@ export class TenantUserWorkingHoursService {
     tenantId: number,
     createTenantUserWorkingHoursDto: CreateTenantUserWorkingHoursDto,
   ): Promise<TenantUserWorkingHoursEntity> {
-    const entity = this.tenantUserWorkingHoursRepository.create(createTenantUserWorkingHoursDto);
+    const entity = this.tenantUserWorkingHoursRepository.create(
+      createTenantUserWorkingHoursDto,
+    );
     return await this.tenantUserWorkingHoursRepository.save(entity);
   }
 
@@ -72,10 +74,7 @@ export class TenantUserWorkingHoursService {
    * @param filtersDto - DTO containing filter options.
    * @returns The query object.
    */
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): Record<string, any> {
-
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
       where: { tenantUserId: filtersDto.tenantUserId },
     };

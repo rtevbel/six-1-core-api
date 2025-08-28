@@ -6,7 +6,7 @@ import {
   IsString,
 } from 'class-validator';
 import { CreateTenantUserWorkingHoursDto } from './create-tenant_user_working_hour.dto';
-import {PartialType} from "@nestjs/mapped-types";
+import { PartialType } from '@nestjs/mapped-types';
 
 /**
  * Update tenant user working hours DTO class.
@@ -15,7 +15,9 @@ import {PartialType} from "@nestjs/mapped-types";
  *
  * Data transfer object for updating tenant user working hours.
  */
-export class UpdateTenantUserWorkingHoursDto extends PartialType(CreateTenantUserWorkingHoursDto) {
+export class UpdateTenantUserWorkingHoursDto extends PartialType(
+  CreateTenantUserWorkingHoursDto,
+) {
   /**
    * Tenant user working hour ID.
    *

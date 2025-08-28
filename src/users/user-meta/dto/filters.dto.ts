@@ -14,15 +14,13 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
   /**
    * The ID of the user.
    * Required field.
    */
   @Type(() => Number)
   @IsNumber()
-  userId!:number;
-  
+  userId!: number;
 
   /**
    * Search keyword for filtering results.

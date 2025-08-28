@@ -10,7 +10,7 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
- MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN,
+  MICROSERVICE_CREATE_TENANT_CONFIGURATION_PATTERN,
   MICROSERVICE_FIND_ALL_TENANT_CONFIGURATIONS_PATTERN,
   MICROSERVICE_FIND_ONE_TENANT_CONFIGURATION_PATTERN,
   MICROSERVICE_UPDATE_TENANT_CONFIGURATION_PATTERN,
@@ -57,11 +57,7 @@ export class TenantConfigurationsController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantConfigurationsEntity> {
-    return this.tenantConfigurationsService.findOne(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantConfigurationsService.findOne(userId, tenantId, id);
   }
 
   /**
@@ -117,10 +113,6 @@ export class TenantConfigurationsController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantConfigurationsService.remove(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantConfigurationsService.remove(userId, tenantId, id);
   }
 }

@@ -40,7 +40,7 @@ export class TenantBillingInfoController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
-    console.log(createTenantBillingInfoDto,'createTenantBillingInfoDto');
+    console.log(createTenantBillingInfoDto, 'createTenantBillingInfoDto');
     return this.tenantBillingInfoService.create(
       userId,
       createTenantBillingInfoDto,
@@ -60,11 +60,7 @@ export class TenantBillingInfoController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantBillingInfoEntity> {
-    return this.tenantBillingInfoService.findOne(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantBillingInfoService.findOne(userId, tenantId, id);
   }
 
   /**
@@ -83,7 +79,6 @@ export class TenantBillingInfoController {
       filtersDto,
     );
   }
-
 
   /**
    * Updates tenant billing information.

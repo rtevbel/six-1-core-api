@@ -168,10 +168,10 @@ export class TenantSubscriptionService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-   if (filtersDto.tenantId) {
-        query.where = [{ tenantId: filtersDto.tenantId}];
+    if (filtersDto.tenantId) {
+      query.where = [{ tenantId: filtersDto.tenantId }];
     }
-    
+
     if (filtersDto.search) {
       query.where = [{ plan: Like(`%${filtersDto.search}%`) }];
     }

@@ -38,6 +38,7 @@ import { TenantUserWorkingHoursModule } from './tenants/tenant_users/tenant_user
 import { TenantUserOffDaysModule } from './tenants/tenant_users/tenant_user_off_days/tenant_user_off_days.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ProcessTemplatesModule } from './process_templates/process_templates.module';
+import { CategoriesModule } from './categories/categories.module';
 
 /**
  * Root module of the application.
@@ -76,7 +77,11 @@ import { ProcessTemplatesModule } from './process_templates/process_templates.mo
         entities: [],
         autoLoadEntities: true, // Automatically load entities from modules
         synchronize: false, // Set to false to prevent automatic schema synchronization in production
-        logging: false, // Enable query logging
+        logging: true, // Enable query logging,
+        extra: {
+          supportBigNumbers: true,
+          bigNumberStrings: false, // Ensures BIGINT is returned as a number
+        },
       }),
       inject: [ConfigService],
     }),
@@ -102,6 +107,7 @@ import { ProcessTemplatesModule } from './process_templates/process_templates.mo
     TenantUserWorkingHoursModule,
     TenantUserOffDaysModule,
     ProcessTemplatesModule,
+    CategoriesModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

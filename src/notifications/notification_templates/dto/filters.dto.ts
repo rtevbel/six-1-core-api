@@ -43,15 +43,15 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'template_id'.
-   * Must be one of 'template_id', 'name'.
+   * Optional field, defaults to 'templateId'.
+   * Must be one of 'templateId', 'channelId' , 'name' .
    */
   @IsOptional()
-  @IsIn(['template_id', 'name'], {
-    message: 'sortBy key must be from this list (channel_id, name)',
+  @IsIn(['templateId', 'channelId', 'name'], {
+    message: 'sortBy key must be from this list (templateId, channelId , name)',
   })
   @IsString()
-  sortBy: string = 'template_id';
+  sortBy: string = 'templateId';
 
   /**
    * Sort order for the results.

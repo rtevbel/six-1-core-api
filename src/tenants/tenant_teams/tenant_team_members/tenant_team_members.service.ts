@@ -149,7 +149,10 @@ export class TenantTeamMemberService {
       );
     }
 
-    return await this.tenantTeamMemberRepository.update(id, updateTenantTeamMemberDto);
+    return await this.tenantTeamMemberRepository.update(
+      id,
+      updateTenantTeamMemberDto,
+    );
   }
 
   /**

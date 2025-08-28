@@ -30,7 +30,6 @@ export class NotificationLogsService {
     userId: number,
     createNotificationLogDto: CreateNotificationLogDto,
   ): Promise<NotificationLogEntity> {
-   
     return await this.notificationLogRepository.save(
       this.notificationLogRepository.create(createNotificationLogDto),
     );
@@ -117,7 +116,10 @@ export class NotificationLogsService {
       );
     }
 
-    return await this.notificationLogRepository.update(id, updateNotificationLogDto);
+    return await this.notificationLogRepository.update(
+      id,
+      updateNotificationLogDto,
+    );
   }
 
   /**
@@ -137,9 +139,7 @@ export class NotificationLogsService {
    * @param filtersDto - Filters for search, sorting, and pagination.
    * @returns A query object compatible with TypeORM's find method.
    */
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): Record<string, any> {
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
     if (filtersDto.search) {

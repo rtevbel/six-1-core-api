@@ -9,7 +9,9 @@ import { CreateTenantBillingInfoDto } from './create-tenant_billing_info.dto';
  *
  * Data transfer object for updating tenant billing info.
  */
-export class UpdateTenantBillingInfoDto extends PartialType(CreateTenantBillingInfoDto) {
+export class UpdateTenantBillingInfoDto extends PartialType(
+  CreateTenantBillingInfoDto,
+) {
   /**
    * Unique identifier for the tenant billing info.
    *

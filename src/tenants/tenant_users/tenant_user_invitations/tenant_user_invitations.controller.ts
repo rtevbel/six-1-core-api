@@ -59,11 +59,7 @@ export class TenantUserInvitationsController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserInvitationsEntity> {
-    return this.tenantUserInvitationsService.findOne(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantUserInvitationsService.findOne(userId, tenantId, id);
   }
 
   /**
@@ -119,10 +115,6 @@ export class TenantUserInvitationsController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantUserInvitationsService.remove(
-      userId,
-      tenantId,
-      id,
-    );
+    return this.tenantUserInvitationsService.remove(userId, tenantId, id);
   }
 }

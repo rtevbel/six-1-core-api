@@ -73,10 +73,7 @@ export class TenantUsersController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    return await this.tenantUsersService.findAllByFilter(
-      userId,
-      filtersDto,
-    );
+    return await this.tenantUsersService.findAllByFilter(userId, filtersDto);
   }
 
   /**

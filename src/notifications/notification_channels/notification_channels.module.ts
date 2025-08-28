@@ -6,7 +6,7 @@ import { NotificationChannelEntity } from './entities/notification_channel.entit
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../../common/functions';
-import {MESSAGE_BROKER_NOTIFICATION_CHANNEL_SERVICE_CLIENT_TOKEN} from './constants'
+import { MESSAGE_BROKER_NOTIFICATION_CHANNEL_SERVICE_CLIENT_TOKEN } from './constants';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,

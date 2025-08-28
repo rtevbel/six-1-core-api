@@ -14,7 +14,6 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
 
-
 @Injectable()
 export class TenantTeamService {
   constructor(
@@ -34,10 +33,9 @@ export class TenantTeamService {
     tenantId: number,
     createTenantTeamDto: CreateTenantTeamDto,
   ): Promise<TenantTeamEntity> {
-
     // Generate a unique team identifier using UUID
     createTenantTeamDto.teamIdentifier = `TENANT-TEAM-${uuidv4()}`;
-    
+
     createTenantTeamDto.createdBy = requestingUserId;
     createTenantTeamDto.tenantId = tenantId;
 

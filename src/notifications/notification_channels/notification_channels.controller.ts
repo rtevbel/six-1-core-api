@@ -41,7 +41,10 @@ export class NotificationChannelsController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createNotificationChannelDto: CreateNotificationChannelDto,
   ): Promise<NotificationChannelEntity> {
-    return this.notificationChannelsService.create(userId, createNotificationChannelDto);
+    return this.notificationChannelsService.create(
+      userId,
+      createNotificationChannelDto,
+    );
   }
 
   /**

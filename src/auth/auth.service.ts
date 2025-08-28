@@ -133,7 +133,7 @@ export class AuthService {
    * and refresh JWT tokens.
    */
   async login(user: any): Promise<UserJWTTokenResponseInterface> {
-    const payload = { username: user.username, userId: user.userId};
+    const payload = { username: user.username, userId: user.userId };
     const response = {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {
