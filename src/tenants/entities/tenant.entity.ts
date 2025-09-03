@@ -24,6 +24,8 @@ import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
 import { TenantOffDaysEntity } from '../tenant_off_days/entities/tenant_off_day.entity';
 import { CategoryEntity } from '../../categories/entities/category.entity';
 import { ProcessTemplateEntity } from '../../process_templates/entities/process_template.entity';
+import { ProjectEntity } from '../../projects/entities/project.entity';
+import { ProjectTaskStatusEntity } from '../../projects/project_task_statuses/entities/project_task_status.entity';
 
 /**
  * Entity class for `tenants` table.
@@ -229,4 +231,20 @@ export class TenantEntity {
     },
   )
   processTemplates!: ProcessTemplateEntity[];
+
+  /**
+   * One-many relationship to ProjectEntity.
+   * A tenant can have many projects.
+   */
+  @OneToMany(() => ProjectEntity, (project) => project.tenant, {
+    cascade: true,
+  })
+  projects!: ProjectEntity[];
+
+  /**
+   *One-to-Many Relationship to ProjectTaskStatusEntity.
+   * A tenant can have multiple task statuses.
+   */
+  @OneToMany(() => ProjectTaskStatusEntity, (taskStatus) => taskStatus.tenant)
+  projectTaskStatuses!: ProjectTaskStatusEntity[];
 }

@@ -39,6 +39,7 @@ import { TenantUserOffDaysModule } from './tenants/tenant_users/tenant_user_off_
 import { TenantsModule } from './tenants/tenants.module';
 import { ProcessTemplatesModule } from './process_templates/process_templates.module';
 import { CategoriesModule } from './categories/categories.module';
+import { ProjectsModule } from './projects/projects.module';
 
 /**
  * Root module of the application.
@@ -108,6 +109,7 @@ import { CategoriesModule } from './categories/categories.module';
     TenantUserOffDaysModule,
     ProcessTemplatesModule,
     CategoriesModule,
+    ProjectsModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

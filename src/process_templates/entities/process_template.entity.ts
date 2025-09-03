@@ -13,6 +13,7 @@ import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_us
 import { ProcessTemplateDescriptionEntity } from './process_template_description.entity';
 import { ProcessTemplateCategoryEntity } from './process_template_category.entity';
 import { ProcessTemplateStepEntity } from '../process_template_steps/entities/process_template_step.entity';
+import { ProjectEntity } from '../../projects/entities/project.entity';
 
 /**
  * Entity class for `process_templates` table.
@@ -134,4 +135,11 @@ export class ProcessTemplateEntity {
     cascade: true,
   })
   steps!: ProcessTemplateStepEntity[];
+
+    /**
+   * One-many relationship to ProjectEntity.
+   * A process template can be associated with many projects.
+   */
+    @OneToMany(() => ProjectEntity, (project) => project.processTemplate)
+    projects!: ProjectEntity[];
 }
