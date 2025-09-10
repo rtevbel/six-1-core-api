@@ -1,4 +1,5 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsNotEmpty , MaxLength } from 'class-validator';
+
 
 /**
  * Create tenant team DTO class.
@@ -23,13 +24,13 @@ export class CreateTenantTeamDto {
   /**
    * Team identifier used to view team details publicly.
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a string.
    *
    * @type {string}
    */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   teamIdentifier!: string;
 
   /**
@@ -42,6 +43,7 @@ export class CreateTenantTeamDto {
    */
   @IsString()
   @IsNotEmpty()
+  @MaxLength(255)
   name!: string;
 
   /**
@@ -54,6 +56,7 @@ export class CreateTenantTeamDto {
    */
   @IsString()
   @IsOptional()
+  @MaxLength(65536)
   description?: string;
 
   /**

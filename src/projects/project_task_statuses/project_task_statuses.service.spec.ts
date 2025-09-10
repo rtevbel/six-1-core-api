@@ -9,7 +9,9 @@ describe('ProjectTaskStatusesService', () => {
       providers: [ProjectTaskStatusesService],
     }).compile();
 
-    service = module.get<ProjectTaskStatusesService>(ProjectTaskStatusesService);
+    service = module.get<ProjectTaskStatusesService>(
+      ProjectTaskStatusesService,
+    );
   });
 
   it('should be defined', () => {

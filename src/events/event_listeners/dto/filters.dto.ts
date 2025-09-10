@@ -33,6 +33,17 @@ export class FiltersDto {
   @MaxLength(100)
   search?: string;
 
+
+  /**
+   * Filter by active status.
+   * Optional field, must be a boolean if provided.
+   */
+  @IsOptional()
+  @IsIn([true, false], {
+    message: 'isActive must be a boolean value (true or false)',
+  })
+  isActive?: boolean;
+
   /**
    * Page number for pagination.
    * Optional field, defaults to 1.
@@ -53,15 +64,15 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'listener_id'.
-   * Must be one of 'listener_id'.
+   * Optional field, defaults to 'listenerId','eventId','channelId'.
+   * Must be one of 'listenerId','eventId','channelId'.
    */
   @IsOptional()
-  @IsIn(['listener_id'], {
-    message: 'sortBy key must be from this list (listener_id)',
+  @IsIn(['listenerId','eventId','channelId'], {
+    message: 'sortBy key must be from this list (listenerId,eventId,channelId)',
   })
   @IsString()
-  sortBy: string = 'listener_id';
+  sortBy: string = 'listenerId';
 
   /**
    * Sort order for the results.

@@ -11,6 +11,7 @@ import { RolePermissionEntity } from './role-permission.entity';
 import { RoleDescriptionEntity } from './role-description.entity';
 import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity';
 import { TenantUserInvitationsEntity } from '../../tenants/tenant_users/tenant_user_invitations/entities/tenant_user_invitation.entity';
+import { TenantTeamMemberEntity } from '../../tenants/tenant_teams/tenant_team_members/entities/tenant_team_member.entity';
 
 /**
  * Entity class for `roles` table.
@@ -128,4 +129,14 @@ export class RoleEntity {
    */
   @OneToMany(() => TenantUserInvitationsEntity, (invitation) => invitation.role)
   invitations!: TenantUserInvitationsEntity[];
+
+  /**
+   * Relationship to TenantTeamMemberEntity.
+   * A role can be assigned to multiple team members.
+   * Some team members may not have a role (nullable).
+   */
+  @OneToMany(() => TenantTeamMemberEntity, (teamMember) => teamMember.role, {
+    nullable: true, // Explicitly handle nullability
+  })
+  teamMembers!: TenantTeamMemberEntity[] | null;
 }

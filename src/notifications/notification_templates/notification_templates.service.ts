@@ -31,7 +31,7 @@ export class NotificationTemplatesService {
     createNotificationTemplateDto: CreateNotificationTemplateDto,
   ): Promise<NotificationTemplateEntity> {
     createNotificationTemplateDto.createdBy = userId;
-
+    
     return await this.notificationTemplateRepository.save(
       this.notificationTemplateRepository.create(createNotificationTemplateDto),
     );

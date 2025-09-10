@@ -9,7 +9,9 @@ import { CreateProjectTaskStatusDto } from './create-project_task_status.dto';
  *
  * Data transfer object for updating a project task status.
  */
-export class UpdateProjectTaskStatusDto extends PartialType(CreateProjectTaskStatusDto) {
+export class UpdateProjectTaskStatusDto extends PartialType(
+  CreateProjectTaskStatusDto,
+) {
   /**
    * Task Status ID.
    *

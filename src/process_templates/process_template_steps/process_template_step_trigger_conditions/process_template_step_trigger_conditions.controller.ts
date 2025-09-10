@@ -12,14 +12,14 @@ import { FiltersDto } from './dto/filters.dto';
 import { ProcessTemplateStepTriggerConditionEntity } from './entities/process_template_step_trigger_condition.entity';
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface";
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
-MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
-MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
-MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
-MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
-MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN
+  MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
 } from './constants';
 
 @Controller('process-template-step-trigger-conditions')
@@ -34,7 +34,9 @@ export class ProcessTemplateStepTriggerConditionsController {
    * @param createDto - Data transfer object containing trigger condition details.
    * @returns The created trigger condition entity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   createTriggerCondition(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,7 +51,9 @@ export class ProcessTemplateStepTriggerConditionsController {
    * @param filtersDto - Filters for querying trigger conditions.
    * @returns A list of trigger conditions matching the filters.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   findAllTriggerConditions(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,7 +68,9 @@ export class ProcessTemplateStepTriggerConditionsController {
    * @param id - ID of the trigger condition to retrieve.
    * @returns The trigger condition entity or a NotFoundException.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   findOneTriggerCondition(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
@@ -78,7 +84,9 @@ export class ProcessTemplateStepTriggerConditionsController {
    * @param updateDto - Data transfer object containing updated trigger condition details.
    * @returns The result of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   updateTriggerCondition(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -97,7 +105,9 @@ export class ProcessTemplateStepTriggerConditionsController {
    * @param id - ID of the trigger condition to delete.
    * @returns The result of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   removeTriggerCondition(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,

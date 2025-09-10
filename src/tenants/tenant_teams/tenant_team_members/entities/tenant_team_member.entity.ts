@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { TenantTeamEntity } from '../../entities/tenant_team.entity';
 import { TenantUsersEntity } from '../../../tenant_users/entities/tenant_user.entity';
+import { RoleEntity } from '../../../../roles/entities/role.entity';
 
 /**
  * Entity class for `tenant_team_members` table.
@@ -82,4 +83,14 @@ export class TenantTeamMemberEntity {
   })
   @JoinColumn({ name: 'tenant_user_id' })
   user!: TenantUsersEntity;
+
+   /**
+   * Relationship to RoleEntity.
+   * A member can have a role, which is nullable.
+   */
+  @ManyToOne(() => RoleEntity, (role) => role.teamMembers, {
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'role_id' })
+  role!: RoleEntity | null;
 }

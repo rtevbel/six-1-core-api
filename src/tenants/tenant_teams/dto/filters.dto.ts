@@ -9,11 +9,23 @@ import {
 
 /**
  * FiltersDto class for handling query parameters.
- * @version 1.0.1
+ * @version 0.0.1
  * This class validates and transforms query parameters
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
+
+
+   /**
+    * Tenant ID for filtering results.
+    * Optional field, must be a number if provided.
+    * @example 123
+   */
+    @IsOptional()
+    @Type(()=>Number)
+    @IsNumber()
+    tenantId!: number;
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.
@@ -43,16 +55,16 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'tenant_team_id'.
-   * Must be one of 'tenant_team_id', tenant_id , 'name'.
+   * Optional field, defaults to 'tenantTeamId'.
+   * Must be one of 'tenantTeamId', tenantId , 'name'.
    */
   @IsOptional()
-  @IsIn(['tenant_team_id', 'tenant_id', 'name'], {
+  @IsIn(['tenantTeamId', 'tenantId', 'name'], {
     message:
-      'sortBy key must be from this list (tenant_team_id, tenant_id , name)',
+      'sortBy key must be from this list (tenantTeamId, tenantId , name)',
   })
   @IsString()
-  sortBy: string = 'tenant_team_id';
+  sortBy: string = 'tenantTeamId';
 
   /**
    * Sort order for the results.

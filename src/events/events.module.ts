@@ -77,5 +77,6 @@ import { EventLogsModule } from './event_logs/event_logs.module';
   ],
   controllers: [EventsController],
   providers: [EventsService],
+  exports: [EventsService],
 })
 export class EventsModule {}

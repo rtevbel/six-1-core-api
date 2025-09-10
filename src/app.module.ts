@@ -40,6 +40,7 @@ import { TenantsModule } from './tenants/tenants.module';
 import { ProcessTemplatesModule } from './process_templates/process_templates.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProjectsModule } from './projects/projects.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 /**
  * Root module of the application.
@@ -51,6 +52,26 @@ import { ProjectsModule } from './projects/projects.module';
  */
 @Module({
   imports: [
+    /*
+     * EventEmitterModule is used for event-driven architecture within the application.
+     * It allows different parts of the application to communicate through events.
+     */
+    EventEmitterModule.forRoot({
+      // set this to `true` to use wildcards
+      wildcard: false,
+      // the delimiter used to segment namespaces
+      delimiter: '.',
+      // set this to `true` if you want to emit the newListener event
+      newListener: false,
+      // set this to `true` if you want to emit the removeListener event
+      removeListener: false,
+      // the maximum amount of listeners that can be assigned to an event
+      maxListeners: 10,
+      // show event name in memory leak message when more than maximum amount of listeners is assigned
+      verboseMemoryLeak: false,
+      // disable throwing uncaughtException if an error event is emitted and it has no listeners
+      ignoreErrors: false,
+    }),
     /**
      * ConfigModule is used to load environment variables.
      * The `envFilePath` is determined based on the `NODE_ENV` environment variable.

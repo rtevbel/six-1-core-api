@@ -1,5 +1,5 @@
 import { PartialType } from '@nestjs/mapped-types';
-import { IsNumber, IsNotEmpty , IsOptional } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
 import { CreateProjectDto } from './create-project.dto';
 
 /**

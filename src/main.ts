@@ -66,7 +66,7 @@ async function bootstrap() {
   });
 
   //Start all connected microservices
-  await app.startAllMicroservices();
+ await app.startAllMicroservices();
 
   /**
    * Initialise application to enable the ,

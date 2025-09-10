@@ -85,7 +85,10 @@ export class ProcessTemplateStepsService {
     id: number,
   ): Promise<ProcessTemplateStepEntity> {
     const step = await this.processTemplateStepRepository.findOne({
-      where: { processTemplateStepId: id , processTemplateId: processTemplateId },
+      where: {
+        processTemplateStepId: id,
+        processTemplateId: processTemplateId,
+      },
       relations: ['descriptions'],
     });
 
@@ -155,10 +158,14 @@ export class ProcessTemplateStepsService {
    * @param id - ID of the step to delete.
    * @returns The result of the delete operation.
    */
-  async remove(userId: number, processTemplateId:number , id: number): Promise<DeleteResult> {
+  async remove(
+    userId: number,
+    processTemplateId: number,
+    id: number,
+  ): Promise<DeleteResult> {
     return await this.processTemplateStepRepository.delete({
       processTemplateStepId: id,
-      processTemplateId: processTemplateId
+      processTemplateId: processTemplateId,
     });
   }
 
@@ -174,7 +181,7 @@ export class ProcessTemplateStepsService {
 
     // Mandatory filter by processTemplateId
     query.where = { processTemplateId: filtersDto.processTemplateId };
-    
+
     // Apply search filters if provided
     if (filtersDto.search) {
       query.where = [{ name: Like(`%${filtersDto.search}%`) }];
@@ -214,5 +221,36 @@ export class ProcessTemplateStepsService {
       page: filtersDto.page || 1,
       limit: filtersDto.limit || 10,
     };
+  }
+
+   /**
+   * Retrieves all process template steps by process template id.
+   * @param userId - ID of the user making the request.
+   * @param processTemplateId - ID of the associated process template.
+   * @returns An object containing the list of process template steps.
+   * @throws RpcException if no records match the filters.
+   */
+   async findAllByProcessTemplateId(
+    userId: number,
+    processTemplateId: number,
+  ): Promise<ProcessTemplateStepEntity[]> {
+ 
+    // Fetch process template steps
+    const steps  = await this.processTemplateStepRepository.find({
+      where:{processTemplateId: processTemplateId},
+      relations: ['descriptions'], // Include the 'descriptions' relationship
+    });
+    
+    // Throw exception if no records are found
+    if (steps.length === 0) {
+      throw new RpcException(
+        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
+          '{entity_name}',
+          ProcessTemplateStepEntity.name,
+        ),
+      );
+    }
+  
+    return steps;
   }
 }

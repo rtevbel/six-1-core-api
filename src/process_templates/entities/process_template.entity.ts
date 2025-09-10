@@ -136,10 +136,10 @@ export class ProcessTemplateEntity {
   })
   steps!: ProcessTemplateStepEntity[];
 
-    /**
+  /**
    * One-many relationship to ProjectEntity.
    * A process template can be associated with many projects.
    */
-    @OneToMany(() => ProjectEntity, (project) => project.processTemplate)
-    projects!: ProjectEntity[];
+  @OneToMany(() => ProjectEntity, (project) => project.processTemplate)
+  projects!: ProjectEntity[];
 }

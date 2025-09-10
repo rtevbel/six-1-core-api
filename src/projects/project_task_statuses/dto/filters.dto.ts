@@ -14,14 +14,13 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
-   /**
+  /**
    * Project ID for filtering results.
    * Required field, must be a number if provided.
    */
-   @Type(() => Number)
-   @IsNumber()
-   projectId!: number;
+  @Type(() => Number)
+  @IsNumber()
+  projectId!: number;
 
   /**
    * Search keyword for filtering results.
@@ -56,8 +55,9 @@ export class FiltersDto {
    * Must be one of 'statusOrder', 'projectTaskStatusId','tenantId','projectId'.
    */
   @IsOptional()
-  @IsIn(['statusOrder','projectTaskStatusId','tenantId','projectId'],{
-    message: 'sortBy key must be from this list (statusOrder, projectTaskStatusId , tenantId , projectId)',
+  @IsIn(['statusOrder', 'projectTaskStatusId', 'tenantId', 'projectId'], {
+    message:
+      'sortBy key must be from this list (statusOrder, projectTaskStatusId , tenantId , projectId)',
   })
   @IsString()
   sortBy: string = 'statusOrder';

@@ -18,7 +18,7 @@ import {
   MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
   MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
   MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
-  MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN
+  MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
 } from './constants';
 
 @Controller('process-template-step-requirement-submissions')
@@ -33,11 +33,14 @@ export class ProcessTemplateStepRequirementSubmissionsController {
    * @param createDto - Data transfer object containing submission details.
    * @returns The created submission entity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   createSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') createDto: CreateProcessTemplateStepRequirementSubmissionDto,
+    @Payload('data')
+    createDto: CreateProcessTemplateStepRequirementSubmissionDto,
   ): Promise<ProcessTemplateStepRequirementSubmissionEntity> {
     return this.submissionsService.create(userId, createDto);
   }
@@ -48,12 +51,17 @@ export class ProcessTemplateStepRequirementSubmissionsController {
    * @param filtersDto - Filters for querying submissions.
    * @returns A list of submissions matching the filters.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   findAllSubmissions(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
-  ): Promise<{ submissions: ProcessTemplateStepRequirementSubmissionEntity[]; pagination: any }> {
+  ): Promise<{
+    submissions: ProcessTemplateStepRequirementSubmissionEntity[];
+    pagination: any;
+  }> {
     return this.submissionsService.findAll(userId, filtersDto);
   }
 
@@ -63,11 +71,15 @@ export class ProcessTemplateStepRequirementSubmissionsController {
    * @param id - ID of the submission to retrieve.
    * @returns The submission entity or a NotFoundException.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
+  )
   findOneSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
-  ): Promise<ProcessTemplateStepRequirementSubmissionEntity | NotFoundException> {
+  ): Promise<
+    ProcessTemplateStepRequirementSubmissionEntity | NotFoundException
+  > {
     return this.submissionsService.findOne(userId, id);
   }
 
@@ -77,11 +89,14 @@ export class ProcessTemplateStepRequirementSubmissionsController {
    * @param updateDto - Data transfer object containing updated submission details.
    * @returns The result of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   updateSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') updateDto: UpdateProcessTemplateStepRequirementSubmissionDto,
+    @Payload('data')
+    updateDto: UpdateProcessTemplateStepRequirementSubmissionDto,
   ): Promise<UpdateResult> {
     return this.submissionsService.update(
       userId,
@@ -96,7 +111,9 @@ export class ProcessTemplateStepRequirementSubmissionsController {
    * @param id - ID of the submission to delete.
    * @returns The result of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_PATTERN,
+  )
   removeSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,

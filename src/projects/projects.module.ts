@@ -18,6 +18,7 @@ import {
 } from '../common/constants';
 import { ProjectTaskStatusesModule } from './project_task_statuses/project_task_statuses.module';
 import { TasksModule } from './tasks/tasks.module';
+import { ProcessTemplatesModule } from '../process_templates/process_templates.module';
 
 /**
  * ProjectsModule is responsible for managing projects.
@@ -74,6 +75,7 @@ import { TasksModule } from './tasks/tasks.module';
         inject: [ConfigService],
       },
     ]),
+    ProcessTemplatesModule,
     ProjectTaskStatusesModule,
     TasksModule,
   ],

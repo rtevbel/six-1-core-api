@@ -11,6 +11,8 @@ import { UpdateEventLogDto } from './dto/update-event_log.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { EventLogEntity } from './entities/event_log.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { OnEvent } from '@nestjs/event-emitter';
+import { plainToInstance } from 'class-transformer';
 
 import {
   MICROSERVICE_CREATE_EVENT_LOG_PATTERN,
@@ -25,6 +27,7 @@ import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe
 
 @Controller('event-logs')
 export class EventLogsController {
+
   constructor(private readonly eventLogsService: EventLogsService) {}
 
   /**
@@ -103,4 +106,18 @@ export class EventLogsController {
   ): Promise<DeleteResult> {
     return this.eventLogsService.remove(userId, id);
   }
+
+   /**
+   * Dynamically handles all other events with a specific prefix.
+   * @param eventName - The name of the event.
+   * @param payload - The payload of the event.
+   */
+   @OnEvent(`six1-event.*`)
+   async handleDynamicEvent(eventName: string, payload: any): Promise<void>{
+     console.log(`Received dynamic event: ${eventName}`);
+     console.log(`Payload:`, payload);
+     let userId = payload.userId || null;
+     const createEventLogDto = plainToInstance(CreateEventLogDto, payload.data || {});
+     await  this.eventLogsService.createEventLogByEventName(userId , eventName, createEventLogDto);
+   }
 }

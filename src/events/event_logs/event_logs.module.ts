@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module , forwardRef } from '@nestjs/common';
 import { EventLogsService } from './event_logs.service';
 import { EventLogsController } from './event_logs.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -7,6 +7,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../../common/functions';
 import { MESSAGE_BROKER_EVENT_LOG_SERVICE_CLIENT_TOKEN } from './constants';
+import {EventsModule} from "../events.module";
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -70,6 +71,7 @@ import {
         inject: [ConfigService],
       },
     ]),
+    forwardRef( () => EventsModule),
   ],
   controllers: [EventLogsController],
   providers: [EventLogsService],

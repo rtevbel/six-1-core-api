@@ -29,6 +29,9 @@ import { ProcessTemplateStepTriggerConditionEntity } from '../../../process_temp
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../../projects/project_task_statuses/entities/project_task_status.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
+import {TenantTeamProjectEntity} from "../../tenant_teams/tenant_team_projects/entities/tenant_team_project.entity";
+
+
 
 /**
  * Entity class for `tenant_users` table.
@@ -402,17 +405,17 @@ export class TenantUsersEntity {
   )
   updatedRequirements!: ProcessTemplateStepRequirementEntity[];
 
-    /**
+  /**
    * Relationship to ProcessTemplateStepRequirementSubmissionEntity.
    * A tenant user can create multiple submissions.
    */
-    @OneToMany(
-      () => ProcessTemplateStepRequirementSubmissionEntity,
-      (submission) => submission.createdByUser,
-    )
-    createdSubmissions!: ProcessTemplateStepRequirementSubmissionEntity[];
+  @OneToMany(
+    () => ProcessTemplateStepRequirementSubmissionEntity,
+    (submission) => submission.createdByUser,
+  )
+  createdSubmissions!: ProcessTemplateStepRequirementSubmissionEntity[];
 
-     /**
+  /**
    * Relationship to ProcessTemplateStepRequirementSubmissionEntity.
    * A tenant user can review multiple submissions.
    */
@@ -422,26 +425,25 @@ export class TenantUsersEntity {
   )
   reviewedSubmissions!: ProcessTemplateStepRequirementSubmissionEntity[];
 
-
-    /**
+  /**
    * Relationship to ProcessTemplateStepTriggerConditionEntity for createdBy.
    * A user can create multiple trigger conditions.
    */
-    @OneToMany(
-      () => ProcessTemplateStepTriggerConditionEntity,
-      (triggerCondition) => triggerCondition.createdByUser,
-    )
-    createdConditions!: ProcessTemplateStepTriggerConditionEntity[];
-  
-    /**
-     * Relationship to ProcessTemplateStepTriggerConditionEntity for updatedBy.
-     * A user can update multiple trigger conditions.
-     */
-    @OneToMany(
-      () => ProcessTemplateStepTriggerConditionEntity,
-      (triggerCondition) => triggerCondition.updatedByUser,
-    )
-    updatedConditions!: ProcessTemplateStepTriggerConditionEntity[];
+  @OneToMany(
+    () => ProcessTemplateStepTriggerConditionEntity,
+    (triggerCondition) => triggerCondition.createdByUser,
+  )
+  createdConditions!: ProcessTemplateStepTriggerConditionEntity[];
+
+  /**
+   * Relationship to ProcessTemplateStepTriggerConditionEntity for updatedBy.
+   * A user can update multiple trigger conditions.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepTriggerConditionEntity,
+    (triggerCondition) => triggerCondition.updatedByUser,
+  )
+  updatedConditions!: ProcessTemplateStepTriggerConditionEntity[];
 
   /**
    * One-to-many relationship to ProjectEntity.
@@ -454,36 +456,54 @@ export class TenantUsersEntity {
    * One-to-many relationship to ProjectEntity.
    * A user can update many projects.
    */
-    @OneToMany(() => ProjectEntity, (project) => project.updatedByUser)
-    updatedProjects!: ProjectEntity[];
-
+  @OneToMany(() => ProjectEntity, (project) => project.updatedByUser)
+  updatedProjects!: ProjectEntity[];
 
   /**
    *One-to-many relationship to ProjectTaskStatusEntity.
    * A user can create multiple task statuses.
    */
-  @OneToMany(() => ProjectTaskStatusEntity, (taskStatus) => taskStatus.createdByUser)
+  @OneToMany(
+    () => ProjectTaskStatusEntity,
+    (taskStatus) => taskStatus.createdByUser,
+  )
   createdTaskStatuses!: ProjectTaskStatusEntity[];
 
-   /**
+  /**
    * One-to-many Relationship to ProjectTaskStatusEntity.
    * A user can update multiple task statuses.
    */
-   @OneToMany(() => ProjectTaskStatusEntity, (taskStatus) => taskStatus.updatedByUser)
-   updatedTaskStatuses!: ProjectTaskStatusEntity[];
+  @OneToMany(
+    () => ProjectTaskStatusEntity,
+    (taskStatus) => taskStatus.updatedByUser,
+  )
+  updatedTaskStatuses!: ProjectTaskStatusEntity[];
 
- /**
- * One-to-many relationship to TaskEntity.
- * A user can create multiple tasks.
- */
+  /**
+   * One-to-many relationship to TaskEntity.
+   * A user can create multiple tasks.
+   */
   @OneToMany(() => TaskEntity, (task) => task.createdByUser)
   createdTasks!: TaskEntity[];
 
- /**
- * One-to-many relationship to TaskEntity.
- * A user can update multiple tasks.
- */
+  /**
+   * One-to-many relationship to TaskEntity.
+   * A user can update multiple tasks.
+   */
   @OneToMany(() => TaskEntity, (task) => task.updatedByUser)
   updatedTasks!: TaskEntity[];
+
+  /**
+   * Relationship to TenantTeamProjectEntity.
+   * A user can create multiple project assignments.
+   */
+    @OneToMany(
+      () => TenantTeamProjectEntity,
+      (teamProject) => teamProject.createdByUser,
+      {
+        cascade: true,
+      },
+    )
+    projectAssignments!: TenantTeamProjectEntity[];
 
 }

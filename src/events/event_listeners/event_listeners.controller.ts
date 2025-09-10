@@ -43,7 +43,7 @@ export class EventListenersController {
   }
 
   /**
-   * Retrieves all event listeners based on filters.
+   * Retrieves all event listeners based on the provided filters.
    * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying event listeners.
    * @returns A list of event listeners matching the filters.
@@ -58,17 +58,19 @@ export class EventListenersController {
   }
 
   /**
-   * Retrieves a single event listener by ID.
+   * Retrieves a single event listener by its ID and associated event ID.
    * @param userId - ID of the user making the request.
+   * @param eventId - ID of the event associated with the listener.
    * @param id - ID of the event listener to retrieve.
-   * @returns The event listener entity or a NotFoundException.
+   * @returns The event listener entity or a NotFoundException if not found.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_EVENT_LISTENER_PATTERN)
   findOneEventListener(
     @Payload('userId') userId: number,
-    @Payload('data') id: number,
+    @Payload('eventId', ParseIntPipe) eventId: number,
+    @Payload('id', ParseIntPipe) id: number,
   ): Promise<EventListenerEntity | NotFoundException> {
-    return this.eventListenersService.findOne(userId, id);
+    return this.eventListenersService.findOne(userId, eventId, id);
   }
 
   /**
@@ -91,16 +93,18 @@ export class EventListenersController {
   }
 
   /**
-   * Deletes an event listener by ID.
+   * Deletes an event listener by its ID and associated event ID.
    * @param userId - ID of the user making the request.
+   * @param eventId - ID of the event associated with the listener.
    * @param id - ID of the event listener to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_EVENT_LISTENER_PATTERN)
   removeEventListener(
     @Payload('userId') userId: number,
-    @Payload('data') id: number,
+    @Payload('eventId', ParseIntPipe) eventId: number,
+    @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.eventListenersService.remove(userId, id);
+    return this.eventListenersService.remove(userId, eventId, id);
   }
 }

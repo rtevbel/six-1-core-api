@@ -81,5 +81,6 @@ import {
   ],
   controllers: [ProcessTemplatesController],
   providers: [ProcessTemplatesService],
+  exports: [ProcessTemplatesService],
 })
 export class ProcessTemplatesModule {}

@@ -22,13 +22,13 @@ export class TenantTeamMemberService {
 
   /**
    * Creates a new tenant team member record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param createTenantTeamMemberDto - DTO containing team member details.
    * @returns The created TenantTeamMemberEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantTeamId: number,
     createTenantTeamMemberDto: CreateTenantTeamMemberDto,
   ): Promise<TenantTeamMemberEntity> {
@@ -40,39 +40,13 @@ export class TenantTeamMemberService {
   }
 
   /**
-   * Retrieves all team member records for a specific tenant team.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantTeamId - ID of the tenant team.
-   * @returns An array of TenantTeamMemberEntity records.
-   */
-  async findAllByTenantTeamId(
-    requestingUserId: number,
-    tenantTeamId: number,
-  ): Promise<TenantTeamMemberEntity[]> {
-    const memberRecords = await this.tenantTeamMemberRepository.find({
-      where: { tenantTeamId },
-    });
-
-    if (memberRecords.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantTeamMemberEntity.name,
-        ),
-      );
-    }
-
-    return memberRecords;
-  }
-
-  /**
    * Retrieves team member records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching and sorting records.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -97,13 +71,13 @@ export class TenantTeamMemberService {
 
   /**
    * Retrieves a specific team member record by ID and tenant team ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param id - ID of the team member record.
    * @returns The TenantTeamMemberEntity record.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantTeamId: number,
     id: number,
   ): Promise<TenantTeamMemberEntity> {
@@ -124,14 +98,14 @@ export class TenantTeamMemberService {
 
   /**
    * Updates a specific team member record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param id - ID of the team member record.
    * @param updateTenantTeamMemberDto - DTO containing updated team member details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantTeamId: number,
     id: number,
     updateTenantTeamMemberDto: UpdateTenantTeamMemberDto,
@@ -157,13 +131,13 @@ export class TenantTeamMemberService {
 
   /**
    * Deletes a specific team member record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param id - ID of the team member record.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantTeamId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -192,14 +166,20 @@ export class TenantTeamMemberService {
    * @returns The query object.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+
     const query: Record<string, any> = {};
+
+    query.relations = ['user.user', 'team', 'role'];
+    
+    query.where = {tenantTeamId: filtersDto.tenantTeamId}; // Always filter by tenantTeamId
 
     if (filtersDto.search) {
       query.where = [
-        { roleId: Like(`%${filtersDto.search}%`) },
+        { team: { name: Like(`%${filtersDto.search}%`)} }, // Apply LIKE query on team entity's name field
         { user: { first_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's first_name field
         { user: { last_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's last_name field
         { user: { email: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's email field
+        { role: { name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on role entity's name field
       ];
     }
 

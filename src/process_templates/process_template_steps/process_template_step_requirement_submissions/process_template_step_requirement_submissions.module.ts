@@ -6,7 +6,7 @@ import { ProcessTemplateStepRequirementSubmissionsService } from './process_temp
 import { ProcessTemplateStepRequirementSubmissionsController } from './process_template_step_requirement_submissions.controller';
 import { ProcessTemplateStepRequirementSubmissionEntity } from './entities/process_template_step_requirement_submission.entity';
 import { ensureDefinedConfigParam } from '../../../common/functions';
-import { MESSAGE_BROKER_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_SERVICE_CLIENT_TOKEN  } from './constants';
+import { MESSAGE_BROKER_PROCESS_TEMPLATE_STEP_REQUIREMENT_SUBMISSION_SERVICE_CLIENT_TOKEN } from './constants';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,

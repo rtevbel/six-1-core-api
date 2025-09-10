@@ -75,7 +75,11 @@ export class ProcessTemplateStepsController {
     @Payload('processTemplateId', ParseIntPipe) processTemplateId: number,
     @Payload('data') id: number,
   ): Promise<ProcessTemplateStepEntity | NotFoundException> {
-    return this.processTemplateStepsService.findOne(userId, processTemplateId,id);
+    return this.processTemplateStepsService.findOne(
+      userId,
+      processTemplateId,
+      id,
+    );
   }
 
   /**
@@ -110,6 +114,10 @@ export class ProcessTemplateStepsController {
     @Payload('processTemplateId', ParseIntPipe) processTemplateId: number,
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
-    return this.processTemplateStepsService.remove(userId,processTemplateId,id);
+    return this.processTemplateStepsService.remove(
+      userId,
+      processTemplateId,
+      id,
+    );
   }
 }

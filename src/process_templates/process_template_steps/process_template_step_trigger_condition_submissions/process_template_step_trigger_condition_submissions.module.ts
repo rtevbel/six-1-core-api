@@ -30,7 +30,9 @@ import {
 @Module({
   imports: [
     // Registers the ProcessTemplateStepTriggerConditionSubmissionEntity for TypeORM.
-    TypeOrmModule.forFeature([ProcessTemplateStepTriggerConditionSubmissionEntity]),
+    TypeOrmModule.forFeature([
+      ProcessTemplateStepTriggerConditionSubmissionEntity,
+    ]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

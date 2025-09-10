@@ -12,6 +12,7 @@ import {
 import { TenantEntity } from '../../entities/tenant.entity';
 import { TenantUsersEntity } from '../../tenant_users/entities/tenant_user.entity';
 import { TenantTeamMemberEntity } from '../tenant_team_members/entities/tenant_team_member.entity';
+import {TenantTeamProjectEntity} from "../tenant_team_projects/entities/tenant_team_project.entity";
 
 /**
  * Entity class for `tenant_teams` table.
@@ -135,4 +136,18 @@ export class TenantTeamEntity {
     cascade: true,
   })
   members!: TenantTeamMemberEntity[];
+
+   /**
+   * Relationship to TenantTeamProjectEntity.
+   * A team can have multiple projects assigned.
+   */
+   @OneToMany(
+    () => TenantTeamProjectEntity,
+    (teamProject) => teamProject.team,
+    {
+      cascade: true,
+    },
+  )
+  projects!: TenantTeamProjectEntity[];
+
 }

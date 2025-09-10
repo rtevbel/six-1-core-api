@@ -29,8 +29,11 @@ export class ProcessTemplateStepRequirementsService {
     userId: number,
     createDto: CreateProcessTemplateStepRequirementDto,
   ): Promise<ProcessTemplateStepRequirementEntity> {
-    const requirement = this.processTemplateStepRequirementRepository.create(createDto);
-    return await this.processTemplateStepRequirementRepository.save(requirement);
+    const requirement =
+      this.processTemplateStepRequirementRepository.create(createDto);
+    return await this.processTemplateStepRequirementRepository.save(
+      requirement,
+    );
   }
 
   /**
@@ -47,7 +50,9 @@ export class ProcessTemplateStepRequirementsService {
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [requirements, total] =
-      await this.processTemplateStepRequirementRepository.findAndCount(findQuery);
+      await this.processTemplateStepRequirementRepository.findAndCount(
+        findQuery,
+      );
 
     if (requirements.length === 0) {
       throw new RpcException(
@@ -75,10 +80,11 @@ export class ProcessTemplateStepRequirementsService {
     userId: number,
     id: number,
   ): Promise<ProcessTemplateStepRequirementEntity> {
-    const requirement = await this.processTemplateStepRequirementRepository.findOne({
-      where: { processTemplateStepRequirementId: id },
-      relations: ['processTemplateStep'],
-    });
+    const requirement =
+      await this.processTemplateStepRequirementRepository.findOne({
+        where: { processTemplateStepRequirementId: id },
+        relations: ['processTemplateStep'],
+      });
 
     if (!requirement) {
       throw new RpcException(
@@ -105,9 +111,10 @@ export class ProcessTemplateStepRequirementsService {
     id: number,
     updateDto: UpdateProcessTemplateStepRequirementDto,
   ): Promise<UpdateResult> {
-    const requirement = await this.processTemplateStepRequirementRepository.findOneBy({
-      processTemplateStepRequirementId: id,
-    });
+    const requirement =
+      await this.processTemplateStepRequirementRepository.findOneBy({
+        processTemplateStepRequirementId: id,
+      });
 
     if (!requirement) {
       throw new RpcException(
@@ -131,10 +138,14 @@ export class ProcessTemplateStepRequirementsService {
    * @param id - ID of the requirement to delete.
    * @returns The result of the delete operation.
    */
-  async remove(userId: number, processTemplateStepId:number , id: number): Promise<DeleteResult> {
+  async remove(
+    userId: number,
+    processTemplateStepId: number,
+    id: number,
+  ): Promise<DeleteResult> {
     return await this.processTemplateStepRequirementRepository.delete({
       processTemplateStepRequirementId: id,
-      processTemplateStepId: processTemplateStepId
+      processTemplateStepId: processTemplateStepId,
     });
   }
 
@@ -148,8 +159,8 @@ export class ProcessTemplateStepRequirementsService {
       relations: ['processTemplateStep'],
     };
 
-    query.where = {processTemplateStepId: filtersDto.processTemplateStepId};
-    
+    query.where = { processTemplateStepId: filtersDto.processTemplateStepId };
+
     if (filtersDto.search) {
       query.where = [
         { requirementType: Like(`%${filtersDto.search}%`) },

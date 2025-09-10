@@ -14,13 +14,16 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-  /**
-   * ID of the associated process template step.
-   */
-  @Type(() => Number)
-  @IsNumber()
-  processTemplateStepId!: number;
 
+  /**
+   * Tenant Team ID for filtering results.
+   * Optional field, must be a number if provided.
+   * @example 123
+   */
+  @IsOptional()
+  @Type(()=>Number)
+  @IsNumber()
+  tenantTeamId!: number;
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.
@@ -50,16 +53,16 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'stepTriggerConditionId'.
-   * Must be one of 'stepTriggerConditionId', 'tenantId'.
+   * Optional field, defaults to 'teamProjectId'.
+   * Must be one of 'teamProjectId', tenantTeamId , 'projectId'.
    */
   @IsOptional()
-  @IsIn(['stepTriggerConditionId', 'processTemplateStepId'], {
+  @IsIn(['teamProjectId', 'tenantTeamId', 'projectId'], {
     message:
-      'sortBy key must be from this list (stepTriggerConditionId, processTemplateStepId)',
+      'sortBy key must be from this list (teamProjectId, tenantTeamId , projectId)',
   })
   @IsString()
-  sortBy: string = 'stepTriggerConditionId';
+  sortBy: string = 'teamProjectId';
 
   /**
    * Sort order for the results.

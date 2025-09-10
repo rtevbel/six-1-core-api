@@ -1,15 +1,16 @@
-import { IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty } from 'class-validator';
 
 /**
- * Create tenant team project DTO class.
+ * Create Project Task Default Status DTO class.
  *
  * @version 0.0.1
  *
- * Data transfer object for creating a tenant team project.
+ * Data transfer object for creating a project task status.
  */
-export class CreateTenantTeamProjectDto {
+export class CreateProjectTaskDefaultStatusDto {
+ 
   /**
-   * Tenant team ID.
+   * Tenant ID (who owns this task status).
    *
    * - Required field.
    * - Must be a number.
@@ -18,10 +19,10 @@ export class CreateTenantTeamProjectDto {
    */
   @IsNumber()
   @IsNotEmpty()
-  tenantTeamId!: number;
+  tenantId!: number;
 
   /**
-   * Project ID.
+   * Project ID (to which this task status belongs).
    *
    * - Required field.
    * - Must be a number.
@@ -33,7 +34,7 @@ export class CreateTenantTeamProjectDto {
   projectId!: number;
 
   /**
-   * Created by user ID.
+   * User ID of the creator.
    *
    * - Required field.
    * - Must be a number.

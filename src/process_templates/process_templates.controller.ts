@@ -41,7 +41,10 @@ export class ProcessTemplatesController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
-    console.log(createProcessTemplateDto.descriptions, 'descriptions in controller');
+    console.log(
+      createProcessTemplateDto.descriptions,
+      'descriptions in controller',
+    );
     return this.processTemplatesService.create(
       userId,
       createProcessTemplateDto,

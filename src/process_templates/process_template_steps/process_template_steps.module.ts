@@ -9,10 +9,10 @@ import { ProcessTemplateStepsController } from './process_template_steps.control
 import { ProcessTemplateStepEntity } from './entities/process_template_step.entity';
 import { ProcessTemplateStepDescriptionEntity } from './entities/process_template_step_description.entity';
 
-import {ProcessTemplateStepRequirementsModule} from "./process_template_step_requirements/process_template_step_requirements.module";
-import {ProcessTemplateStepRequirementSubmissionsModule} from "./process_template_step_requirement_submissions/process_template_step_requirement_submissions.module";
-import {ProcessTemplateStepTriggerConditionsModule} from "./process_template_step_trigger_conditions/process_template_step_trigger_conditions.module";
-import {ProcessTemplateStepTriggerConditionSubmissionsModule} from "./process_template_step_trigger_condition_submissions/process_template_step_trigger_condition_submissions.module"
+import { ProcessTemplateStepRequirementsModule } from './process_template_step_requirements/process_template_step_requirements.module';
+import { ProcessTemplateStepRequirementSubmissionsModule } from './process_template_step_requirement_submissions/process_template_step_requirement_submissions.module';
+import { ProcessTemplateStepTriggerConditionsModule } from './process_template_step_trigger_conditions/process_template_step_trigger_conditions.module';
+import { ProcessTemplateStepTriggerConditionSubmissionsModule } from './process_template_step_trigger_condition_submissions/process_template_step_trigger_condition_submissions.module';
 
 import { ensureDefinedConfigParam } from '../../common/functions';
 import { MESSAGE_BROKER_PROCESS_TEMPLATE_SERVICE_CLIENT_TOKEN } from '../constants';
@@ -84,9 +84,10 @@ import {
     ProcessTemplateStepRequirementsModule,
     ProcessTemplateStepRequirementSubmissionsModule,
     ProcessTemplateStepTriggerConditionsModule,
-    ProcessTemplateStepTriggerConditionSubmissionsModule
+    ProcessTemplateStepTriggerConditionSubmissionsModule,
   ],
   controllers: [ProcessTemplateStepsController],
   providers: [ProcessTemplateStepsService],
+  exports:[ProcessTemplateStepsService]
 })
 export class ProcessTemplateStepsModule {}

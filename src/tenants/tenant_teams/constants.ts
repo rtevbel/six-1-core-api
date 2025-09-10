@@ -9,7 +9,5 @@ export const MICROSERVICE_UPDATE_TENANT_TEAM_PATTERN =
   'v0.1_update_tenant_team';
 export const MICROSERVICE_REMOVE_TENANT_TEAM_PATTERN =
   'v0.1_remove_tenant_team';
-export const MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN =
-  'v0.1_find_all_by_tenant_id';
 export const MESSAGE_BROKER_TENANT_TEAM_SERVICE_CLIENT_TOKEN =
   'tenant_team_service_token';

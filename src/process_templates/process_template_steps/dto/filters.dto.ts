@@ -14,8 +14,6 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
-
   /**
    * ID of the associated process template.
    * Required field.

@@ -22,10 +22,14 @@ import {
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
+import { OnEvent } from '@nestjs/event-emitter';
+
 
 @Controller('tasks')
 export class TasksController {
-  constructor(private readonly tasksService: TasksService) {}
+  constructor(
+    private readonly tasksService: TasksService
+  ) {}
 
   /**
    * Handles the creation of a new task.
@@ -109,4 +113,23 @@ export class TasksController {
   ): Promise<DeleteResult> {
     return this.tasksService.remove(userId, projectId, id);
   }
+
+   /**
+   * Handles the generation of tasks for all process template steps.
+   * This function listens to the 'process.generate_tasks' event.
+    * @param userId - ID of the user initiating the process.
+    * @param projectId - ID of the project for which tasks are to be generated.
+    * @param processTemplateId - ID of the process template containing the steps.
+   */
+   @OnEvent('process.generate_tasks')
+   async generateTasksForProcessTemplateSteps(
+    @Payload('data') payload: any,
+   ): Promise<void> {
+
+       const userId:number = payload.userId;
+       const projectId:number = payload.projectId;
+       const processTemplateId:number = payload.processTemplateId;
+       await this.tasksService.generateTasksForProcessTemplateSteps(userId,projectId,processTemplateId);
+       console.log('Default tasks created');
+   }
 }

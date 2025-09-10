@@ -35,7 +35,10 @@ export class ProcessTemplatesService {
     userId: number,
     createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
-    console.log('Creating process template with DTO:', createProcessTemplateDto);
+    console.log(
+      'Creating process template with DTO:',
+      createProcessTemplateDto,
+    );
     return await this.processTemplateRepository.save(
       this.processTemplateRepository.create(createProcessTemplateDto),
     );
@@ -81,24 +84,29 @@ export class ProcessTemplatesService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
-      'relations': ['descriptions', 'categories','categories.category.descriptions'],
+      relations: [
+        'descriptions',
+        'categories',
+        'categories.category.descriptions',
+      ],
     };
-    if(filtersDto.tenantId) {
+    if (filtersDto.tenantId) {
       query.where = { tenantId: filtersDto.tenantId };
     }
-    
+
     // Apply search filters if provided
     if (filtersDto.search) {
-       query.where = [{
-        'descriptions': { 
-          name: Like(`%${filtersDto.search}%`),
-          description: Like(`%${filtersDto.search}%`) 
+      query.where = [
+        {
+          descriptions: {
+            name: Like(`%${filtersDto.search}%`),
+            description: Like(`%${filtersDto.search}%`),
+          },
+          'categories.category.descriptions': {
+            name: Like(`%${filtersDto.search}%`),
+            description: Like(`%${filtersDto.search}%`),
+          },
         },
-        'categories.category.descriptions': { 
-          name: Like(`%${filtersDto.search}%`),
-          description: Like(`%${filtersDto.search}%`) 
-        }
-        }
       ];
     }
 

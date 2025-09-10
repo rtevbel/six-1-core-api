@@ -7,6 +7,7 @@ import { UpdateProjectTaskStatusDto } from './dto/update-project_task_status.dto
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import { CreateProjectTaskDefaultStatusDto } from './dto/create-project_task_default_status.dto';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -30,7 +31,15 @@ export class ProjectTaskStatusesService {
     userId: number,
     createDto: CreateProjectTaskStatusDto,
   ): Promise<ProjectTaskStatusEntity> {
-    
+
+   const projectTaskStatus = await this.projectTaskStatusRepository.findOne({
+        where: { projectId: createDto.projectId },
+        order: { statusOrder: 'DESC'},
+    });
+   
+    createDto.statusOrder = projectTaskStatus ? parseInt(projectTaskStatus.statusOrder.toString() ,10) + 1 : 1; // Set statusOrder to highest existing + 1 or 1 if none exist
+   
+    console.log(createDto,'createDtocreateDto');
     return await this.projectTaskStatusRepository.save(
       this.projectTaskStatusRepository.create(createDto),
     );
@@ -62,7 +71,7 @@ export class ProjectTaskStatusesService {
     }
 
     return {
-      projectTaskStatusesRecords:statuses,
+      projectTaskStatusesRecords: statuses,
       pagination: this.buildPagination(filtersDto, total),
     };
   }
@@ -116,7 +125,7 @@ export class ProjectTaskStatusesService {
         ),
       );
     }
-    
+
     updateDto.updatedBy = userId;
     return await this.projectTaskStatusRepository.update(id, updateDto);
   }
@@ -145,12 +154,10 @@ export class ProjectTaskStatusesService {
 
     // Mandatory filter
     query.where = { projectId: filtersDto.projectId };
-    
+
     // Optional search filter
     if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-      ];
+      query.where = [{ name: Like(`%${filtersDto.search}%`) }];
     }
 
     if (filtersDto.sortBy) {
@@ -187,5 +194,73 @@ export class ProjectTaskStatusesService {
       page: filtersDto.page || 1,
       limit: filtersDto.limit || 10,
     };
+  }
+
+  /**
+   * Creates default new project task status records.
+   * @param userId - ID of the user creating the record.
+   * @param createDto - Data Transfer Object containing task status details.
+   * @returns void.
+   */
+  async createDefault(
+    userId: number,
+    createDto: CreateProjectTaskDefaultStatusDto,
+  ): Promise<void> {
+    
+     // Define default task statuses
+     const defaultStatuses = [
+      { name: 'To Do', statusOrder: 1 },
+      { name: 'In Progress', statusOrder: 2 },
+      { name: 'Waiting Approval', statusOrder: 3 },
+      { name: 'Blocked', statusOrder: 4 },
+      { name: 'Done', statusOrder: 5 },
+    ];
+    
+    // Iterate over default statuses and create them
+    for (const status of defaultStatuses) {
+      const statusDto = {
+        projectId: createDto.projectId,
+        tenantId: createDto.tenantId,
+        name: status.name,
+        statusOrder: status.statusOrder,
+        createdBy: userId, 
+        updatedBy: userId,
+      };
+      
+      await this.projectTaskStatusRepository.save(
+        this.projectTaskStatusRepository.create(statusDto),
+      );
+    }
+    console.log('Default task statuses created');
+  }
+
+  /**
+   * Retrieves project task status with project id.
+   * @param userId - ID of the user requesting the data.
+   * @param projectId - ID of the project the task status belongs to.
+   * @returns An object containing the list of task status.
+   * @throws RpcException if no records match the filters.
+   */
+  async findOneByProjectId(
+    userId: number,
+    projectId: number,
+  ): Promise<ProjectTaskStatusEntity|null> {
+    // Fetch the first record for the given projectId
+    const taskStatus = await this.projectTaskStatusRepository.findOne({
+      where: { projectId: projectId },
+      order: { projectTaskStatusId: 'ASC' }, // Ensure the first record is retrieved (ordered by 'id' ascending)
+    });
+  
+    // Throw exception if no record is found
+    if (taskStatus === null) {
+      throw new RpcException(
+        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
+          '{entity_name}',
+          ProjectTaskStatusEntity.name,
+        ),
+      );
+    }
+    
+    return taskStatus;
   }
 }

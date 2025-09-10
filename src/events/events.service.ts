@@ -163,4 +163,23 @@ export class EventsService {
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.eventRepository.delete({ eventId: id });
   }
+
+  /**
+ * Retrieves a single event by name.
+ * @param userId - ID of the user requesting the data.
+ * @param name - Name of the event to retrieve.
+ * @returns The EventEntity matching the name.
+ * @throws RpcException if no record is found.
+ */
+async findOneByName(userId: number, name: string): Promise<EventEntity> {
+  const event = await this.eventRepository.findOne({ where: { name } });
+
+  if (!event) {
+    throw new RpcException(
+      NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventEntity.name),
+    );
+  }
+
+  return event;
+}
 }

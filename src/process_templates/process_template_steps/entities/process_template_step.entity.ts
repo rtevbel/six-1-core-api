@@ -12,7 +12,7 @@ import { ProcessTemplateEntity } from '../../entities/process_template.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessTemplateStepDescriptionEntity } from './process_template_step_description.entity';
 import { ProcessTemplateStepRequirementEntity } from '../process_template_step_requirements/entities/process_template_step_requirement.entity';
-import {TaskEntity} from "../../../projects/tasks/entities/task.entity";
+import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 
 /**
  * Entity class for `process_template_steps` table.
@@ -150,10 +150,10 @@ export class ProcessTemplateStepEntity {
   )
   requirements!: ProcessTemplateStepRequirementEntity[];
 
-/**
- * Relationship to TaskEntity.
- * A process template step can be linked to multiple tasks.
- */
+  /**
+   * Relationship to TaskEntity.
+   * A process template step can be linked to multiple tasks.
+   */
   @OneToMany(() => TaskEntity, (task) => task.processTemplateStep)
   tasks!: TaskEntity[];
 }

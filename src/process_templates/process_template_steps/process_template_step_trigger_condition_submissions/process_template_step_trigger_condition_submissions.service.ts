@@ -6,7 +6,7 @@ import { CreateProcessTemplateStepTriggerConditionSubmissionDto } from './dto/cr
 import { UpdateProcessTemplateStepTriggerConditionSubmissionDto } from './dto/update-process_template_step_trigger_condition_submission.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface";
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -46,7 +46,8 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [submissions, total] = await this.submissionRepository.findAndCount(findQuery);
+    const [submissions, total] =
+      await this.submissionRepository.findAndCount(findQuery);
 
     if (submissions.length === 0) {
       throw new RpcException(
@@ -57,10 +58,10 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
       );
     }
 
-    return  {
+    return {
       processTemplateStepTriggerConditionSubmissionRecords: submissions,
       pagination: this.buildPagination(filtersDto, total),
-    }
+    };
   }
 
   /**
@@ -76,7 +77,7 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
   ): Promise<ProcessTemplateStepTriggerConditionSubmissionEntity> {
     const submission = await this.submissionRepository.findOne({
       where: { stepTriggerConditionSubmissionId: id },
-      relations: ['stepTriggerCondition' , 'reviewedByUser'],
+      relations: ['stepTriggerCondition', 'reviewedByUser'],
     });
 
     if (!submission) {
@@ -139,15 +140,13 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
-      relations: ['stepTriggerCondition' , 'reviewedByUser'],
+      relations: ['stepTriggerCondition', 'reviewedByUser'],
     };
 
-    
     // Add where condition for stepTriggerConditionId if provided
     query.where = {
-        stepTriggerConditionId: filtersDto.stepTriggerConditionId,
+      stepTriggerConditionId: filtersDto.stepTriggerConditionId,
     };
-    
 
     if (filtersDto.search) {
       query.where = [{ submittedData: Like(`%${filtersDto.search}%`) }];
@@ -162,7 +161,7 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
     if (filtersDto.limit) {
       filtersDto.page = filtersDto.page || 1;
       filtersDto.limit = Math.min(filtersDto.limit, 10);
-      
+
       query.take = filtersDto.limit;
       query.skip = (filtersDto.page - 1) * filtersDto.limit;
     }

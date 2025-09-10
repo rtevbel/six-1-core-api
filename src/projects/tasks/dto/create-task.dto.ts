@@ -1,4 +1,11 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty, IsEnum, IsDecimal } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  IsEnum,
+  IsDecimal,
+} from 'class-validator';
 
 /**
  * Create task DTO class.
@@ -23,13 +30,13 @@ export class CreateTaskDto {
   /**
    * Unique identifier for the task.
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a string.
    *
    * @type {string}
    */
   @IsString()
-  @IsNotEmpty()
+  @IsOptional()
   taskIdentifier!: string;
 
   /**
@@ -128,4 +135,16 @@ export class CreateTaskDto {
   @IsNumber()
   @IsNotEmpty()
   createdBy!: number;
+
+  /*
+    * User ID of the last updater.
+    *
+    * - Optional field.
+    * - Must be a number.
+    *
+    * @type {number}
+  */
+  @IsOptional()
+  @IsNumber()
+  updatedBy?:number;
 }

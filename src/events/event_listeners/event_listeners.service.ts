@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventListenerEntity } from './entities/event_listener.entity';
 import { CreateEventListenerDto } from './dto/create-event_listener.dto';
@@ -30,8 +30,6 @@ export class EventListenersService {
     userId: number,
     createEventListenerDto: CreateEventListenerDto,
   ): Promise<EventListenerEntity> {
-    createEventListenerDto.createdBy = userId;
-
     return await this.eventListenerRepository.save(
       this.eventListenerRepository.create(createEventListenerDto),
     );
@@ -71,13 +69,19 @@ export class EventListenersService {
   /**
    * Retrieves a single event listener by ID.
    * @param userId - ID of the user requesting the data.
+   * @param eventId - ID of the event associated with the listener.
    * @param id - ID of the event listener to retrieve.
    * @returns The EventListenerEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId: number, id: number): Promise<EventListenerEntity> {
+  async findOne(
+    userId: number,
+    eventId: number,
+    id: number,
+  ): Promise<EventListenerEntity> {
     const eventListener = await this.eventListenerRepository.findOneByOrFail({
       listenerId: id,
+      eventId,
     });
 
     if (!eventListener) {
@@ -107,6 +111,7 @@ export class EventListenersService {
   ): Promise<UpdateResult> {
     const eventListener = await this.eventListenerRepository.findOneByOrFail({
       listenerId: id,
+      eventId: updateEventListenerDto.eventId,
     });
 
     if (!eventListener) {
@@ -117,10 +122,9 @@ export class EventListenersService {
         ),
       );
     }
-
-    updateEventListenerDto.updatedBy = userId;
+    
     return await this.eventListenerRepository.update(
-      id,
+      eventListener.listenerId,
       updateEventListenerDto,
     );
   }
@@ -128,32 +132,40 @@ export class EventListenersService {
   /**
    * Deletes an event listener record by ID.
    * @param userId - ID of the user removing the record.
+   * @param eventId - ID of the event associated with the listener.
    * @param id - ID of the event listener to delete.
    * @returns The result of the delete operation.
    */
-  async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.eventListenerRepository.delete({ listenerId: id });
+  async remove(userId: number, eventId: number, id: number): Promise<DeleteResult> {
+    return await this.eventListenerRepository.delete({
+      listenerId: id,
+      eventId,
+    });
   }
 
   /**
    * Builds the query object for finding event listeners based on filters.
-   * @param FiltersDto - Filters for search, sorting, and pagination.
+   * @param filters - Filters for search, sorting, and pagination.
    * @returns A query object compatible with TypeORM's find method.
    */
   private buildFindQuery(filters: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
+    const query: Record<string, any> = {
+      where: { eventId: filters.eventId},
+    };
 
-    // If an eventId is provided, filter by it.
-    if (filters.eventId) {
-      query.where = { eventId: filters.eventId };
+    query.relations = ['event', 'channel', 'template'];
+
+    // If isActive filter is provided, add it to the query.
+    if(filters.isActive !== undefined) {
+      query.where['isActive'] = filters.isActive;
     }
-
-    // If a search term is provided, filter by eventId, channelId, or templateId.
+    
+    // If a search term is provided, filter by event name, channel name, or template name.
     if (filters.search) {
       query.where = [
-        { eventId: filters.search },
-        { channelId: filters.search },
-        { templateId: filters.search },
+        {event: { name: Like(`%${filters.search}%`) } },
+        { channel:{name: Like(`%${filters.search}%`) } },
+        { template:{ name: Like(`%${filters.search}%`) } },
       ];
     }
 

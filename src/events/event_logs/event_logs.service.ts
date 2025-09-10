@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable , NotFoundException } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventLogEntity } from './entities/event_log.entity';
@@ -7,6 +7,7 @@ import { UpdateEventLogDto } from './dto/update-event_log.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import {EventsService} from "../events.service";
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -18,6 +19,7 @@ export class EventLogsService {
   constructor(
     @InjectRepository(EventLogEntity)
     private readonly eventLogRepository: Repository<EventLogEntity>,
+    private readonly eventsService: EventsService,
   ) {}
 
   /**
@@ -30,8 +32,7 @@ export class EventLogsService {
     userId: number,
     createEventLogDto: CreateEventLogDto,
   ): Promise<EventLogEntity> {
-    createEventLogDto.createdBy = userId;
-
+   
     return await this.eventLogRepository.save(
       this.eventLogRepository.create(createEventLogDto),
     );
@@ -139,6 +140,9 @@ export class EventLogsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+    query.where = {eventId:filtersDto.eventId};
+    query.relations = ['event','user'];
+    
     if (filtersDto.search) {
       query.where = {
         event: {
@@ -180,4 +184,39 @@ export class EventLogsService {
       limit: filtersDto.limit || 10,
     };
   }
+
+
+  /**
+ * Fetches event details by event name and creates a new event log record.
+ * @param userId - ID of the user creating the record.
+ * @param eventName - The name of the event triggering the log creation.
+ * @param createEventLogDto - Data Transfer Object containing additional event log details.
+ * @returns The created EventLogEntity.
+ */
+async createEventLogByEventName(
+  userId: number,
+  eventName: string,
+  createEventLogDto: CreateEventLogDto,
+): Promise<EventLogEntity> {
+  // Fetch event details by event name
+  const eventDetails = await this.eventsService.findOneByName(userId,eventName);
+
+  if (!eventDetails) {
+    throw new NotFoundException(`Event with name "${eventName}" not found.`);
+  }
+  
+  // Combine event details with the provided DTO
+  const eventLogData = {
+    ...createEventLogDto,
+    eventName: eventDetails.name,
+    eventDescription: eventDetails.description, // Assuming the event has a description
+    createdBy: userId,
+  };
+
+  // Create and save the event log record
+  return await this.eventLogRepository.save(
+    this.eventLogRepository.create(eventLogData),
+  );
+}
+
 }

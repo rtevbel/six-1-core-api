@@ -43,15 +43,15 @@ export class FiltersDto {
 
   /**
    * Field to sort the results by.
-   * Optional field, defaults to 'event_id'.
-   * Must be one of 'event_id', 'name'.
+   * Optional field, defaults to 'eventId'.
+   * Must be one of 'eventId', 'name'.
    */
   @IsOptional()
-  @IsIn(['event_id', 'name'], {
-    message: 'sortBy key must be from this list (event_id, name)',
+  @IsIn(['eventId', 'name'], {
+    message: 'sortBy key must be from this list (eventId, name)',
   })
   @IsString()
-  sortBy: string = 'event_id';
+  sortBy: string = 'eventId';
 
   /**
    * Sort order for the results.

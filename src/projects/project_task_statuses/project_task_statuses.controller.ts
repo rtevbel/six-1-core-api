@@ -11,6 +11,7 @@ import { UpdateProjectTaskStatusDto } from './dto/update-project_task_status.dto
 import { FiltersDto } from './dto/filters.dto';
 import { ProjectTaskStatusEntity } from './entities/project_task_status.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { CreateProjectTaskDefaultStatusDto } from './dto/create-project_task_default_status.dto';
 
 import {
   MICROSERVICE_CREATE_PROJECT_TASK_STATUS_PATTERN,
@@ -22,6 +23,8 @@ import {
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
+import { OnEvent } from '@nestjs/event-emitter';
+
 
 @Controller('project-task-statuses')
 export class ProjectTaskStatusesController {
@@ -105,4 +108,22 @@ export class ProjectTaskStatusesController {
   ): Promise<DeleteResult> {
     return this.projectTaskStatusesService.remove(userId, id);
   }
+
+  /**
+   * Handles the creation of default task statuses for a new project.
+   * This function listens to the 'project.create_default_task_statuses' event.
+   * @param userId - ID of the user making the request.
+   * @param createDto - Data transfer object containing project details.
+   * @returns A promise that resolves when all default task statuses are created.
+   */
+  @OnEvent('project.create_default_task_statuses')
+  async createDefaultProjectTaskStatuses(
+    @Payload('data') payload: any,
+  ): Promise<void> {
+    const userId = Number(payload.userId);
+    const createDto: CreateProjectTaskDefaultStatusDto = payload.data;
+      await this.projectTaskStatusesService.createDefault(userId, createDto);
+      console.log('Default task statuses created');
+  }
+  
 }

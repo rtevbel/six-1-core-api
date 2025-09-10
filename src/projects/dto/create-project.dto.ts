@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  IsBoolean,
+} from 'class-validator';
 
 /**
  * Create project DTO class.
@@ -35,13 +41,13 @@ export class CreateProjectDto {
   /**
    * Unique identifier for the project.
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a string.
    *
    * @type {string}
    */
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   projectIdentifier!: string;
 
   /**
@@ -103,4 +109,16 @@ export class CreateProjectDto {
   @IsNumber()
   @IsNotEmpty()
   createdBy!: number;
+
+  /**
+   * User ID of the updater.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsNumber()
+  @IsOptional()
+  updatedBy?: number;
 }

@@ -88,3 +88,29 @@ export function ensureDefined<T>(
   }
   return value;
 }
+
+/**
+ * Build Task URL
+ * @param projectSlug
+ * @param taskId
+ * @returns
+ */
+
+export function buildTaskUrl(projectSlug: string, taskId: string) {
+
+   const APP_WEB_URL = ensureDefinedConfigParam(process.env.APP_WEB_URL, 'APP_WEB_URL');
+   return `${APP_WEB_URL}/p/${projectSlug}/t/${taskId}`;
+}
+
+/**
+ * Build Project URL
+ * @param projectSlug
+ * @returns
+ */
+
+export function buildProjectUrl(projectSlug: string) {
+
+  const APP_WEB_URL = ensureDefinedConfigParam(process.env.APP_WEB_URL, 'APP_WEB_URL');
+  return `${APP_WEB_URL}/p/${projectSlug}`;
+
+}

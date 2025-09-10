@@ -42,10 +42,14 @@ export class ProcessTemplateStepRequirementSubmissionsService {
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<{ submissions: ProcessTemplateStepRequirementSubmissionEntity[]; pagination: any }> {
+  ): Promise<{
+    submissions: ProcessTemplateStepRequirementSubmissionEntity[];
+    pagination: any;
+  }> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [submissions, total] = await this.submissionRepository.findAndCount(findQuery);
+    const [submissions, total] =
+      await this.submissionRepository.findAndCount(findQuery);
 
     if (submissions.length === 0) {
       throw new RpcException(
@@ -75,7 +79,7 @@ export class ProcessTemplateStepRequirementSubmissionsService {
   ): Promise<ProcessTemplateStepRequirementSubmissionEntity> {
     const submission = await this.submissionRepository.findOne({
       where: { stepRequirementSubmissionId: id },
-      relations: ['processTemplateStepRequirement' , 'reviewedByUser'],
+      relations: ['processTemplateStepRequirement', 'reviewedByUser'],
     });
 
     if (!submission) {
@@ -138,12 +142,13 @@ export class ProcessTemplateStepRequirementSubmissionsService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
-      relations: ['processTemplateStepRequirement','reviewedByUser'],
+      relations: ['processTemplateStepRequirement', 'reviewedByUser'],
     };
 
     // Mandatory filter
     query.where = {
-      processTemplateStepRequirementId: filtersDto.processTemplateStepRequirementId,
+      processTemplateStepRequirementId:
+        filtersDto.processTemplateStepRequirementId,
     };
 
     if (filtersDto.search) {

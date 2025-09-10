@@ -14,14 +14,13 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
   /**
    * ID of the associated process template step.
    */
   @Type(() => Number)
   @IsNumber()
   stepTriggerConditionId!: number;
-  
+
   /**
    * Search keyword for filtering results.
    * Optional field with a maximum length of 100 characters.
@@ -56,7 +55,8 @@ export class FiltersDto {
    */
   @IsOptional()
   @IsIn(['stepTriggerConditionSubmissionId', 'stepTriggerConditionId'], {
-    message: 'sortBy key must be from this list (stepTriggerConditionSubmissionId, stepTriggerConditionId)',
+    message:
+      'sortBy key must be from this list (stepTriggerConditionSubmissionId, stepTriggerConditionId)',
   })
   @IsString()
   sortBy: string = 'stepTriggerConditionSubmissionId';

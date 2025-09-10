@@ -23,61 +23,31 @@ export class TenantTeamService {
 
   /**
    * Creates a new tenant team record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param createTenantTeamDto - DTO containing team details.
    * @returns The created TenantTeamEntity.
    */
   async create(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     createTenantTeamDto: CreateTenantTeamDto,
   ): Promise<TenantTeamEntity> {
-    // Generate a unique team identifier using UUID
-    createTenantTeamDto.teamIdentifier = `TENANT-TEAM-${uuidv4()}`;
 
-    createTenantTeamDto.createdBy = requestingUserId;
-    createTenantTeamDto.tenantId = tenantId;
-
+    createTenantTeamDto.teamIdentifier =  this.generateUniqueTeamIdentifier(createTenantTeamDto.name);
     return await this.tenantTeamRepository.save(
       this.tenantTeamRepository.create(createTenantTeamDto),
     );
   }
 
   /**
-   * Retrieves all team records for a specific tenant.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @returns An array of TenantTeamEntity records.
-   */
-  async findAllByTenantId(
-    requestingUserId: number,
-    tenantId: number,
-  ): Promise<TenantTeamEntity[]> {
-    const teamRecords = await this.tenantTeamRepository.find({
-      where: { tenantId },
-    });
-
-    if (teamRecords.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          TenantTeamEntity.name,
-        ),
-      );
-    }
-
-    return teamRecords;
-  }
-
-  /**
    * Retrieves team records based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for searching and sorting records.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilter(
-    requestingUserId: number,
+    userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
@@ -102,13 +72,13 @@ export class TenantTeamService {
 
   /**
    * Retrieves a specific team record by ID and tenant ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the team record.
    * @returns The TenantTeamEntity record.
    */
   async findOne(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<TenantTeamEntity> {
@@ -129,14 +99,14 @@ export class TenantTeamService {
 
   /**
    * Updates a specific team record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the team record.
    * @param updateTenantTeamDto - DTO containing updated team details.
    * @returns The result of the update operation.
    */
   async update(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
     updateTenantTeamDto: UpdateTenantTeamDto,
@@ -154,20 +124,20 @@ export class TenantTeamService {
       );
     }
 
-    updateTenantTeamDto.updatedBy = requestingUserId;
+    updateTenantTeamDto.updatedBy = userId;
 
     return await this.tenantTeamRepository.update(id, updateTenantTeamDto);
   }
 
   /**
    * Deletes a specific team record.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the team record.
    * @returns The result of the delete operation.
    */
   async remove(
-    requestingUserId: number,
+    userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
@@ -198,6 +168,8 @@ export class TenantTeamService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
+    query.where = {tenantId:filtersDto.tenantId};
+    
     if (filtersDto.search) {
       query.where = [
         { name: Like(`%${filtersDto.search}%`) },
@@ -239,4 +211,24 @@ export class TenantTeamService {
       limit: filtersDto.limit || 10,
     };
   }
+
+   /**
+    * Generates a unique team identifier based on the team name.
+    * @param {string} name - The name of the team.
+    * @return {string} - A unique identifier for the task.
+   */
+   private generateUniqueTeamIdentifier(name: string): string {
+
+    const normalizedTaskName = name
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-');
+
+      // Generate a short unique identifier (e.g., timestamp in milliseconds)
+      const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
+
+      return `teanm-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
+
+   }
+
 }

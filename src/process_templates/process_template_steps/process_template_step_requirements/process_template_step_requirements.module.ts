@@ -28,9 +28,7 @@ import {
 @Module({
   imports: [
     // Registers the ProcessTemplateStepRequirementEntity for TypeORM.
-    TypeOrmModule.forFeature([
-      ProcessTemplateStepRequirementEntity,
-    ]),
+    TypeOrmModule.forFeature([ProcessTemplateStepRequirementEntity]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

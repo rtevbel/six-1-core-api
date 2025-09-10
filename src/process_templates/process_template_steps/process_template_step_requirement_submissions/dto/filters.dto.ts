@@ -14,7 +14,6 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
   /**
    * ID of the associated process template step requirement.
    */
@@ -56,7 +55,8 @@ export class FiltersDto {
    */
   @IsOptional()
   @IsIn(['stepRequirementSubmissionId', 'processTemplateStepRequirementId'], {
-    message: 'sortBy key must be from this list (stepRequirementSubmissionId, processTemplateStepRequirementId)',
+    message:
+      'sortBy key must be from this list (stepRequirementSubmissionId, processTemplateStepRequirementId)',
   })
   @IsString()
   sortBy: string = 'stepRequirementSubmissionId';

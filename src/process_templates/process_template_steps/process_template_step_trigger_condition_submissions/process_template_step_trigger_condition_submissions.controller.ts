@@ -13,11 +13,11 @@ import { ProcessTemplateStepTriggerConditionSubmissionEntity } from './entities/
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
- MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
- MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
- MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
-MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
- MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
@@ -35,11 +35,14 @@ export class ProcessTemplateStepTriggerConditionSubmissionsController {
    * @param createSubmissionDto - Data transfer object containing submission details.
    * @returns The created submission entity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   createSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') createSubmissionDto: CreateProcessTemplateStepTriggerConditionSubmissionDto,
+    @Payload('data')
+    createSubmissionDto: CreateProcessTemplateStepTriggerConditionSubmissionDto,
   ): Promise<ProcessTemplateStepTriggerConditionSubmissionEntity> {
     return this.submissionsService.create(userId, createSubmissionDto);
   }
@@ -50,7 +53,9 @@ export class ProcessTemplateStepTriggerConditionSubmissionsController {
    * @param filtersDto - Filters for querying submissions.
    * @returns A list of submissions matching the filters.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   findAllSubmissions(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -65,11 +70,15 @@ export class ProcessTemplateStepTriggerConditionSubmissionsController {
    * @param id - ID of the submission to retrieve.
    * @returns The submission entity or a NotFoundException.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  )
   findOneSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
-  ): Promise<ProcessTemplateStepTriggerConditionSubmissionEntity | NotFoundException> {
+  ): Promise<
+    ProcessTemplateStepTriggerConditionSubmissionEntity | NotFoundException
+  > {
     return this.submissionsService.findOne(userId, id);
   }
 
@@ -79,11 +88,14 @@ export class ProcessTemplateStepTriggerConditionSubmissionsController {
    * @param updateSubmissionDto - Data transfer object containing updated submission details.
    * @returns The result of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   updateSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') updateSubmissionDto: UpdateProcessTemplateStepTriggerConditionSubmissionDto,
+    @Payload('data')
+    updateSubmissionDto: UpdateProcessTemplateStepTriggerConditionSubmissionDto,
   ): Promise<UpdateResult> {
     return this.submissionsService.update(
       userId,
@@ -98,7 +110,9 @@ export class ProcessTemplateStepTriggerConditionSubmissionsController {
    * @param id - ID of the submission to delete.
    * @returns The result of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_TRIGGER_CONDITION_SUBMISSION_PATTERN,
+  )
   removeSubmission(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,

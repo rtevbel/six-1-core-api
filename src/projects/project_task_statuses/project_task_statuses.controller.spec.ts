@@ -11,7 +11,9 @@ describe('ProjectTaskStatusesController', () => {
       providers: [ProjectTaskStatusesService],
     }).compile();
 
-    controller = module.get<ProjectTaskStatusesController>(ProjectTaskStatusesController);
+    controller = module.get<ProjectTaskStatusesController>(
+      ProjectTaskStatusesController,
+    );
   });
 
   it('should be defined', () => {

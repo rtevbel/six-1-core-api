@@ -15,7 +15,6 @@ import {
   MICROSERVICE_FIND_ONE_TENANT_TEAM_MEMBER_PATTERN,
   MICROSERVICE_UPDATE_TENANT_TEAM_MEMBER_PATTERN,
   MICROSERVICE_REMOVE_TENANT_TEAM_MEMBER_PATTERN,
-  MICROSERVICE_FIND_ALL_BY_TENANT_TEAM_ID_PATTERN,
 } from './constants';
 
 /**
@@ -29,7 +28,7 @@ export class TenantTeamMemberController {
 
   /**
    * Handles the creation of tenant team member information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team for which member info is being created.
    * @param createTenantTeamMemberDto - Data transfer object containing member info details.
    * @returns The created tenant team member entity.
@@ -37,12 +36,12 @@ export class TenantTeamMemberController {
   @MessagePattern(MICROSERVICE_CREATE_TENANT_TEAM_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async createMember(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data') createTenantTeamMemberDto: CreateTenantTeamMemberDto,
   ): Promise<TenantTeamMemberEntity> {
     return this.tenantTeamMemberService.create(
-      requestingUserId,
+      userId,
       tenantTeamId,
       createTenantTeamMemberDto,
     );
@@ -50,19 +49,19 @@ export class TenantTeamMemberController {
 
   /**
    * Retrieves a single tenant team member information by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param id - ID of the member info to retrieve.
    * @returns The tenant team member entity.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_TEAM_MEMBER_PATTERN)
   async findOneMember(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantTeamMemberEntity> {
     return this.tenantTeamMemberService.findOne(
-      requestingUserId,
+      userId,
       tenantTeamId,
       id,
     );
@@ -70,41 +69,24 @@ export class TenantTeamMemberController {
 
   /**
    * Retrieves all tenant team member information based on filters.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param filtersDto - Filters for querying member information.
    * @returns A list of tenant team member information matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_TEAM_MEMBER_PATTERN)
   async findAllByFilters(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     return await this.tenantTeamMemberService.findAllByFilter(
-      requestingUserId,
+      userId,
       filtersDto,
     );
   }
 
   /**
-   * Retrieves all member information for a specific tenant team.
-   * @param requestingUserId - ID of the user making the request.
-   * @param tenantTeamId - ID of the tenant team.
-   * @returns A list of tenant team member entities.
-   */
-  @MessagePattern(MICROSERVICE_FIND_ALL_BY_TENANT_TEAM_ID_PATTERN)
-  async findAllByTenantTeamId(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
-    @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
-  ): Promise<TenantTeamMemberEntity[]> {
-    return this.tenantTeamMemberService.findAllByTenantTeamId(
-      requestingUserId,
-      tenantTeamId,
-    );
-  }
-
-  /**
    * Updates tenant team member information.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param updateTenantTeamMemberDto - Data transfer object containing updated member info details.
    * @returns The result of the update operation.
@@ -112,12 +94,12 @@ export class TenantTeamMemberController {
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_TEAM_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async updateMember(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data') updateTenantTeamMemberDto: UpdateTenantTeamMemberDto,
   ): Promise<UpdateResult> {
     return this.tenantTeamMemberService.update(
-      requestingUserId,
+      userId,
       tenantTeamId,
       updateTenantTeamMemberDto.tenantTeamMemberId,
       updateTenantTeamMemberDto,
@@ -126,19 +108,19 @@ export class TenantTeamMemberController {
 
   /**
    * Deletes tenant team member information by ID.
-   * @param requestingUserId - ID of the user making the request.
+   * @param userId - ID of the user making the request.
    * @param tenantTeamId - ID of the tenant team.
    * @param id - ID of the member info to delete.
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_TEAM_MEMBER_PATTERN)
   async removeMember(
-    @Payload('requestingUserId', ParseIntPipe) requestingUserId: number,
+    @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantTeamMemberService.remove(
-      requestingUserId,
+      userId,
       tenantTeamId,
       id,
     );

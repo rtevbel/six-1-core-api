@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
 
 /**
  * Create Project Task Status DTO class.
@@ -47,13 +47,13 @@ export class CreateProjectTaskStatusDto {
   /**
    * Status order (defines the order of the status in the project).
    *
-   * - Required field.
+   * - Optional field.
    * - Must be a number.
    *
    * @type {number}
    */
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
   statusOrder!: number;
 
   /**

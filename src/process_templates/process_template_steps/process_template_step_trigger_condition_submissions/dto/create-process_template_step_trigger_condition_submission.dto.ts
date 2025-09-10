@@ -1,4 +1,10 @@
-import { IsNumber, IsObject, IsEnum, IsOptional, IsDateString } from 'class-validator';
+import {
+  IsNumber,
+  IsObject,
+  IsEnum,
+  IsOptional,
+  IsDateString,
+} from 'class-validator';
 
 /**
  * DTO for creating a new ProcessTemplateStepTriggerConditionSubmission.

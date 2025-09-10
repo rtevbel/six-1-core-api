@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateStepTriggerConditionEntity } from './entities/process_template_step_trigger_condition.entity';
 import { CreateProcessTemplateStepTriggerConditionDto } from './dto/create-process_template_step_trigger_condition.dto';
 import { UpdateProcessTemplateStepTriggerConditionDto } from './dto/update-process_template_step_trigger_condition.dto';
-import {FindAllResultInterface} from "./interfaces/findall-result.interface"
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
 import {
@@ -138,11 +138,10 @@ export class ProcessTemplateStepTriggerConditionsService {
    * @returns The query object for TypeORM's `findAndCount` method.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    
     const query: Record<string, any> = {};
 
     // Ensure processTemplateStepId is provided for filtering
-    query.where = {processTemplateStepId:filtersDto.processTemplateStepId};
+    query.where = { processTemplateStepId: filtersDto.processTemplateStepId };
 
     if (filtersDto.search) {
       query.where = [
