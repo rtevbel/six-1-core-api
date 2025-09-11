@@ -7,6 +7,9 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import { plainToInstance } from 'class-transformer';
+import { EventLogsService } from '../events/event_logs/event_logs.service';
+import { EventListenersService } from '../events/event_listeners/event_listeners.service';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -18,6 +21,8 @@ export class NotificationsService {
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationRepository: Repository<NotificationEntity>,
+    private readonly eventLogsService: EventLogsService,
+    private readonly eventListenersService: EventListenersService,
   ) {}
 
   /**
@@ -185,4 +190,59 @@ export class NotificationsService {
       limit: filtersDto.limit || 10,
     };
   }
+
+
+  /**
+   * Processes event logs and creates notifications for users based on their event listeners.
+   * This method fetches event logs, retrieves associated listeners, and generates notifications accordingly.
+   */
+
+  async processEventLogsAndCreateNotifications(): Promise<void> {
+
+    // Step 1: Fetch all event logs
+    const eventLogs = await this.eventLogsService.getAllEventLogs();
+
+    // Proceed only if there are event logs to process
+    if(eventLogs.length > 0){
+
+      for (const eventLog of eventLogs) {
+        //const { id: eventId, eventName, data } = eventLog;
+        let eventName:string = eventLog.event.name;
+        let eventId:number = eventLog.event.eventId;
+        let userId:number = eventLog.userId;
+  
+        // Step 2: Fetch listeners for the current event
+        const listeners = await this.eventListenersService.getListenersByEventId(eventId);
+  
+        for (const listener of listeners) {
+          //const { userId, notificationType } = ;
+          let notificationType:string = listener.channel.name;
+          let subject = listener.template ? listener.template.subject : `Notification for event: ${eventName}`;
+          let message = listener.template ? listener.template.message : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`;
+          
+          // Step 3: Create a notification DTO for each listener
+          const createNotificationDto = plainToInstance(CreateNotificationDto, {
+            userId,
+            eventId,
+            type: notificationType,
+            subject: subject ? subject : `Notification for event: ${eventName}`,
+            message: message ? message :`Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`,
+            status: 'pending',
+            scheduledAt: null, // Optional: Add scheduling logic if needed
+          });
+  
+          // Step 4: Save the notification to the database
+          await this.create(userId,createNotificationDto);
+          
+          // Step 5: Update the event log status to indicate notification has been processed
+          await this.eventLogsService.update(userId , eventLog.logId,{logId:eventLog.logId,status:1});
+        }
+      }
+
+    }
+
+  }
+
+
+
 }

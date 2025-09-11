@@ -12,6 +12,8 @@ import {
 } from './common/constants';
 import { ensureDefinedConfigParam } from './common/functions';
 
+//import { v4 as uuidv4 } from 'uuid';
+
 /**
  * Application bootstart function contains all the,
  * application's initial configurations
@@ -65,9 +67,14 @@ async function bootstrap() {
     },
   });
 
-  //Start all connected microservices
- await app.startAllMicroservices();
+  // Polyfill for crypto module to support,
+  if (typeof crypto === 'undefined') {
+    global.crypto = require('crypto');
+  }
 
+  //Start all connected microservices
+  await app.startAllMicroservices();
+  
   /**
    * Initialise application to enable the ,
    * usage of onModuleInit and onApplicationBootstrap,

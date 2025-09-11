@@ -1,10 +1,10 @@
 import { IsString, IsOptional, IsNumber, IsNotEmpty , IsArray} from 'class-validator';
 /**
- * Create Event Log DTO class.
+ * Create Event Logs DTO class.
  *
  * Data transfer object for creating an event log.
  */
-export class CreateEventLogDto {
+export class CreateEventLogsDto {
   /**
    * Event ID.
    *
@@ -23,12 +23,12 @@ export class CreateEventLogDto {
    * - Required field.
    * - Must be a number array.
    *
-   * @type {number}
+   * @type {number[]}
    */
-
-  @IsNumber()
+  @IsArray()
+  @IsNumber({}, { each: true })
   @IsNotEmpty()
-  userId!: number;
+  userIds!: number[];
 
   /**
    * Entity ID related to the event.
@@ -41,18 +41,6 @@ export class CreateEventLogDto {
   @IsNumber()
   @IsOptional()
   entityId?: number;
-
-  /**
-   * Status of the event log.
-   *
-   * - Optional field.
-   * - Must be a number.
-   *
-   * @type {number}
-   */
-  @IsNumber()
-  @IsOptional()
-  status?:number;
 
   /**
    * Type of the entity related to the event.

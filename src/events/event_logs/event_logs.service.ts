@@ -3,11 +3,13 @@ import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventLogEntity } from './entities/event_log.entity';
 import { CreateEventLogDto } from './dto/create-event_log.dto';
+import { CreateEventLogsDto } from './dto/create-event_logs.dto';
 import { UpdateEventLogDto } from './dto/update-event_log.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import {EventsService} from "../events.service";
+import { plainToInstance } from 'class-transformer';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -185,38 +187,57 @@ export class EventLogsService {
     };
   }
 
+  /**
+   * Fetches event details by event name and creates new event log records for each user in the userIds array.
+   * @param userId - ID of the user creating the record.
+   * @param eventName - The name of the event triggering the log creation.
+   * @param createEventLogDto - Data Transfer Object containing additional event log details.
+   * @returns An array of created EventLogEntity objects.
+   */
+  async createEventLogByEventName(
+    userId: number,
+    eventName: string,
+    createEventLogsDto: CreateEventLogsDto,
+  ): Promise<EventLogEntity[]> {
+    // Fetch event details by event name
+    const eventDetails = await this.eventsService.findOneByName(userId, eventName);
+
+    if (!eventDetails) {
+      throw new NotFoundException(`Event with name "${eventName}" not found.`);
+    }
+    
+    // Ensure userIds array exists and is not empty
+    if (!createEventLogsDto.userIds || createEventLogsDto.userIds.length === 0) {
+      throw new Error('No user IDs provided in the CreateEventLogDto.');
+    }
+    
+    const createdEventLogs: EventLogEntity[] = [];
+    
+    // Iterate over each userId in the userIds array
+    for (const usrId of createEventLogsDto.userIds) {
+      const eventLogData = plainToInstance(CreateEventLogDto,{
+        eventId: eventDetails.eventId,
+        userId: usrId,
+        entityId: createEventLogsDto.entityId || null,
+        entityType: createEventLogsDto.entityType || null,
+        externalId: createEventLogsDto.externalId || null,
+        createdBy: userId || 0,
+      });
+      
+      // Create and save the event log record
+      const eventLogEntity = await this.create(userId, eventLogData)
+
+      createdEventLogs.push(eventLogEntity);
+    }
+
+    return createdEventLogs;
+  }
 
   /**
- * Fetches event details by event name and creates a new event log record.
- * @param userId - ID of the user creating the record.
- * @param eventName - The name of the event triggering the log creation.
- * @param createEventLogDto - Data Transfer Object containing additional event log details.
- * @returns The created EventLogEntity.
- */
-async createEventLogByEventName(
-  userId: number,
-  eventName: string,
-  createEventLogDto: CreateEventLogDto,
-): Promise<EventLogEntity> {
-  // Fetch event details by event name
-  const eventDetails = await this.eventsService.findOneByName(userId,eventName);
-
-  if (!eventDetails) {
-    throw new NotFoundException(`Event with name "${eventName}" not found.`);
+   * Retrieves all event logs without any filters.
+   * @returns An array of all EventLogEntity records.
+   */
+  async getAllEventLogs(): Promise<EventLogEntity[]> {
+    return await this.eventLogRepository.find({ relations: ['event', 'user'] , where:{status:0} });
   }
-  
-  // Combine event details with the provided DTO
-  const eventLogData = {
-    ...createEventLogDto,
-    eventName: eventDetails.name,
-    eventDescription: eventDetails.description, // Assuming the event has a description
-    createdBy: userId,
-  };
-
-  // Create and save the event log record
-  return await this.eventLogRepository.save(
-    this.eventLogRepository.create(eventLogData),
-  );
-}
-
 }

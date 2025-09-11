@@ -203,4 +203,18 @@ export class EventListenersService {
       limit: filtersDto.limit || 10,
     };
   }
+
+
+  /**
+   * Retrieves all active event listeners for a specific event ID.
+   * @param eventId - ID of the event to retrieve listeners for.
+   * @returns An array of active EventListenerEntity records associated with the event ID.
+   */
+
+  async getListenersByEventId(eventId: number): Promise<EventListenerEntity[]> {
+    return await this.eventListenerRepository.find({
+      where: { eventId, isActive: true },
+      relations: ['channel', 'template'],
+    });
+  }
 }

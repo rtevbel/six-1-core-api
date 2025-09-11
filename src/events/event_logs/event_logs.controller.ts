@@ -8,6 +8,7 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { EventLogsService } from './event_logs.service';
 import { CreateEventLogDto } from './dto/create-event_log.dto';
 import { UpdateEventLogDto } from './dto/update-event_log.dto';
+import { CreateEventLogsDto } from './dto/create-event_logs.dto'
 import { FiltersDto } from './dto/filters.dto';
 import { EventLogEntity } from './entities/event_log.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
@@ -107,17 +108,16 @@ export class EventLogsController {
     return this.eventLogsService.remove(userId, id);
   }
 
-   /**
+  /**
    * Dynamically handles all other events with a specific prefix.
    * @param eventName - The name of the event.
    * @param payload - The payload of the event.
    */
-   @OnEvent(`six1-event.*`)
-   async handleDynamicEvent(eventName: string, payload: any): Promise<void>{
-     console.log(`Received dynamic event: ${eventName}`);
-     console.log(`Payload:`, payload);
+   @OnEvent(`six1-event.*`, { async: true })
+   async handleDynamicEvent(@Payload('data') payload: any): Promise<void>{
+     const eventName = payload.eventName || 'unknown_event';
      let userId = payload.userId || null;
-     const createEventLogDto = plainToInstance(CreateEventLogDto, payload.data || {});
-     await  this.eventLogsService.createEventLogByEventName(userId , eventName, createEventLogDto);
+     const createEventLogsDto = plainToInstance(CreateEventLogsDto, payload.data || {});
+     await  this.eventLogsService.createEventLogByEventName(userId , eventName, createEventLogsDto);
    }
 }

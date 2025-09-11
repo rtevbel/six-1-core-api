@@ -8,7 +8,7 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { ProcessTemplatesService } from '../process_templates/process_templates.service';
-import { CreateProjectTaskDefaultStatusDto } from './dto/create-project_task_default_status.dto';
+import { CreateProjectTaskDefaultStatusDto } from './project_task_statuses/dto/create-project_task_default_status.dto';
 import {EventEmitter2} from '@nestjs/event-emitter';
 import {TasksService} from "../projects/tasks/tasks.service";
 
@@ -107,6 +107,9 @@ export class ProjectsService {
         // Dispatch event to create default task statuses for the new project
         await this.dispatchCreateDefaultTaskStatusesEvent(userId,createDto);
     }
+
+    // Dispatch event to create notifications for the new project
+    await this.dispatchCreateProjectNotificationEvent(userId,project);
 
     return project;
   }
@@ -345,7 +348,35 @@ export class ProjectsService {
       userId,
       projectId,
       processTemplateId,
-    });
+     });
   }
+
+    /**
+     * Dispatches the 'six1-event.project_created' event.
+     * This triggers the creation of notifications for a newly created project.
+     * @param userId - ID of the user making the request.
+     * @param createDto - Data transfer object containing project details.
+     */
+    async dispatchCreateProjectNotificationEvent(
+      userId: number,
+      createDto: ProjectEntity,
+    ): Promise<void> {
+
+     const eventPayload = {
+        userIds:[userId],
+        entityId: createDto.projectId,
+        entityType: 'Project',
+        externalId: 0,
+        eventId: 0,
+        createdBy: userId
+      }
+
+      // Emit the event asynchronously with the required payload
+      await this.eventEmitter.emitAsync('six1-event.project_created', {
+        userId,
+        eventName: 'project_created',
+        data: eventPayload,
+      });
+    }
 
 }

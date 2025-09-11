@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationChannelsModule } from './notification_channels/notification_channels.module';
@@ -9,6 +9,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../common/functions';
 import { MESSAGE_BROKER_NOTIFICATION_SERVICE_CLIENT_TOKEN } from './constants';
+import {EventListenersModule} from "../events/event_listeners/event_listeners.module";
+import {EventLogsModule} from "../events/event_logs/event_logs.module"
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -76,6 +78,8 @@ import { NotificationLogsModule } from './notification_logs/notification_logs.mo
     NotificationChannelsModule,
     NotificationTemplatesModule,
     NotificationLogsModule,
+    EventListenersModule,
+    forwardRef(()=>EventLogsModule)
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],

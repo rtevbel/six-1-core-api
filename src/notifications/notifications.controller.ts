@@ -11,6 +11,7 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { NotificationEntity } from './entities/notification.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import {Cron , CronExpression} from "@nestjs/schedule";
 
 import {
   MICROSERVICE_CREATE_NOTIFICATION_PATTERN,
@@ -103,4 +104,14 @@ export class NotificationsController {
   ): Promise<DeleteResult> {
     return this.notificationsService.remove(userId, id);
   }
+
+  /**
+   * Scheduled task to process event logs and create notifications every 10 minutes.
+   * This method is triggered by a cron job.
+   */
+  @Cron(CronExpression.EVERY_10_SECONDS)
+  processEventLogsAndCreateNotifications(): Promise<void> {
+    return this.notificationsService.processEventLogsAndCreateNotifications();
+  }
+  
 }

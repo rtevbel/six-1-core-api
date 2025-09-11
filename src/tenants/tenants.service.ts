@@ -7,8 +7,9 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import { v4 as uuidv4 } from 'uuid';
-
+//import { v4 as uuidv4 } from 'uuid';
+import { time } from 'console';
+ 
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -32,7 +33,10 @@ export class TenantsService {
     createTenantDto: CreateTenantDto,
   ): Promise<TenantEntity> {
     // Generate a unique tenant identifier using UUID
-    createTenantDto.tenantIdentifier = `TENANT-${uuidv4()}`;
+    //createTenantDto.tenantIdentifier = `TENANT-${uuidv4()}`;
+    // Generate a short unique identifier (e.g., timestamp in milliseconds)
+    const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
+    createTenantDto.tenantIdentifier = `TENANT-${uniqueId}`;
 
     return await this.tenantRepository.save(
       this.tenantRepository.create(createTenantDto),

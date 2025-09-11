@@ -7,7 +7,7 @@ import { UpdateTenantTeamDto } from './dto/update-tenant_team.dto';
 import { RpcException } from '@nestjs/microservices';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
-import { v4 as uuidv4 } from 'uuid';
+//import { v4 as uuidv4 } from 'uuid';
 
 import {
   NO_RECORD_FOUND_MESSAGE,

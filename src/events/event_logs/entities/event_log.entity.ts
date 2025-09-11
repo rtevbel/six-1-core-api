@@ -70,6 +70,16 @@ export class EventLogEntity {
   externalId?: string;
 
   @Column({
+    name: 'status',
+    type: 'tinyint',
+    unsigned: true,
+    nullable: true,
+    comment:
+      'Status of the event log (0 = active, 1 = processed)',
+  })
+  status?: number;
+
+  @Column({
     name: 'created_by',
     type: 'bigint',
     unsigned: true,

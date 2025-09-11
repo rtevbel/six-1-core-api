@@ -41,6 +41,8 @@ import { ProcessTemplatesModule } from './process_templates/process_templates.mo
 import { CategoriesModule } from './categories/categories.module';
 import { ProjectsModule } from './projects/projects.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import {ScheduleModule} from "@nestjs/schedule";
+import { AutomationModule } from './automation/automation.module';
 
 /**
  * Root module of the application.
@@ -58,7 +60,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
      */
     EventEmitterModule.forRoot({
       // set this to `true` to use wildcards
-      wildcard: false,
+      wildcard: true,
       // the delimiter used to segment namespaces
       delimiter: '.',
       // set this to `true` if you want to emit the newListener event
@@ -107,6 +109,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
       }),
       inject: [ConfigService],
     }),
+    ScheduleModule.forRoot(),
     NotificationsModule,
     UsersModule,
     EventsModule,
@@ -131,6 +134,7 @@ import { EventEmitterModule } from '@nestjs/event-emitter';
     ProcessTemplatesModule,
     CategoriesModule,
     ProjectsModule,
+    AutomationModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

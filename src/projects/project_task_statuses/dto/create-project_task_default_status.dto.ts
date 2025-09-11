@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty } from 'class-validator';
+import {IsNumber, IsNotEmpty } from 'class-validator';
 
 /**
  * Create Project Task Default Status DTO class.

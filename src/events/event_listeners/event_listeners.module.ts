@@ -73,5 +73,6 @@ import {
   ],
   controllers: [EventListenersController],
   providers: [EventListenersService],
+  exports: [EventListenersService],
 })
 export class EventListenersModule {}
