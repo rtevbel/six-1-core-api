@@ -10,11 +10,12 @@ import {
   OneToMany,
 } from 'typeorm';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
-import { ProcessTemplateEntity } from '../../process_templates/entities/process_template.entity';
+import { ProcessInstanceEntity } from '../../process_instances/entities/process_instance.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProjectTaskStatusEntity } from '../../projects/project_task_statuses/entities/project_task_status.entity';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 import { TenantTeamProjectEntity } from '../../tenants/tenant_teams/tenant_team_projects/entities/tenant_team_project.entity';
+
 /**
  * Entity class for `projects` table.
  */
@@ -72,13 +73,14 @@ export class ProjectEntity {
   tenantId!: number;
 
   @Column({
-    name: 'process_template_id',
+    name: 'process_instance_id',
     type: 'bigint',
     unsigned: true,
-    default: 0,
-    comment: 'Linked process template, if project follows custom workflow',
+    nullable: true,
+    comment: 'Linked process instance, if project follows a custom workflow',
   })
-  processTemplateId!: number;
+  @Index('projects_process_instance_id')
+  processInstanceId?: number;
 
   @Column({
     name: 'is_shared',
@@ -88,6 +90,76 @@ export class ProjectEntity {
   })
   @Index('projects_is_shared')
   isShared!: boolean;
+
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: ['active', 'completed', 'canceled', 'on_hold', 'archived'],
+    default: 'active',
+    comment: 'Current status of the project',
+  })
+  @Index('projects_status')
+  status!: 'active' | 'completed' | 'canceled' | 'on_hold' | 'archived';
+
+  @Column({
+    name: 'completed_at',
+    type: 'datetime',
+    nullable: true,
+    comment: 'Timestamp when the project was completed',
+  })
+  completedAt?: Date;
+
+  @Column({
+    name: 'canceled_at',
+    type: 'datetime',
+    nullable: true,
+    comment: 'Timestamp when the project was canceled',
+  })
+  canceledAt?: Date;
+
+  @Column({
+    name: 'on_hold_at',
+    type: 'datetime',
+    nullable: true,
+    comment: 'Timestamp when the project was put on hold',
+  })
+  onHoldAt?: Date;
+
+  @Column({
+    name: 'steps_total',
+    type: 'int',
+    unsigned: true,
+    nullable: true,
+    comment: 'Total number of steps in the project',
+  })
+  stepsTotal?: number;
+
+  @Column({
+    name: 'steps_completed',
+    type: 'int',
+    unsigned: true,
+    nullable: true,
+    comment: 'Number of completed steps in the project',
+  })
+  stepsCompleted?: number;
+
+  @Column({
+    name: 'tasks_total',
+    type: 'int',
+    unsigned: true,
+    nullable: true,
+    comment: 'Total number of tasks in the project',
+  })
+  tasksTotal?: number;
+
+  @Column({
+    name: 'tasks_completed',
+    type: 'int',
+    unsigned: true,
+    nullable: true,
+    comment: 'Number of completed tasks in the project',
+  })
+  tasksCompleted?: number;
 
   @Column({
     name: 'created_by',
@@ -122,8 +194,8 @@ export class ProjectEntity {
   updatedAt!: Date;
 
   /**
-   * Relationship to TenantEntity.
-   * A project belongs to one tenant.
+   * Many-to-one relationship with the `TenantEntity`.
+   * A project belongs to a single tenant.
    */
   @ManyToOne(() => TenantEntity, (tenant) => tenant.projects, {
     onDelete: 'CASCADE',
@@ -132,27 +204,30 @@ export class ProjectEntity {
   tenant!: TenantEntity;
 
   /**
-   * Relationship to ProcessTemplateEntity.
-   * A project can optionally have one process template.
+   * Many-to-one relationship with the `ProcessInstanceEntity`.
+   * A project can optionally be linked to a process instance.
    */
   @ManyToOne(
-    () => ProcessTemplateEntity,
-    (processTemplate) => processTemplate.projects,
+    () => ProcessInstanceEntity,
+    (processInstance) => processInstance.projects,
+    {
+      nullable: true,
+      onDelete: 'SET NULL',
+    },
   )
-  @JoinColumn({ name: 'process_template_id' })
-  processTemplate?: ProcessTemplateEntity;
+  @JoinColumn({ name: 'process_instance_id' })
+  processInstance?: ProcessInstanceEntity;
 
   /**
-   * Relationship to TenantUsersEntity.
-   * A project is created by one user.
+   * Many-to-one relationship with the `TenantUsersEntity` for the user who created the project.
    */
   @ManyToOne(() => TenantUsersEntity, (user) => user.createdProjects)
   @JoinColumn({ name: 'created_by' })
   createdByUser!: TenantUsersEntity;
 
   /**
-   * Relationship to TenantUsersEntity.
-   * A project is updated by one user.
+   * Many-to-one relationship with the `TenantUsersEntity` for the user who last updated the project.
+   * This relationship is nullable and uses `SET NULL` on delete.
    */
   @ManyToOne(() => TenantUsersEntity, (user) => user.updatedProjects, {
     nullable: true,
@@ -162,26 +237,30 @@ export class ProjectEntity {
   updatedByUser?: TenantUsersEntity;
 
   /**
-   * Relationship to TaskEntity.
+   * One-to-many relationship with the `TaskEntity`.
    * A project can have multiple tasks.
    */
   @OneToMany(() => TaskEntity, (task) => task.project, {
-   cascade:true
+    cascade: true,
   })
   tasks!: TaskEntity[];
 
-   /**
-   * Relationship to ProjectTaskStatusEntity.
+  /**
+   * One-to-many relationship with the `ProjectTaskStatusEntity`.
    * A project can have multiple task statuses.
    */
-   @OneToMany(() => ProjectTaskStatusEntity, (taskStatus) => taskStatus.project ,{
-     cascade:true
-   })
-   taskStatuses!: ProjectTaskStatusEntity[];
+  @OneToMany(
+    () => ProjectTaskStatusEntity,
+    (taskStatus) => taskStatus.project,
+    {
+      cascade: true,
+    },
+  )
+  taskStatuses!: ProjectTaskStatusEntity[];
 
-   /**
-   * Relationship to TenantTeamProjectEntity.
-   * A project can have multiple team assignments.
+  /**
+   * One-to-many relationship with the `TenantTeamProjectEntity`.
+   * A project can be assigned to multiple tenant teams.
    */
   @OneToMany(
     () => TenantTeamProjectEntity,
@@ -191,4 +270,8 @@ export class ProjectEntity {
     },
   )
   teamAssignments!: TenantTeamProjectEntity[];
+
+  public getId() {
+    return this.projectId;
+  }
 }

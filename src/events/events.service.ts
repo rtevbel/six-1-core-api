@@ -7,6 +7,8 @@ import { UpdateEventDto } from './dto/update-event.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { EventEnvelope, EntityRef, normalizeEntityRef } from './types';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -18,6 +20,7 @@ export class EventsService {
   constructor(
     @InjectRepository(EventEntity)
     private readonly eventRepository: Repository<EventEntity>,
+    private readonly emitter: EventEmitter2,
   ) {}
 
   /**
@@ -165,21 +168,133 @@ export class EventsService {
   }
 
   /**
- * Retrieves a single event by name.
- * @param userId - ID of the user requesting the data.
- * @param name - Name of the event to retrieve.
- * @returns The EventEntity matching the name.
- * @throws RpcException if no record is found.
- */
-async findOneByName(userId: number, name: string): Promise<EventEntity> {
-  const event = await this.eventRepository.findOne({ where: { name } });
+   * Retrieves a single event by name.
+   * @param userId - ID of the user requesting the data.
+   * @param name - Name of the event to retrieve.
+   * @returns The EventEntity matching the name.
+   * @throws RpcException if no record is found.
+   */
+  async findOneByName(userId: number, name: string): Promise<EventEntity> {
+    const event = await this.eventRepository.findOne({ where: { name } });
 
-  if (!event) {
-    throw new RpcException(
-      NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventEntity.name),
-    );
+    if (!event) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventEntity.name),
+      );
+    }
+
+    return event;
   }
 
-  return event;
-}
+  /**
+   * Retrieves a single event id by name.
+   * @param userId - ID of the user requesting the data.
+   * @param name - Name of the event to retrieve.
+   * @returns  event id
+   * @throws RpcException if no record is found.
+   */
+  async findIdByName(userId: number, name: string): Promise<number | null> {
+    const event = await this.eventRepository.findOne({ where: { name } });
+
+    if (!event) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', EventEntity.name),
+      );
+    }
+    return event.eventId;
+  }
+
+  /**
+   * Emits a domain event with the specified name and options.
+   *
+   * @param eventName - The name of the event to emit.
+   * @param opts - Additional options for the event, including:
+   *   - entity: The entity associated with the event (can be an object or EntityRef).
+   *   - userId: The ID of the user responsible for the event.
+   *   - createdBy: The ID of the user who created the event (defaults to userId if not provided).
+   *   - data: The payload or data associated with the event.
+   *   - correlationId: An ID to correlate this event with other events.
+   *   - causationId: An ID to indicate the cause of this event.
+   *   - externalId: An external identifier for the event.
+   *   - tenantId: The tenant ID associated with the event.
+   *   - occurredAt: The timestamp when the event occurred (defaults to the current date/time).
+   */
+  async emitAsync<TData = unknown>(
+    eventName: string,
+    opts: {
+      entity?: object | EntityRef;
+      userId?: number;
+      createdBy?: number;
+      data?: TData;
+      correlationId?: string;
+      causationId?: string;
+      externalId?: string;
+      tenantId?: number | string;
+      occurredAt?: Date;
+    } = {},
+  ): Promise<any>{
+    // Create an EventEnvelope object with the provided options and defaults
+    const envelope: EventEnvelope<TData> = {
+      eventName,
+      userId: opts.userId,
+      createdBy: opts.createdBy ?? opts.userId,
+      entity: normalizeEntityRef(opts.entity),
+      data: opts.data,
+      correlationId: opts.correlationId,
+      causationId: opts.causationId,
+      externalId: opts.externalId,
+      tenantId: opts.tenantId,
+      occurredAt: opts.occurredAt ?? new Date(),
+    };
+    // Emit the event using the EventEmitter2 instance
+    return  await this.emitter.emitAsync(eventName, envelope);
+    
+  }
+
+  /**
+   * Emits a domain event with the specified name and options.
+   *
+   * @param eventName - The name of the event to emit.
+   * @param opts - Additional options for the event, including:
+   *   - entity: The entity associated with the event (can be an object or EntityRef).
+   *   - userId: The ID of the user responsible for the event.
+   *   - createdBy: The ID of the user who created the event (defaults to userId if not provided).
+   *   - data: The payload or data associated with the event.
+   *   - correlationId: An ID to correlate this event with other events.
+   *   - causationId: An ID to indicate the cause of this event.
+   *   - externalId: An external identifier for the event.
+   *   - tenantId: The tenant ID associated with the event.
+   *   - occurredAt: The timestamp when the event occurred (defaults to the current date/time).
+   */
+  emit<TData = unknown>(
+    eventName: string,
+    opts: {
+      entity?: object | EntityRef;
+      userId?: number;
+      createdBy?: number;
+      data?: TData;
+      correlationId?: string;
+      causationId?: string;
+      externalId?: string;
+      tenantId?: number | string;
+      occurredAt?: Date;
+    } = {},
+  ): void {
+    // Create an EventEnvelope object with the provided options and defaults
+    const envelope: EventEnvelope<TData> = {
+      eventName,
+      userId: opts.userId,
+      createdBy: opts.createdBy ?? opts.userId,
+      entity: normalizeEntityRef(opts.entity),
+      data: opts.data,
+      correlationId: opts.correlationId,
+      causationId: opts.causationId,
+      externalId: opts.externalId,
+      tenantId: opts.tenantId,
+      occurredAt: opts.occurredAt ?? new Date(),
+    };
+
+    // Emit the event using the EventEmitter2 instance
+    this.emitter.emit(eventName, envelope);
+  }
 }

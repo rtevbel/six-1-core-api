@@ -7,8 +7,8 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {ProcessTemplateStepsService} from "../../process_templates/process_template_steps/process_template_steps.service";
-import {ProjectTaskStatusesService} from "../project_task_statuses/project_task_statuses.service"
+import { ProcessTemplateStepsService } from '../../process_templates/process_template_steps/process_template_steps.service';
+import { ProjectTaskStatusesService } from '../project_task_statuses/project_task_statuses.service';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -34,10 +34,11 @@ export class TasksService {
     userId: number,
     createTaskDto: CreateTaskDto,
   ): Promise<TaskEntity> {
-
     // Assign the userId to createdBy and updatedBy fields
-    createTaskDto.taskIdentifier =  this.generateUniqueTaskIdentifier(createTaskDto.name);
-    
+    createTaskDto.taskIdentifier = this.generateUniqueTaskIdentifier(
+      createTaskDto.name,
+    );
+
     return await this.taskRepository.save(
       this.taskRepository.create(createTaskDto),
     );
@@ -158,7 +159,7 @@ export class TasksService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.relations = ['project','taskStatus'];
+    query.relations = ['project', 'taskStatus'];
     query.where = { projectId: filtersDto.projectId };
 
     if (filtersDto.search) {
@@ -168,7 +169,7 @@ export class TasksService {
         { taskIdentifier: Like(`%${filtersDto.search}%`) },
       ];
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
@@ -209,76 +210,82 @@ export class TasksService {
    * @param projectId - ID of the project for which tasks are to be generated.
    * @param processTemplateId - ID of the process template containing the steps.
    */
-  async generateTasksForProcessTemplateSteps(userId:number,projectId:number,processTemplateId:number){
- 
-       // Fetch the process template steps from the service
-       const templateSteps = await this.processTemplateStepsService.findAllByProcessTemplateId(userId,processTemplateId);
+  async generateTasksForProcessTemplateSteps(
+    userId: number,
+    projectId: number,
+    processTemplateId: number,
+  ) {
+    // Fetch the process template steps from the service
+    const templateSteps =
+      await this.processTemplateStepsService.findAllByProcessTemplateId(
+        userId,
+        processTemplateId,
+      );
 
-       // Fetch the default task status for the project
-       const  taskDefaultStatus =  await this.projectTaskStatusesService.findOneByProjectId(userId,projectId);
+     // Fetch the default task status for the project
+     const taskDefaultStatus =
+      await this.projectTaskStatusesService.findOneByProjectId(
+        userId,
+        projectId,
+      );
 
-       if(templateSteps.length !== 0){
+    if (templateSteps.length !== 0) {
+      // Iterate over each template step and generate a task
+      for (const step of templateSteps) {
+        const taskDto: CreateTaskDto = {
+          projectId,
+          taskIdentifier: this.generateUniqueTaskIdentifier(
+            step.descriptions[0].name,
+          ), // Unique identifier for the task
+          name: `Task for ${step.descriptions[0].name}`, // Name of the task
+          description: `${step.descriptions[0].description}`, // Optional description
+          taskStatusId: taskDefaultStatus?.projectTaskStatusId ?? 1, // Default task status ID (e.g., 'Pending')
+          processTemplateStepId: step.processTemplateStepId, // Process template step ID
+          priority: 'medium', // Default priority
+          estimatedDuration: 2.0, // Default estimated duration (in hours)
+          parentTaskId: undefined, // No parent task by default
+          createdBy: userId, // ID of the user creating the task
+          updatedBy: userId, // ID of the user creating the task
+        };
+        await this.create(userId, taskDto);
+      }
+    }
+    console.log('Default tasks created');
+  }
 
-          // Iterate over each template step and generate a task
-          for (const step of templateSteps) {
-
-            const taskDto: CreateTaskDto = {
-              projectId,
-              taskIdentifier: this.generateUniqueTaskIdentifier(step.descriptions[0].name), // Unique identifier for the task
-              name: `Task for ${step.descriptions[0].name}`, // Name of the task
-              description: `${step.descriptions[0].description}`, // Optional description
-              taskStatusId: taskDefaultStatus?.projectTaskStatusId ?? 1, // Default task status ID (e.g., 'Pending')
-              processTemplateStepId: step.processTemplateStepId, // Process template step ID
-              priority: 'medium', // Default priority
-              estimatedDuration: 2.0, // Default estimated duration (in hours)
-              parentTaskId: undefined, // No parent task by default
-              createdBy:userId, // ID of the user creating the task
-              updatedBy:userId, // ID of the user creating the task
-            };
-            await this.create(userId, taskDto);
-          }
-
-       }
-       console.log('Default tasks created');  
-   }
- 
   /**
-    * Retrieves an array of task IDs associated with a specific project.
-    *
-    * @param {number} userId - The ID of the user requesting the task IDs.
-    * @param {number} projectId - The ID of the project for which to find task IDs.
-    * @returns A promise that resolves to an array of TaskEntity objects containing the task IDs.
-    */
-   async findTaskIdsByProjectId(userId:number , projectId:number):Promise<TaskEntity[]>{
-
-      const taskIds = await this.taskRepository.find({
-        select:['taskId'],
-        where:{
-          projectId:projectId
-        }
-       });
-
-       return taskIds;
-   }
-
-   /**
-    * Generates a unique task identifier based on the task name.
-    * @param {string}
-    * name - The name of the task.
-    * @return {string} - A unique identifier for the task.
+   * Retrieves an array of task IDs associated with a specific project.
+   *
+   * @param {number} userId - The ID of the user requesting the task IDs.
+   * @param {number} projectId - The ID of the project for which to find task IDs.
+   * @returns A promise that resolves to an array of TaskEntity objects containing the task IDs.
    */
-   private generateUniqueTaskIdentifier(name: string): string {
+  async findTaskIdsByProjectId(
+    userId: number,
+    projectId: number,
+  ): Promise<TaskEntity[]> {
+    const taskIds = await this.taskRepository.find({
+      select: ['taskId'],
+      where: {
+        projectId: projectId,
+      },
+    });
 
-    const normalizedTaskName = name
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '-');
+    return taskIds;
+  }
 
-      // Generate a short unique identifier (e.g., timestamp in milliseconds)
-      const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
+  /**
+   * Generates a unique task identifier based on the task name.
+   * @param {string}
+   * name - The name of the task.
+   * @return {string} - A unique identifier for the task.
+   */
+  private generateUniqueTaskIdentifier(name: string): string {
+    const normalizedTaskName = name.trim().toLowerCase().replace(/\s+/g, '-');
 
-      return `task-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
+    // Generate a short unique identifier (e.g., timestamp in milliseconds)
+    const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
 
-   }
-
+    return `task-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
+  }
 }

@@ -1,4 +1,4 @@
-import { Module , forwardRef } from '@nestjs/common';
+import { Global, Module, forwardRef } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { EventsController } from './events.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -25,6 +25,7 @@ import { EventLogsModule } from './event_logs/event_logs.module';
  *
  * @version 0.0.1
  */
+@Global()
 @Module({
   imports: [
     // Registers the EventEntity for TypeORM.
@@ -73,7 +74,7 @@ import { EventLogsModule } from './event_logs/event_logs.module';
       },
     ]),
     EventListenersModule,
-    forwardRef(()=>EventLogsModule),
+    forwardRef(() => EventLogsModule),
   ],
   controllers: [EventsController],
   providers: [EventsService],

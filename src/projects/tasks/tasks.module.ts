@@ -7,8 +7,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../../common/functions';
 import { MESSAGE_BROKER_PROJECT_TASK_SERVICE_CLIENT_TOKEN } from './constants';
-import {ProcessTemplateStepsModule} from "../../process_templates/process_template_steps/process_template_steps.module";
-import {ProjectTaskStatusesModule} from "../project_task_statuses/project_task_statuses.module"
+import { ProcessTemplateStepsModule } from '../../process_templates/process_template_steps/process_template_steps.module';
+import { ProjectTaskStatusesModule } from '../project_task_statuses/project_task_statuses.module';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -75,15 +75,15 @@ import {
       },
     ]),
     ProcessTemplateStepsModule,
-    ProjectTaskStatusesModule
+    ProjectTaskStatusesModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TasksController],
 
   // Specifies the providers that contain the business logic.
   providers: [TasksService],
- 
+
   //Specifies the providers that are exposed as API from this module
-  exports:[TasksService]
+  exports: [TasksService],
 })
 export class TasksModule {}

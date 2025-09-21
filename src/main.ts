@@ -74,7 +74,7 @@ async function bootstrap() {
 
   //Start all connected microservices
   await app.startAllMicroservices();
-  
+
   /**
    * Initialise application to enable the ,
    * usage of onModuleInit and onApplicationBootstrap,

@@ -78,6 +78,6 @@ import {
 
   // Specifies the providers that contain the business logic.
   providers: [ProjectTaskStatusesService],
-  exports:[ProjectTaskStatusesService]
+  exports: [ProjectTaskStatusesService],
 })
 export class ProjectTaskStatusesModule {}

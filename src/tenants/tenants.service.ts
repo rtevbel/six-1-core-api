@@ -9,7 +9,7 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 //import { v4 as uuidv4 } from 'uuid';
 import { time } from 'console';
- 
+
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,

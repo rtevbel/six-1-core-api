@@ -191,58 +191,60 @@ export class NotificationsService {
     };
   }
 
-
   /**
    * Processes event logs and creates notifications for users based on their event listeners.
    * This method fetches event logs, retrieves associated listeners, and generates notifications accordingly.
    */
 
   async processEventLogsAndCreateNotifications(): Promise<void> {
-
     // Step 1: Fetch all event logs
     const eventLogs = await this.eventLogsService.getAllEventLogs();
 
     // Proceed only if there are event logs to process
-    if(eventLogs.length > 0){
-
+    if (eventLogs.length > 0) {
       for (const eventLog of eventLogs) {
         //const { id: eventId, eventName, data } = eventLog;
-        let eventName:string = eventLog.event.name;
-        let eventId:number = eventLog.event.eventId;
-        let userId:number = eventLog.userId;
-  
+        let eventName: string = eventLog.event.name;
+        let eventId: number = eventLog.event.eventId;
+        let userId: number = eventLog.userId;
+
         // Step 2: Fetch listeners for the current event
-        const listeners = await this.eventListenersService.getListenersByEventId(eventId);
-  
+        const listeners =
+          await this.eventListenersService.getListenersByEventId(eventId);
+
         for (const listener of listeners) {
           //const { userId, notificationType } = ;
-          let notificationType:string = listener.channel.name;
-          let subject = listener.template ? listener.template.subject : `Notification for event: ${eventName}`;
-          let message = listener.template ? listener.template.message : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`;
-          
+          let notificationType: string = listener.channel.name;
+          let subject = listener.template
+            ? listener.template.subject
+            : `Notification for event: ${eventName}`;
+          let message = listener.template
+            ? listener.template.message
+            : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`;
+
           // Step 3: Create a notification DTO for each listener
           const createNotificationDto = plainToInstance(CreateNotificationDto, {
             userId,
             eventId,
             type: notificationType,
             subject: subject ? subject : `Notification for event: ${eventName}`,
-            message: message ? message :`Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`,
+            message: message
+              ? message
+              : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`,
             status: 'pending',
             scheduledAt: null, // Optional: Add scheduling logic if needed
           });
-  
+
           // Step 4: Save the notification to the database
-          await this.create(userId,createNotificationDto);
-          
+          await this.create(userId, createNotificationDto);
+
           // Step 5: Update the event log status to indicate notification has been processed
-          await this.eventLogsService.update(userId , eventLog.logId,{logId:eventLog.logId,status:1});
+          await this.eventLogsService.update(userId, eventLog.logId, {
+            logId: eventLog.logId,
+            status: 1,
+          });
         }
       }
-
     }
-
   }
-
-
-
 }

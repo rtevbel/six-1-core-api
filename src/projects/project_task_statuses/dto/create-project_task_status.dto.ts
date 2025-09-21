@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
 
 /**
  * Create Project Task Status DTO class.
@@ -54,7 +54,43 @@ export class CreateProjectTaskStatusDto {
    */
   @IsOptional()
   @IsNumber()
-  statusOrder!: number;
+  statusOrder?: number;
+
+  /**
+   * Color of the task status.
+   *
+   * - Optional field.
+   * - Must be a string.
+   *
+   * @type {string}
+   */
+  @IsOptional()
+  @IsString()
+  color?: string;
+
+  /**
+   * Indicates if the status is a system-protected status.
+   *
+   * - Optional field.
+   * - Must be a boolean.
+   *
+   * @type {boolean}
+   */
+  @IsOptional()
+  @IsBoolean()
+  isSystem?: boolean;
+
+  /**
+   * Indicates if the status blocks project completion.
+   *
+   * - Optional field.
+   * - Must be a boolean.
+   *
+   * @type {boolean}
+   */
+  @IsOptional()
+  @IsBoolean()
+  blocksCompletion?: boolean;
 
   /**
    * User ID of the creator.
@@ -64,7 +100,7 @@ export class CreateProjectTaskStatusDto {
    *
    * @type {number}
    */
-  @IsNumber()
-  @IsNotEmpty()
-  createdBy!: number;
+    @IsNumber() 
+    @IsNotEmpty()
+    createdBy!: number;
 }

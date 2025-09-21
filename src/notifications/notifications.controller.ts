@@ -11,7 +11,7 @@ import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { NotificationEntity } from './entities/notification.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
-import {Cron , CronExpression} from "@nestjs/schedule";
+import { Cron, CronExpression } from '@nestjs/schedule';
 
 import {
   MICROSERVICE_CREATE_NOTIFICATION_PATTERN,
@@ -113,5 +113,4 @@ export class NotificationsController {
   processEventLogsAndCreateNotifications(): Promise<void> {
     return this.notificationsService.processEventLogsAndCreateNotifications();
   }
-  
 }

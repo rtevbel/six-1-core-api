@@ -29,9 +29,8 @@ import { ProcessTemplateStepTriggerConditionEntity } from '../../../process_temp
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../../projects/project_task_statuses/entities/project_task_status.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
-import {TenantTeamProjectEntity} from "../../tenant_teams/tenant_team_projects/entities/tenant_team_project.entity";
-
-
+import { TenantTeamProjectEntity } from '../../tenant_teams/tenant_team_projects/entities/tenant_team_project.entity';
+import {ProcessInstanceEntity} from "../../../process_instances/entities/process_instance.entity";
 
 /**
  * Entity class for `tenant_users` table.
@@ -497,13 +496,21 @@ export class TenantUsersEntity {
    * Relationship to TenantTeamProjectEntity.
    * A user can create multiple project assignments.
    */
-    @OneToMany(
-      () => TenantTeamProjectEntity,
-      (teamProject) => teamProject.createdByUser,
-      {
-        cascade: true,
-      },
-    )
-    projectAssignments!: TenantTeamProjectEntity[];
+  @OneToMany(
+    () => TenantTeamProjectEntity,
+    (teamProject) => teamProject.createdByUser,
+    {
+      cascade: true,
+    },
+  )
+  projectAssignments!: TenantTeamProjectEntity[];
 
+/**
+ * Relationship to ProcessInstanceEntity.
+ * A tenant user can create multiple process instances.
+ */
+  @OneToMany(() => ProcessInstanceEntity, (processInstance) => processInstance.createdByUser, {
+    cascade: true,
+  })
+  createdProcessInstances!: ProcessInstanceEntity[];
 }

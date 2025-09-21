@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { EventsService } from './events.service';
+import { CreateEventDto } from './dto/create-event.dto';
 
 /**
  * Service for managing and caching event IDs based on event names.
@@ -15,7 +17,7 @@ export class EventCatalogService {
    * Dependencies such as a repository, database client, or cache client
    * (e.g., Redis) can be injected here as needed.
    */
-  constructor(/* inject repo/knex/prisma/redis as needed */) {}
+  constructor(private readonly eventsService: EventsService) {}
 
   /**
    * Retrieves the ID of an event by its name. If the event is not found in the cache,
@@ -48,9 +50,7 @@ export class EventCatalogService {
    * @returns A promise that resolves to the event ID, or null if not found.
    */
   private async findIdInDb(eventName: string): Promise<number | null> {
-    // Example query: SELECT id FROM events WHERE name = :eventName
-    // Replace with actual database query logic
-    return null as any;
+    return await this.eventsService.findIdByName(1, eventName);
   }
 
   /**
@@ -60,8 +60,13 @@ export class EventCatalogService {
    * @returns A promise that resolves to the newly created event ID.
    */
   private async createInDb(eventName: string): Promise<number> {
-    // Example query: INSERT INTO events (name) VALUES (:eventName) RETURNING id
-    // Replace with actual database query logic
-    return 0 as any;
+    let creatDto: CreateEventDto = {
+      name: eventName,
+      description: eventName,
+      createdBy: 1,
+    };
+
+    let eventData = await this.eventsService.create(1, creatDto);
+    return eventData.eventId ?? 0;
   }
 }

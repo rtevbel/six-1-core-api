@@ -170,7 +170,7 @@ export class TenantTeamProjectService {
     const query: Record<string, any> = {};
 
     query.relations = ['team', 'project'];
-    
+
     query.where = { tenantTeamId: filtersDto.tenantTeamId };
 
     if (filtersDto.search) {
@@ -179,7 +179,7 @@ export class TenantTeamProjectService {
         { project: { name: Like(`%${filtersDto.search}%`) } },
       ];
     }
-    
+
     if (filtersDto.sortBy) {
       query.order = {
         [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
@@ -193,7 +193,7 @@ export class TenantTeamProjectService {
       query.take = filtersDto.limit;
       query.skip = (filtersDto.page - 1) * filtersDto.limit;
     }
-    
+
     return query;
   }
 

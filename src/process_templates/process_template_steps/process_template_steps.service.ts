@@ -223,24 +223,23 @@ export class ProcessTemplateStepsService {
     };
   }
 
-   /**
+  /**
    * Retrieves all process template steps by process template id.
    * @param userId - ID of the user making the request.
    * @param processTemplateId - ID of the associated process template.
    * @returns An object containing the list of process template steps.
    * @throws RpcException if no records match the filters.
    */
-   async findAllByProcessTemplateId(
+  async findAllByProcessTemplateId(
     userId: number,
     processTemplateId: number,
   ): Promise<ProcessTemplateStepEntity[]> {
- 
     // Fetch process template steps
-    const steps  = await this.processTemplateStepRepository.find({
-      where:{processTemplateId: processTemplateId},
+    const steps = await this.processTemplateStepRepository.find({
+      where: { processTemplateId: processTemplateId },
       relations: ['descriptions'], // Include the 'descriptions' relationship
     });
-    
+
     // Throw exception if no records are found
     if (steps.length === 0) {
       throw new RpcException(
@@ -250,7 +249,7 @@ export class ProcessTemplateStepsService {
         ),
       );
     }
-  
+
     return steps;
   }
 }

@@ -4,12 +4,15 @@ import {
   IsNumber,
   IsNotEmpty,
   IsBoolean,
+  IsEnum,
+  IsDate,
+  IsInt,
 } from 'class-validator';
 
 /**
  * Create project DTO class.
  *
- * @version 0.0.1
+ * @version 0.0.2
  *
  * Data transfer object for creating a project.
  */
@@ -41,13 +44,13 @@ export class CreateProjectDto {
   /**
    * Unique identifier for the project.
    *
-   * - Optional field.
+   * - Required field.
    * - Must be a string.
    *
    * @type {string}
    */
-  @IsOptional()
   @IsString()
+  @IsNotEmpty()
   projectIdentifier!: string;
 
   /**
@@ -97,6 +100,102 @@ export class CreateProjectDto {
   @IsBoolean()
   @IsOptional()
   isShared?: boolean;
+
+  /**
+   * Current status of the project.
+   *
+   * - Optional field.
+   * - Must be one of the allowed enum values.
+   *
+   * @type {'active' | 'completed' | 'canceled' | 'on_hold' | 'archived'}
+   */
+  @IsEnum(['active', 'completed', 'canceled', 'on_hold', 'archived'])
+  @IsOptional()
+  status?: 'active' | 'completed' | 'canceled' | 'on_hold' | 'archived';
+
+  /**
+   * Timestamp when the project was completed.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsDate()
+  @IsOptional()
+  completedAt?: Date;
+
+  /**
+   * Timestamp when the project was canceled.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsDate()
+  @IsOptional()
+  canceledAt?: Date;
+
+  /**
+   * Timestamp when the project was put on hold.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsDate()
+  @IsOptional()
+  onHoldAt?: Date;
+
+  /**
+   * Total number of steps in the project.
+   *
+   * - Optional field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsOptional()
+  stepsTotal?: number;
+
+  /**
+   * Number of completed steps in the project.
+   *
+   * - Optional field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsOptional()
+  stepsCompleted?: number;
+
+  /**
+   * Total number of tasks in the project.
+   *
+   * - Optional field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsOptional()
+  tasksTotal?: number;
+
+  /**
+   * Number of completed tasks in the project.
+   *
+   * - Optional field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @IsOptional()
+  tasksCompleted?: number;
 
   /**
    * User ID of the creator.

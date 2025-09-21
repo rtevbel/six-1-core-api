@@ -25,7 +25,6 @@ import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
 import { OnEvent } from '@nestjs/event-emitter';
 
-
 @Controller('project-task-statuses')
 export class ProjectTaskStatusesController {
   constructor(
@@ -122,8 +121,7 @@ export class ProjectTaskStatusesController {
   ): Promise<void> {
     const userId = Number(payload.userId);
     const createDto: CreateProjectTaskDefaultStatusDto = payload.data;
-      await this.projectTaskStatusesService.createDefault(userId, createDto);
-      console.log('Default task statuses created');
+    await this.projectTaskStatusesService.createDefault(userId, createDto);
+    console.log('Default task statuses created');
   }
-  
 }

@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty , IsArray} from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  IsObject,
+} from 'class-validator';
 /**
  * Create Event Log DTO class.
  *
@@ -52,7 +58,7 @@ export class CreateEventLogDto {
    */
   @IsNumber()
   @IsOptional()
-  status?:number;
+  status?: number;
 
   /**
    * Type of the entity related to the event.
@@ -65,6 +71,13 @@ export class CreateEventLogDto {
   @IsString()
   @IsOptional()
   entityType?: string;
+
+  /**
+   * JSON schema.
+   */
+  @IsOptional()
+  @IsObject()
+  payload?: object;
 
   /**
    * External ID returned by the external notification service.

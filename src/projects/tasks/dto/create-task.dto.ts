@@ -5,6 +5,7 @@ import {
   IsNotEmpty,
   IsEnum,
   IsDecimal,
+  IsDate,
 } from 'class-validator';
 
 /**
@@ -76,7 +77,7 @@ export class CreateTaskDto {
   taskStatusId!: number;
 
   /**
-   * Process template step ID.
+   * Process instance step ID.
    *
    * - Optional field.
    * - Must be a number.
@@ -85,7 +86,7 @@ export class CreateTaskDto {
    */
   @IsNumber()
   @IsOptional()
-  processTemplateStepId?: number;
+  stepInstanceId?: number;
 
   /**
    * Priority of the task.
@@ -125,6 +126,31 @@ export class CreateTaskDto {
   parentTaskId?: number;
 
   /**
+   * Status control type.
+   *
+   * - Required field.
+   * - Must be one of: `manual`, `process`, `hybrid`.
+   * - Default: `manual`.
+   *
+   * @type {'manual' | 'process' | 'hybrid'}
+   */
+  @IsEnum(['manual', 'process', 'hybrid'])
+  @IsNotEmpty()
+  statusControl!: 'manual' | 'process' | 'hybrid';
+
+  /**
+   * Status locked until a specific date and time.
+   *
+   * - Optional field.
+   * - Must be a valid date.
+   *
+   * @type {Date}
+   */
+  @IsDate()
+  @IsOptional()
+  statusLockedUntil?: Date;
+
+  /**
    * User ID of the creator.
    *
    * - Required field.
@@ -136,15 +162,15 @@ export class CreateTaskDto {
   @IsNotEmpty()
   createdBy!: number;
 
-  /*
-    * User ID of the last updater.
-    *
-    * - Optional field.
-    * - Must be a number.
-    *
-    * @type {number}
-  */
+  /**
+   * User ID of the last updater.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
   @IsOptional()
   @IsNumber()
-  updatedBy?:number;
+  updatedBy?: number;
 }

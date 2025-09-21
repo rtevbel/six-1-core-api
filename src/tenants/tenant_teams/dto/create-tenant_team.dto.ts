@@ -1,5 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty , MaxLength } from 'class-validator';
-
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * Create tenant team DTO class.

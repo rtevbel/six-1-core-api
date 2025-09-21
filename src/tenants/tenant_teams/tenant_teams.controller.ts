@@ -38,11 +38,7 @@ export class TenantTeamController {
     @Payload('tenantId', ParseIntPipe) tenantId: number,
     @Payload('data') createTenantTeamDto: CreateTenantTeamDto,
   ): Promise<TenantTeamEntity> {
-    return this.tenantTeamService.create(
-      userId,
-      tenantId,
-      createTenantTeamDto,
-    );
+    return this.tenantTeamService.create(userId, tenantId, createTenantTeamDto);
   }
 
   /**
@@ -72,10 +68,7 @@ export class TenantTeamController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    return await this.tenantTeamService.findAllByFilter(
-      userId,
-      filtersDto,
-    );
+    return await this.tenantTeamService.findAllByFilter(userId, filtersDto);
   }
 
   /**

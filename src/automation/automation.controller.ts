@@ -25,7 +25,10 @@ export class AutomationController {
 
   @MessagePattern('updateAutomation')
   update(@Payload() updateAutomationDto: UpdateAutomationDto) {
-    return this.automationService.update(updateAutomationDto.id, updateAutomationDto);
+    return this.automationService.update(
+      updateAutomationDto.id,
+      updateAutomationDto,
+    );
   }
 
   @MessagePattern('removeAutomation')

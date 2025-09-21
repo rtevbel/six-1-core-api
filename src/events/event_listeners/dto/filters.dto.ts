@@ -33,7 +33,6 @@ export class FiltersDto {
   @MaxLength(100)
   search?: string;
 
-
   /**
    * Filter by active status.
    * Optional field, must be a boolean if provided.
@@ -68,7 +67,7 @@ export class FiltersDto {
    * Must be one of 'listenerId','eventId','channelId'.
    */
   @IsOptional()
-  @IsIn(['listenerId','eventId','channelId'], {
+  @IsIn(['listenerId', 'eventId', 'channelId'], {
     message: 'sortBy key must be from this list (listenerId,eventId,channelId)',
   })
   @IsString()

@@ -8,12 +8,13 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { EventLogsService } from './event_logs.service';
 import { CreateEventLogDto } from './dto/create-event_log.dto';
 import { UpdateEventLogDto } from './dto/update-event_log.dto';
-import { CreateEventLogsDto } from './dto/create-event_logs.dto'
+import { CreateEventLogsDto } from './dto/create-event_logs.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { EventLogEntity } from './entities/event_log.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { OnEvent } from '@nestjs/event-emitter';
 import { plainToInstance } from 'class-transformer';
+import { EventCatalogService } from '../event-catalog.service';
 
 import {
   MICROSERVICE_CREATE_EVENT_LOG_PATTERN,
@@ -28,8 +29,10 @@ import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe
 
 @Controller('event-logs')
 export class EventLogsController {
-
-  constructor(private readonly eventLogsService: EventLogsService) {}
+  constructor(
+    private readonly logs: EventLogsService,
+    private readonly catalog: EventCatalogService,
+  ) {}
 
   /**
    * Handles the creation of a new event log.
@@ -43,7 +46,7 @@ export class EventLogsController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createEventLogDto: CreateEventLogDto,
   ): Promise<EventLogEntity> {
-    return this.eventLogsService.create(userId, createEventLogDto);
+    return this.logs.create(userId, createEventLogDto);
   }
 
   /**
@@ -58,7 +61,7 @@ export class EventLogsController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface | never> {
-    return this.eventLogsService.findAll(userId, filtersDto);
+    return this.logs.findAll(userId, filtersDto);
   }
 
   /**
@@ -72,7 +75,7 @@ export class EventLogsController {
     @Payload('userId') userId: number,
     @Payload('data') id: number,
   ): Promise<EventLogEntity | NotFoundException> {
-    return this.eventLogsService.findOne(userId, id);
+    return this.logs.findOne(userId, id);
   }
 
   /**
@@ -87,11 +90,7 @@ export class EventLogsController {
     @Payload('userId') userId: number,
     @Payload('data') updateEventLogDto: UpdateEventLogDto,
   ): Promise<UpdateResult> {
-    return this.eventLogsService.update(
-      userId,
-      updateEventLogDto.logId,
-      updateEventLogDto,
-    );
+    return this.logs.update(userId, updateEventLogDto.logId, updateEventLogDto);
   }
 
   /**
@@ -105,7 +104,7 @@ export class EventLogsController {
     @Payload('userId') userId: number,
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
-    return this.eventLogsService.remove(userId, id);
+    return this.logs.remove(userId, id);
   }
 
   /**
@@ -113,11 +112,57 @@ export class EventLogsController {
    * @param eventName - The name of the event.
    * @param payload - The payload of the event.
    */
-   @OnEvent(`six1-event.*`, { async: true })
-   async handleDynamicEvent(@Payload('data') payload: any): Promise<void>{
-     const eventName = payload.eventName || 'unknown_event';
-     let userId = payload.userId || null;
-     const createEventLogsDto = plainToInstance(CreateEventLogsDto, payload.data || {});
-     await  this.eventLogsService.createEventLogByEventName(userId , eventName, createEventLogsDto);
-   }
+  /*@OnEvent(`six1-event.*`, { async: true })
+  async handleDynamicEvent(@Payload('data') payload: any): Promise<void> {
+    const eventName = payload.eventName || 'unknown_event';
+    let userId = payload.userId || null;
+    const createEventLogsDto = plainToInstance(
+      CreateEventLogsDto,
+      payload.data || {},
+    );
+    await this.logs.createEventLogByEventName(
+      userId,
+      eventName,
+      createEventLogsDto,
+    );
+  }*/
+
+  /**
+   * Dynamically handles all other events with a specific prefix.
+   * @param envelope - The envelope of the event.
+   * @param eventName - The name of the event.
+   */
+  @OnEvent('six1-event.*', { async: true })
+  async handle(envelope: any): Promise<void> {
+    
+    let eventName:string = envelope.eventName;
+    if(eventName){
+      eventName = eventName.replace('six1-event.','');
+    }
+    const eventId = await this.catalog.getIdByName(eventName);
+
+    const entityId = envelope?.entity?.entityId ?? envelope?.entity?.id ?? null;
+    const entityType =
+      envelope?.entity?.entityType ??
+      envelope?.entity?.constructor?.name ??
+      null;
+
+    const dto = plainToInstance(CreateEventLogDto, {
+      eventId,
+      userId: envelope?.userId ?? null,
+      entityId: entityId ?? undefined,
+      entityType: entityType ?? undefined,
+      externalId: envelope?.externalId ?? undefined,
+      createdBy: envelope?.createdBy ?? envelope?.userId ?? undefined,
+    });
+
+    await this.logs.create(1, dto, {
+      payload: envelope?.data,
+      eventName,
+      correlationId: envelope?.correlationId,
+      causationId: envelope?.causationId,
+      tenantId: envelope?.tenantId,
+      occurredAt: envelope?.occurredAt ?? new Date(),
+    });
+  }
 }

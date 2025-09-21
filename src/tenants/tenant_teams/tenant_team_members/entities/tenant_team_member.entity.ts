@@ -84,7 +84,7 @@ export class TenantTeamMemberEntity {
   @JoinColumn({ name: 'tenant_user_id' })
   user!: TenantUsersEntity;
 
-   /**
+  /**
    * Relationship to RoleEntity.
    * A member can have a role, which is nullable.
    */

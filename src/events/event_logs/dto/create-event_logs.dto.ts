@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty , IsArray} from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  IsArray,
+} from 'class-validator';
 /**
  * Create Event Logs DTO class.
  *

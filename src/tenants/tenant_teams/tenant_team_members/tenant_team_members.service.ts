@@ -166,16 +166,15 @@ export class TenantTeamMemberService {
    * @returns The query object.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-
     const query: Record<string, any> = {};
 
     query.relations = ['user.user', 'team', 'role'];
-    
-    query.where = {tenantTeamId: filtersDto.tenantTeamId}; // Always filter by tenantTeamId
+
+    query.where = { tenantTeamId: filtersDto.tenantTeamId }; // Always filter by tenantTeamId
 
     if (filtersDto.search) {
       query.where = [
-        { team: { name: Like(`%${filtersDto.search}%`)} }, // Apply LIKE query on team entity's name field
+        { team: { name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on team entity's name field
         { user: { first_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's first_name field
         { user: { last_name: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's last_name field
         { user: { email: Like(`%${filtersDto.search}%`) } }, // Apply LIKE query on user entity's email field

@@ -38,10 +38,11 @@ import { TenantUserWorkingHoursModule } from './tenants/tenant_users/tenant_user
 import { TenantUserOffDaysModule } from './tenants/tenant_users/tenant_user_off_days/tenant_user_off_days.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ProcessTemplatesModule } from './process_templates/process_templates.module';
+import { ProcessInstancesModule } from './process_instances/process_Instances.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProjectsModule } from './projects/projects.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
-import {ScheduleModule} from "@nestjs/schedule";
+import { ScheduleModule } from '@nestjs/schedule';
 import { AutomationModule } from './automation/automation.module';
 
 /**
@@ -135,6 +136,7 @@ import { AutomationModule } from './automation/automation.module';
     CategoriesModule,
     ProjectsModule,
     AutomationModule,
+    ProcessInstancesModule
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

@@ -1,6 +1,5 @@
 import { IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
-import {CreateTenantTeamProjectDto} from "./create-tenant_team_project.dto";
-
+import { CreateTenantTeamProjectDto } from './create-tenant_team_project.dto';
 
 /**
  * Update tenant team project DTO class.
@@ -25,5 +24,4 @@ export class UpdateTenantTeamProjectDto extends PartialType(
   @IsNumber()
   @IsNotEmpty()
   teamProjectId!: number;
-
 }

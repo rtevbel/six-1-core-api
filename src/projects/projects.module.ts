@@ -7,6 +7,7 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../common/functions';
 import { MESSAGE_BROKER_PROJECT_SERVICE_CLIENT_TOKEN } from './constants';
+import {AutomationModule} from "../automation/automation.module";
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -19,6 +20,8 @@ import {
 import { ProjectTaskStatusesModule } from './project_task_statuses/project_task_statuses.module';
 import { TasksModule } from './tasks/tasks.module';
 import { ProcessTemplatesModule } from '../process_templates/process_templates.module';
+import {ProjectStepStatusMappingService} from "./project_step_status_mapping.service";
+import {ProjectStepStatusMappingEntity} from "./entities/project_step_status_mappings.entity";
 
 /**
  * ProjectsModule is responsible for managing projects.
@@ -30,8 +33,8 @@ import { ProcessTemplatesModule } from '../process_templates/process_templates.m
 @Module({
   // Imports required modules and configurations.
   imports: [
-    // Registers the ProjectEntity for TypeORM.
-    TypeOrmModule.forFeature([ProjectEntity]),
+    // Registers the ProjectEntity , ProjectStepStatusMappingEntity for TypeORM.
+    TypeOrmModule.forFeature([ProjectEntity,ProjectStepStatusMappingEntity]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {
@@ -78,11 +81,12 @@ import { ProcessTemplatesModule } from '../process_templates/process_templates.m
     ProcessTemplatesModule,
     ProjectTaskStatusesModule,
     TasksModule,
+    AutomationModule
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [ProjectsController],
-
+  
   // Specifies the providers that contain the business logic.
-  providers: [ProjectsService],
+  providers: [ProjectsService,ProjectStepStatusMappingService],
 })
 export class ProjectsModule {}

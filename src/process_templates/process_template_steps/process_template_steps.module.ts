@@ -88,6 +88,6 @@ import {
   ],
   controllers: [ProcessTemplateStepsController],
   providers: [ProcessTemplateStepsService],
-  exports:[ProcessTemplateStepsService]
+  exports: [ProcessTemplateStepsService],
 })
 export class ProcessTemplateStepsModule {}

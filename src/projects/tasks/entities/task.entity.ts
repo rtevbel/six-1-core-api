@@ -11,7 +11,7 @@ import {
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../project_task_statuses/entities/project_task_status.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
-import { ProcessTemplateStepEntity } from '../../../process_templates/process_template_steps/entities/process_template_step.entity';
+import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
 
 /**
  * Entity class for `tasks`.
@@ -68,13 +68,14 @@ export class TaskEntity {
   taskStatusId!: number;
 
   @Column({
-    name: 'process_template_step_id',
+    name: 'step_instance_id',
     type: 'bigint',
     unsigned: true,
     nullable: true,
-    comment: 'Linked process step',
+    comment: 'Linked process step instance',
   })
-  processTemplateStepId?: number;
+  @Index('tasks_step_instance_id')
+  stepInstanceId?: number;
 
   @Column({
     name: 'priority',
@@ -103,6 +104,22 @@ export class TaskEntity {
     comment: 'If it is a sub-task',
   })
   parentTaskId?: number;
+
+  @Column({
+    name: 'status_control',
+    type: 'enum',
+    enum: ['manual', 'process', 'hybrid'],
+    default: 'manual',
+    nullable: false,
+  })
+  statusControl!: 'manual' | 'process' | 'hybrid';
+
+  @Column({
+    name: 'status_locked_until',
+    type: 'datetime',
+    nullable: true,
+  })
+  statusLockedUntil?: Date;
 
   @Column({
     name: 'created_by',
@@ -151,8 +168,8 @@ export class TaskEntity {
    * Relationship to ProjectTaskStatusEntity.
    * A task has one status.
    */
-  @ManyToOne(() => ProjectTaskStatusEntity, (status) => status.tasks,{
-    cascade:true
+  @ManyToOne(() => ProjectTaskStatusEntity, (status) => status.tasks, {
+    cascade: true,
   })
   @JoinColumn({ name: 'task_status_id' })
   taskStatus!: ProjectTaskStatusEntity;
@@ -187,16 +204,17 @@ export class TaskEntity {
   @JoinColumn({ name: 'updated_by' })
   updatedByUser?: TenantUsersEntity;
 
+
   /**
-   * Relationship to ProcessTemplateStepEntity.
-   * A task can be linked to one process template step.
+   * Relationship to ProcessInstanceStepEntity.
+   * A task can be linked to one process instance step.
    */
-  @ManyToOne(() => ProcessTemplateStepEntity, (step) => step.tasks, {
+  @ManyToOne(() => ProcessInstanceStepEntity, (stepInstance) => stepInstance.tasks, {
     nullable: true,
     onDelete: 'SET NULL',
   })
-  @JoinColumn({ name: 'process_template_step_id' })
-  processTemplateStep?: ProcessTemplateStepEntity;
+  @JoinColumn({ name: 'step_instance_id' })
+  stepInstance?: ProcessInstanceStepEntity;
 
   /**
    * Relationship to TaskEntity.

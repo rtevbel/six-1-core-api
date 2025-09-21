@@ -31,15 +31,15 @@ export class ProjectTaskStatusesService {
     userId: number,
     createDto: CreateProjectTaskStatusDto,
   ): Promise<ProjectTaskStatusEntity> {
-
-   const projectTaskStatus = await this.projectTaskStatusRepository.findOne({
-        where: { projectId: createDto.projectId },
-        order: { statusOrder: 'DESC'},
+    const projectTaskStatus = await this.projectTaskStatusRepository.findOne({
+      where: { projectId: createDto.projectId },
+      order: { statusOrder: 'DESC' },
     });
-   
-    createDto.statusOrder = projectTaskStatus ? parseInt(projectTaskStatus.statusOrder.toString() ,10) + 1 : 1; // Set statusOrder to highest existing + 1 or 1 if none exist
-   
-    console.log(createDto,'createDtocreateDto');
+
+    createDto.statusOrder = projectTaskStatus
+      ? parseInt(projectTaskStatus.statusOrder.toString(), 10) + 1
+      : 1; // Set statusOrder to highest existing + 1 or 1 if none exist
+
     return await this.projectTaskStatusRepository.save(
       this.projectTaskStatusRepository.create(createDto),
     );
@@ -206,16 +206,15 @@ export class ProjectTaskStatusesService {
     userId: number,
     createDto: CreateProjectTaskDefaultStatusDto,
   ): Promise<void> {
-    
-     // Define default task statuses
-     const defaultStatuses = [
+    // Define default task statuses
+    const defaultStatuses = [
       { name: 'To Do', statusOrder: 1 },
       { name: 'In Progress', statusOrder: 2 },
       { name: 'Waiting Approval', statusOrder: 3 },
       { name: 'Blocked', statusOrder: 4 },
       { name: 'Done', statusOrder: 5 },
     ];
-    
+
     // Iterate over default statuses and create them
     for (const status of defaultStatuses) {
       const statusDto = {
@@ -223,10 +222,10 @@ export class ProjectTaskStatusesService {
         tenantId: createDto.tenantId,
         name: status.name,
         statusOrder: status.statusOrder,
-        createdBy: userId, 
+        createdBy: userId,
         updatedBy: userId,
       };
-      
+
       await this.projectTaskStatusRepository.save(
         this.projectTaskStatusRepository.create(statusDto),
       );
@@ -244,13 +243,13 @@ export class ProjectTaskStatusesService {
   async findOneByProjectId(
     userId: number,
     projectId: number,
-  ): Promise<ProjectTaskStatusEntity|null> {
+  ): Promise<ProjectTaskStatusEntity | null> {
     // Fetch the first record for the given projectId
     const taskStatus = await this.projectTaskStatusRepository.findOne({
       where: { projectId: projectId },
       order: { projectTaskStatusId: 'ASC' }, // Ensure the first record is retrieved (ordered by 'id' ascending)
     });
-  
+
     // Throw exception if no record is found
     if (taskStatus === null) {
       throw new RpcException(
@@ -260,7 +259,7 @@ export class ProjectTaskStatusesService {
         ),
       );
     }
-    
+
     return taskStatus;
   }
 }

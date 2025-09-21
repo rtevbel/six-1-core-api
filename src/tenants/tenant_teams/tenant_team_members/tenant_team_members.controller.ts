@@ -60,11 +60,7 @@ export class TenantTeamMemberController {
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantTeamMemberEntity> {
-    return this.tenantTeamMemberService.findOne(
-      userId,
-      tenantTeamId,
-      id,
-    );
+    return this.tenantTeamMemberService.findOne(userId, tenantTeamId, id);
   }
 
   /**
@@ -119,10 +115,6 @@ export class TenantTeamMemberController {
     @Payload('tenantTeamId', ParseIntPipe) tenantTeamId: number,
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
-    return this.tenantTeamMemberService.remove(
-      userId,
-      tenantTeamId,
-      id,
-    );
+    return this.tenantTeamMemberService.remove(userId, tenantTeamId, id);
   }
 }

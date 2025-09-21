@@ -74,8 +74,7 @@ export class EventLogEntity {
     type: 'tinyint',
     unsigned: true,
     nullable: true,
-    comment:
-      'Status of the event log (0 = active, 1 = processed)',
+    comment: 'Status of the event log (0 = active, 1 = processed)',
   })
   status?: number;
 

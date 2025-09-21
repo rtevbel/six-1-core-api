@@ -11,6 +11,7 @@ import {
 import { ProcessTemplateStepEntity } from '../../entities/process_template_step.entity';
 import { TenantUsersEntity } from '../../../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessTemplateStepTriggerConditionSubmissionEntity } from '../../process_template_step_trigger_condition_submissions/entities/process_template_step_trigger_condition_submission.entity';
+import { ProcessInstanceStepTriggerEntity } from '../../../../process_instances/process_instance_steps/process_instance_step_trigger_conditions/entities/process_instance_step_trigger_condition.entity';
 
 /**
  * Entity class for `process_template_step_trigger_conditions` table.
@@ -136,4 +137,17 @@ export class ProcessTemplateStepTriggerConditionEntity {
     },
   )
   submissions!: ProcessTemplateStepTriggerConditionSubmissionEntity[];
+
+  /**
+   * Relationship to ProcessInstanceStepTriggerEntity.
+   * A condition can have multiple triggers.
+   */
+  @OneToMany(
+    () => ProcessInstanceStepTriggerEntity,
+    (trigger) => trigger.processTemplateStepTriggerCondition,
+    {
+      cascade: true,
+    },
+  )
+  triggers!: ProcessInstanceStepTriggerEntity[];
 }

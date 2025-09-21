@@ -9,8 +9,8 @@ import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../common/functions';
 import { MESSAGE_BROKER_NOTIFICATION_SERVICE_CLIENT_TOKEN } from './constants';
-import {EventListenersModule} from "../events/event_listeners/event_listeners.module";
-import {EventLogsModule} from "../events/event_logs/event_logs.module"
+import { EventListenersModule } from '../events/event_listeners/event_listeners.module';
+import { EventLogsModule } from '../events/event_logs/event_logs.module';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -79,7 +79,7 @@ import { NotificationLogsModule } from './notification_logs/notification_logs.mo
     NotificationTemplatesModule,
     NotificationLogsModule,
     EventListenersModule,
-    forwardRef(()=>EventLogsModule)
+    forwardRef(() => EventLogsModule),
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService],

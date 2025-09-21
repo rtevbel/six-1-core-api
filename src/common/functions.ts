@@ -97,9 +97,11 @@ export function ensureDefined<T>(
  */
 
 export function buildTaskUrl(projectSlug: string, taskId: string) {
-
-   const APP_WEB_URL = ensureDefinedConfigParam(process.env.APP_WEB_URL, 'APP_WEB_URL');
-   return `${APP_WEB_URL}/p/${projectSlug}/t/${taskId}`;
+  const APP_WEB_URL = ensureDefinedConfigParam(
+    process.env.APP_WEB_URL,
+    'APP_WEB_URL',
+  );
+  return `${APP_WEB_URL}/p/${projectSlug}/t/${taskId}`;
 }
 
 /**
@@ -109,8 +111,9 @@ export function buildTaskUrl(projectSlug: string, taskId: string) {
  */
 
 export function buildProjectUrl(projectSlug: string) {
-
-  const APP_WEB_URL = ensureDefinedConfigParam(process.env.APP_WEB_URL, 'APP_WEB_URL');
+  const APP_WEB_URL = ensureDefinedConfigParam(
+    process.env.APP_WEB_URL,
+    'APP_WEB_URL',
+  );
   return `${APP_WEB_URL}/p/${projectSlug}`;
-
 }

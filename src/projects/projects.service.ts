@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, Like, UpdateResult, DeleteResult , DataSource } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProjectEntity } from './entities/project.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -9,8 +9,14 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { ProcessTemplatesService } from '../process_templates/process_templates.service';
 import { CreateProjectTaskDefaultStatusDto } from './project_task_statuses/dto/create-project_task_default_status.dto';
-import {EventEmitter2} from '@nestjs/event-emitter';
-import {TasksService} from "../projects/tasks/tasks.service";
+import { EventEmitter2 } from '@nestjs/event-emitter';
+import { TasksService } from '../projects/tasks/tasks.service';
+import {EventsService} from "../events/events.service";
+
+import { ProcessInstantiationService } from '../automation/process-instantiation.service';
+import { StepOrchestratorService } from '../automation/step-orchestrator.service';
+import { ProjectTaskStatusesService } from '../projects/project_task_statuses/project_task_statuses.service';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -23,8 +29,14 @@ export class ProjectsService {
     @InjectRepository(ProjectEntity)
     private readonly projectRepository: Repository<ProjectEntity>,
     private readonly processTemplatesService: ProcessTemplatesService,
-    private readonly tasksService:TasksService,
+    private readonly tasksService: TasksService,
     private eventEmitter: EventEmitter2,
+    private events:EventsService,
+    private readonly ds: DataSource,
+    private readonly processes: ProcessInstantiationService,
+    private readonly orchestrator: StepOrchestratorService,
+    private readonly projectTaskStatusesService:ProjectTaskStatusesService
+
   ) {}
 
   /**
@@ -37,8 +49,10 @@ export class ProjectsService {
     userId: number,
     createProjectDto: CreateProjectDto,
   ): Promise<ProjectEntity> {
+
+
     // Extract the project name
-    const projectName = createProjectDto.name;
+    /*const projectName = createProjectDto.name;
 
     // Normalize the project name: replace spaces with dashes and convert to lowercase
     const normalizedProjectName = projectName
@@ -48,19 +62,17 @@ export class ProjectsService {
 
     // Generate a short unique identifier (e.g., timestamp in milliseconds)
     const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
-    
+
     // Combine normalized project name with the unique identifier (postfix)
     createProjectDto.projectIdentifier = `${normalizedProjectName}-${uniqueId}`;
     const processTemplateId = createProjectDto.processTemplateId || 0;
 
-
-    if(processTemplateId){
-
+    if (processTemplateId) {
       let processtemplate = await this.processTemplatesService.findOne(
         userId,
         processTemplateId,
       );
-  
+
       // If process template is not found, throw an error
       if (!processtemplate.processTemplateId) {
         throw new RpcException(
@@ -75,43 +87,154 @@ export class ProjectsService {
     const project = await this.projectRepository.save(
       this.projectRepository.create(createProjectDto),
     );
-  
-    // If project creation is successful and processTemplateId is not empty , dispatch events
-    if(project.projectId && processTemplateId){
 
-      let projectId:number = project.projectId;
+    // If project creation is successful and processTemplateId is not empty , dispatch events
+    if (project.projectId && processTemplateId) {
+      let projectId: number = project.projectId;
       // After creating the project, dispatch event to create default task statuses
       const createDto: CreateProjectTaskDefaultStatusDto = {
         tenantId: createProjectDto.tenantId,
         projectId: projectId,
-        createdBy: userId
+        createdBy: userId,
       };
-      
+
       // Dispatch event to create default task statuses for the new project
-      await this.dispatchCreateDefaultTaskStatusesEvent(userId,createDto);
+      await this.dispatchCreateDefaultTaskStatusesEvent(userId, createDto);
 
       // Dispatch event to generate tasks for all process template steps
-      await this.dispatchGenerateTasksEvent(userId,projectId,processTemplateId);
+      await this.dispatchGenerateTasksEvent(
+        userId,
+        projectId,
+        processTemplateId,
+      );
+    } else if (project.projectId) {
+      let projectId: number = project.projectId;
 
-    }else if(project.projectId){
+      // After creating the project, dispatch event to create default task statuses
+      const createDto: CreateProjectTaskDefaultStatusDto = {
+        tenantId: createProjectDto.tenantId,
+        projectId: projectId,
+        createdBy: userId,
+      };
 
-       let projectId:number = project.projectId;
-       
-        // After creating the project, dispatch event to create default task statuses
-        const createDto: CreateProjectTaskDefaultStatusDto = {
-          tenantId: createProjectDto.tenantId,
-          projectId: projectId,
-          createdBy: userId
-        };
-        
-        // Dispatch event to create default task statuses for the new project
-        await this.dispatchCreateDefaultTaskStatusesEvent(userId,createDto);
+      // Dispatch event to create default task statuses for the new project
+      await this.dispatchCreateDefaultTaskStatusesEvent(userId, createDto);
     }
 
     // Dispatch event to create notifications for the new project
-    await this.dispatchCreateProjectNotificationEvent(userId,project);
+    await this.dispatchCreateProjectNotificationEvent(userId, project);
+    */
+    return await this.ds.transaction(async (em) => {
+      // 1) Save project
 
-    return project;
+      // Extract the project name
+      const projectName = createProjectDto.name;
+       // Normalize the project name: replace spaces with dashes and convert to lowercase
+    const normalizedProjectName = projectName
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-');
+
+  // Generate a short unique identifier (e.g., timestamp in milliseconds)
+  const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
+
+  // Combine normalized project name with the unique identifier (postfix)
+  createProjectDto.projectIdentifier = `${normalizedProjectName}-${uniqueId}`;
+
+      const project = await em.getRepository(ProjectEntity).save(
+        em.getRepository(ProjectEntity).create(createProjectDto),
+      );
+      
+      // 2) If a template was provided, instantiate process & build tasks from INSTANCE steps
+      if (createProjectDto.processTemplateId) {
+        const piId = await this.processes.instantiateProcess(createProjectDto.processTemplateId, createProjectDto.tenantId, userId);
+        
+        // Link project -> process instance
+        await em.getRepository(ProjectEntity).update(project.projectId, { processInstanceId: piId });
+
+
+         // Define default task statuses
+            const defaultStatuses = [
+              { name: 'To Do', statusOrder: 1 },
+              { name: 'In Progress', statusOrder: 2 },
+              { name: 'Waiting Approval', statusOrder: 3 },
+              { name: 'Blocked', statusOrder: 4 },
+              { name: 'Done', statusOrder: 5 },
+            ];
+             
+             // Iterate over default statuses and create them
+            for (const status of defaultStatuses) {
+                await em.query(
+                `INSERT INTO project_task_statuses
+                  (name , tenant_id , project_id , status_order , created_by)
+                 VALUES (? , ? , ? , ?, ?)`,
+                [
+                  status.name,
+                  createProjectDto.tenantId,
+                  project.projectId,
+                  status.statusOrder,
+                  userId
+                ],
+              );
+         }
+
+         // Fetch the default task status for the project
+         //const taskDefaultStatus =
+        //await this.projectTaskStatusesService.findOneByProjectId(
+          //userId,
+          //project.projectId,
+        //);
+        
+        // Create tasks from INSTANCE steps (not from template)
+        const instanceSteps = await em.query(
+          `SELECT step_instance_id, name, task_type, step_order, status
+             FROM process_instance_steps
+            WHERE process_instance_id = ?
+            ORDER BY step_order ASC`,
+          [piId],
+        );
+
+        console.log(piId,'piIdpiIdpiIdpiIdpiIdpiIdpiId');
+        console.log(instanceSteps,'instanceStepsinstanceStepsinstanceSteps');
+
+        for (const s of instanceSteps) {
+         
+          await em.query(
+            `INSERT INTO tasks
+              (project_id, step_instance_id, name, task_indentifier , description , priority, estimated_duration , parent_task_id, task_status_id, created_by, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ? , ?, ?, NOW())`,
+            [
+              project.projectId,
+              s.step_instance_id,
+              s.name,
+              s.name ? this.generateUniqueTaskIdentifier(s.name) :'task-'+s.step_instance_id+project.projectId, // Name of the task
+              s.description, // Optional description
+              'medium', // Default priority
+               2.0, // Default estimated duration (in hours)
+               undefined, // No parent task by default
+              //taskDefaultStatus?.projectTaskStatusId ?? 1, // Default task status ID (e.g., 'Pending')
+             1, // Default task status ID (e.g., 'Pending')
+              userId,
+            ],
+          );
+        }
+      
+      // Kick the orchestrator once; it’s idempotent (first step likely already 'ready')
+       const first = instanceSteps[0];
+         if (first) await this.orchestrator.attemptAdvance(first.step_instance_id, { cause: 'event' });
+      }
+    
+      // 3) Emit project.created (fire-and-forget)
+      this.events.emit('six1-event.project_created', {
+        userId,
+        tenantId: createProjectDto.tenantId,
+        entity: { entityType:project, entityId: project.projectId },
+        data: { projectId: project.projectId },
+      });
+
+      return project;
+    });
+    
   }
 
   /**
@@ -153,12 +276,11 @@ export class ProjectsService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<ProjectEntity> {
-
     const project = await this.projectRepository.find({
       where: { projectId: id },
       relations: ['processTemplate.descriptions', 'tasks', 'taskStatuses'],
     });
-    
+
     if (!project.length) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ProjectEntity.name),
@@ -184,7 +306,7 @@ export class ProjectsService {
     const project = await this.projectRepository.findOneByOrFail({
       projectId: id,
     });
-    
+
     if (!project) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ProjectEntity.name),
@@ -192,15 +314,17 @@ export class ProjectsService {
     }
 
     // If processTemplateId is being updated, you might want to handle related logic here
-    if(project.processTemplateId !== updateProjectDto.processTemplateId){
-
-      let projectTaskIds = await this.tasksService.findTaskIdsByProjectId(userId, project.projectId);
+   /* if (project.processTemplateId !== updateProjectDto.processTemplateId) {
+      let projectTaskIds = await this.tasksService.findTaskIdsByProjectId(
+        userId,
+        project.projectId,
+      );
 
       // TODO: Implement logic for handling existing project task IDs
       if (projectTaskIds.length > 0) {
         // Add your logic here
       }
-      
+
       const processTemplateId = updateProjectDto.processTemplateId || 0;
       let processtemplate = await this.processTemplatesService.findOne(
         userId,
@@ -216,24 +340,22 @@ export class ProjectsService {
           ),
         );
       }
-      
-      let projectId:number = project.projectId;
+
+      let projectId: number = project.projectId;
       // After creating the project, dispatch event to create default task statuses
       const createDto: CreateProjectTaskDefaultStatusDto = {
         tenantId: project.tenantId,
         projectId: projectId,
-        createdBy: userId
+        createdBy: userId,
       };
-      
+
       // Dispatch event to create default task statuses for the new project
-      await this.dispatchCreateDefaultTaskStatusesEvent(userId,createDto);
-      
+      await this.dispatchCreateDefaultTaskStatusesEvent(userId, createDto);
 
       // Optionally, you might want to regenerate tasks based on the new process template
-      await this.dispatchGenerateTasksEvent(userId,id,processTemplateId);
+      await this.dispatchGenerateTasksEvent(userId, id, processTemplateId);
+    }*/
 
-    }
-    
     updateProjectDto.updatedBy = userId;
 
     return await this.projectRepository.update(id, updateProjectDto);
@@ -246,7 +368,6 @@ export class ProjectsService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-
     /* 
        TODO:Need to write a logic to confirm the acitivitis performed on current project,
        if there is any activity performed then avoid to delete it.
@@ -265,7 +386,7 @@ export class ProjectsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.relations = ['processTemplate.descriptions','tasks','taskStatuses'];
+    query.relations = ['processTemplate.descriptions', 'tasks', 'taskStatuses'];
 
     query.where = { tenantId: filtersDto.tenantId };
 
@@ -313,13 +434,13 @@ export class ProjectsService {
     };
   }
 
-   /**
+  /**
    * Dispatches the 'project.create_default_task_statuses' event.
    * This triggers the creation of default task statuses for a new project.
    * @param userId - ID of the user making the request.
    * @param createDto - Data transfer object containing project details.
    */
-   async dispatchCreateDefaultTaskStatusesEvent(
+  async dispatchCreateDefaultTaskStatusesEvent(
     userId: number,
     createDto: CreateProjectTaskDefaultStatusDto,
   ): Promise<void> {
@@ -348,35 +469,40 @@ export class ProjectsService {
       userId,
       projectId,
       processTemplateId,
-     });
+    });
   }
 
-    /**
-     * Dispatches the 'six1-event.project_created' event.
-     * This triggers the creation of notifications for a newly created project.
-     * @param userId - ID of the user making the request.
-     * @param createDto - Data transfer object containing project details.
-     */
-    async dispatchCreateProjectNotificationEvent(
-      userId: number,
-      createDto: ProjectEntity,
-    ): Promise<void> {
+  /**
+   * Dispatches the 'six1-event.project_created' event.
+   * This triggers the creation of notifications for a newly created project.
+   * @param userId - ID of the user making the request.
+   * @param createDto - Data transfer object containing project details.
+   */
+  async dispatchCreateProjectNotificationEvent(
+    userId: number,
+    createDto: ProjectEntity,
+  ): Promise<void> {
+    const eventPayload = {
+      userId:userId,
+      entity:createDto,
+      data:{ projectId: createDto.projectId, name: createDto.name },
+      createdBy: userId,
+    };
+    await this.events.emitAsync('six1-event.project_created', eventPayload);
+  }
 
-     const eventPayload = {
-        userIds:[userId],
-        entityId: createDto.projectId,
-        entityType: 'Project',
-        externalId: 0,
-        eventId: 0,
-        createdBy: userId
-      }
+  /**
+   * Generates a unique task identifier based on the task name.
+   * @param {string}
+   * name - The name of the task.
+   * @return {string} - A unique identifier for the task.
+   */
+  private generateUniqueTaskIdentifier(name: string): string {
+    const normalizedTaskName = name.trim().toLowerCase().replace(/\s+/g, '-');
 
-      // Emit the event asynchronously with the required payload
-      await this.eventEmitter.emitAsync('six1-event.project_created', {
-        userId,
-        eventName: 'project_created',
-        data: eventPayload,
-      });
-    }
+    // Generate a short unique identifier (e.g., timestamp in milliseconds)
+    const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
 
+    return `task-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
+  }
 }

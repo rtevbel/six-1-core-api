@@ -33,8 +33,9 @@ export class TenantTeamService {
     tenantId: number,
     createTenantTeamDto: CreateTenantTeamDto,
   ): Promise<TenantTeamEntity> {
-
-    createTenantTeamDto.teamIdentifier =  this.generateUniqueTeamIdentifier(createTenantTeamDto.name);
+    createTenantTeamDto.teamIdentifier = this.generateUniqueTeamIdentifier(
+      createTenantTeamDto.name,
+    );
     return await this.tenantTeamRepository.save(
       this.tenantTeamRepository.create(createTenantTeamDto),
     );
@@ -168,8 +169,8 @@ export class TenantTeamService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.where = {tenantId:filtersDto.tenantId};
-    
+    query.where = { tenantId: filtersDto.tenantId };
+
     if (filtersDto.search) {
       query.where = [
         { name: Like(`%${filtersDto.search}%`) },
@@ -212,23 +213,17 @@ export class TenantTeamService {
     };
   }
 
-   /**
-    * Generates a unique team identifier based on the team name.
-    * @param {string} name - The name of the team.
-    * @return {string} - A unique identifier for the task.
+  /**
+   * Generates a unique team identifier based on the team name.
+   * @param {string} name - The name of the team.
+   * @return {string} - A unique identifier for the task.
    */
-   private generateUniqueTeamIdentifier(name: string): string {
+  private generateUniqueTeamIdentifier(name: string): string {
+    const normalizedTaskName = name.trim().toLowerCase().replace(/\s+/g, '-');
 
-    const normalizedTaskName = name
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '-');
+    // Generate a short unique identifier (e.g., timestamp in milliseconds)
+    const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
 
-      // Generate a short unique identifier (e.g., timestamp in milliseconds)
-      const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
-
-      return `teanm-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
-
-   }
-
+    return `teanm-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
+  }
 }

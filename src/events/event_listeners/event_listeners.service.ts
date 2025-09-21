@@ -122,7 +122,7 @@ export class EventListenersService {
         ),
       );
     }
-    
+
     return await this.eventListenerRepository.update(
       eventListener.listenerId,
       updateEventListenerDto,
@@ -136,7 +136,11 @@ export class EventListenersService {
    * @param id - ID of the event listener to delete.
    * @returns The result of the delete operation.
    */
-  async remove(userId: number, eventId: number, id: number): Promise<DeleteResult> {
+  async remove(
+    userId: number,
+    eventId: number,
+    id: number,
+  ): Promise<DeleteResult> {
     return await this.eventListenerRepository.delete({
       listenerId: id,
       eventId,
@@ -150,22 +154,22 @@ export class EventListenersService {
    */
   private buildFindQuery(filters: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {
-      where: { eventId: filters.eventId},
+      where: { eventId: filters.eventId },
     };
 
     query.relations = ['event', 'channel', 'template'];
 
     // If isActive filter is provided, add it to the query.
-    if(filters.isActive !== undefined) {
+    if (filters.isActive !== undefined) {
       query.where['isActive'] = filters.isActive;
     }
-    
+
     // If a search term is provided, filter by event name, channel name, or template name.
     if (filters.search) {
       query.where = [
-        {event: { name: Like(`%${filters.search}%`) } },
-        { channel:{name: Like(`%${filters.search}%`) } },
-        { template:{ name: Like(`%${filters.search}%`) } },
+        { event: { name: Like(`%${filters.search}%`) } },
+        { channel: { name: Like(`%${filters.search}%`) } },
+        { template: { name: Like(`%${filters.search}%`) } },
       ];
     }
 
@@ -203,7 +207,6 @@ export class EventListenersService {
       limit: filtersDto.limit || 10,
     };
   }
-
 
   /**
    * Retrieves all active event listeners for a specific event ID.

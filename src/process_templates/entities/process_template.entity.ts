@@ -14,6 +14,8 @@ import { ProcessTemplateDescriptionEntity } from './process_template_description
 import { ProcessTemplateCategoryEntity } from './process_template_category.entity';
 import { ProcessTemplateStepEntity } from '../process_template_steps/entities/process_template_step.entity';
 import { ProjectEntity } from '../../projects/entities/project.entity';
+import {ProcessInstanceEntity} from "../../process_instances/entities/process_instance.entity";
+
 
 /**
  * Entity class for `process_templates` table.
@@ -137,9 +139,13 @@ export class ProcessTemplateEntity {
   steps!: ProcessTemplateStepEntity[];
 
   /**
-   * One-many relationship to ProjectEntity.
-   * A process template can be associated with many projects.
-   */
-  @OneToMany(() => ProjectEntity, (project) => project.processTemplate)
-  projects!: ProjectEntity[];
+ * Relationship to ProcessInstanceEntity.
+ * A process template can have multiple process instances.
+ */
+@OneToMany(() => ProcessInstanceEntity, (processInstance) => processInstance.processTemplate, {
+  cascade: true,
+})
+processInstances!: ProcessInstanceEntity[];
+
+
 }

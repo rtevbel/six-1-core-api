@@ -1,5 +1,3 @@
-// src/automation/automation-queue.module.ts
-
 import { Module } from '@nestjs/common';
 import { BullMqSchedulerAdapter } from './bullmq.scheduler';
 import { AutomationQueueWorker } from './bullmq.worker';
@@ -7,7 +5,7 @@ import { SCHEDULER_PORT } from './scheduler.port';
 import { StepOrchestratorService } from './step-orchestrator.service';
 import { TriggerEngineService } from './trigger-engine.service';
 import { AutomationEventBridgeListener } from './automation-event-bridge.listener';
-import { DomainEventsService } from '../events/domain-events.service';
+import { EventsService } from '../events/events.service';
 
 /**
  * AutomationQueueModule is a NestJS module that sets up the automation queue system.
@@ -18,7 +16,7 @@ import { DomainEventsService } from '../events/domain-events.service';
     // Core services required for automation functionality
     StepOrchestratorService, // Handles step orchestration logic
     TriggerEngineService, // Manages trigger evaluation and execution
-    DomainEventsService, // Handles domain events for the system
+    EventsService, // Handles domain events for the system
 
     // Scheduler binding
     BullMqSchedulerAdapter, // Adapter for BullMQ-based scheduling

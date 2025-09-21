@@ -13,6 +13,7 @@ import { TenantEntity } from '../../../tenants/entities/tenant.entity';
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
 import { TaskEntity } from '../../tasks/entities/task.entity';
+import { ProjectStepStatusMappingEntity } from '../../entities/project_step_status_mappings.entity';
 
 /**
  * Entity class for `project_task_statuses`.
@@ -65,6 +66,35 @@ export class ProjectTaskStatusEntity {
   statusOrder!: number;
 
   @Column({
+    name: 'color',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+    comment: 'Colour of status',
+  })
+  color?: string;
+
+  @Column({
+    name: 'is_system',
+    type: 'tinyint',
+    width: 1,
+    nullable: false,
+    default: 0,
+    comment: 'Protected status created by system',
+  })
+  isSystem!: boolean;
+
+  @Column({
+    name: 'blocks_completion',
+    type: 'tinyint',
+    width: 1,
+    nullable: false,
+    default: 0,
+    comment: 'Cannot complete if any task is in such a column',
+  })
+  blocksCompletion!: boolean;
+
+  @Column({
     name: 'created_by',
     type: 'bigint',
     unsigned: true,
@@ -80,6 +110,21 @@ export class ProjectTaskStatusEntity {
     default: 0,
   })
   updatedBy!: number;
+
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP',
+  })
+  createdAt!: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP',
+    onUpdate: 'CURRENT_TIMESTAMP',
+  })
+  updatedAt!: Date;
 
   /**
    * Relationship to TenantEntity.
@@ -126,4 +171,17 @@ export class ProjectTaskStatusEntity {
    */
   @OneToMany(() => TaskEntity, (task) => task.taskStatus)
   tasks!: TaskEntity[];
+
+  /**
+   * Relationship to ProjectStepStatusMappingEntity.
+   * A task status can have multiple step status mappings.
+   */
+  @OneToMany(
+    () => ProjectStepStatusMappingEntity,
+    (stepStatusMapping) => stepStatusMapping.taskStatus,
+    {
+      cascade: true,
+    },
+  )
+  stepStatusMappings!: ProjectStepStatusMappingEntity[];
 }
