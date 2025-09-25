@@ -112,21 +112,6 @@ export class ProcessInstanceStepRequirementEntity {
   })
   evaluatedAt!: Date | null;
 
-  @CreateDateColumn({
-    name: 'created_at',
-    type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
-  })
-  createdAt!: Date;
-
-  @UpdateDateColumn({
-    name: 'updated_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
-  })
-  updatedAt!: Date;
-
   /**
    * Relationship to ProcessInstanceStepEntity.
    * A requirement belongs to one process instance step.

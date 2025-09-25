@@ -152,13 +152,6 @@ export class ProcessTemplateStepEntity {
   requirements!: ProcessTemplateStepRequirementEntity[];
 
   /**
-   * Relationship to TaskEntity.
-   * A process template step can be linked to multiple tasks.
-   */
-  @OneToMany(() => TaskEntity, (task) => task.processTemplateStep)
-  tasks!: TaskEntity[];
-
-  /**
    * Reverse relationship to ProcessInstanceStepEntity.
    * A process template step can be linked to multiple process instance steps.
    */

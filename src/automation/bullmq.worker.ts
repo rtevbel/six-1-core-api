@@ -15,7 +15,7 @@ export class AutomationQueueWorker implements OnModuleDestroy {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
     });
-
+    
     const queueName = process.env.AUTOMATION_QUEUE ?? 'automation';
 
     const processor: Processor = async (job) => {
@@ -32,7 +32,7 @@ export class AutomationQueueWorker implements OnModuleDestroy {
         return;
       }
     };
-
+    
     this.worker = new Worker(queueName, processor, {
       connection,
       concurrency: +(process.env.AUTOMATION_WORKER_CONCURRENCY ?? 10),

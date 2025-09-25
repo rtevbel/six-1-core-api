@@ -73,5 +73,6 @@ import {
   ],
   controllers: [ProcessInstanceStepRequirementsController],
   providers: [ProcessInstanceStepRequirementsService],
+  exports: [ProcessInstanceStepRequirementsService],
 })
 export class ProcessInstanceStepRequirementsModule {}

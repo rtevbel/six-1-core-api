@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
-import Ajv from 'ajv';
+// Use the 2020 build:
+import Ajv2020 from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
 
 export const AJV = Symbol('AJV');
@@ -9,7 +10,11 @@ export const AJV = Symbol('AJV');
     {
       provide: AJV,
       useFactory: () => {
-        const ajv = new Ajv({ allErrors: true, strict: false, removeAdditional: false });
+        const ajv = new Ajv2020({
+          allErrors: true,
+          strict: false,            // relax strictness for pragmatic schemas
+          removeAdditional: false,  // we want to see unexpected fields rather than stripping
+        });
         addFormats(ajv);
         return ajv;
       },

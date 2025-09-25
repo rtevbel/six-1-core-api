@@ -6,7 +6,8 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany
+  OneToMany,
+  OneToOne
 } from 'typeorm';
 import { ProcessInstanceEntity } from '../../entities/process_instance.entity';
 import { ProcessTemplateStepEntity } from '../../../process_templates/process_template_steps/entities/process_template_step.entity';
@@ -216,4 +217,15 @@ export class ProcessInstanceStepEntity {
     cascade: true,
   })
   tasks!: TaskEntity[];
+
+    /**
+   * Relationship to TaskEntity.
+   * A process instance step can be linked to one task.
+   */
+    @OneToOne(
+      () => TaskEntity,
+      (linkedTask) => linkedTask.linkedStepInstance,
+      { nullable: true }
+    )
+    linkedTask?: TaskEntity;
 }

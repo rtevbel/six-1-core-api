@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsDateString,
   IsJSON,
+  IsObject,
 } from 'class-validator';
 
 /**
@@ -18,9 +19,11 @@ export class CreateProcessInstanceStepRequirementSubmissionDto {
 
   /**
    * Submitted data for the step requirement.
+   * This should be a JSON object.
    */
-  @IsJSON()
+  @IsObject()
   submittedData!: Record<string, any>;
+ 
 
   /**
    * Indicates if the submission is valid (optional).

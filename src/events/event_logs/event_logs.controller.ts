@@ -109,38 +109,19 @@ export class EventLogsController {
 
   /**
    * Dynamically handles all other events with a specific prefix.
-   * @param eventName - The name of the event.
-   * @param payload - The payload of the event.
-   */
-  /*@OnEvent(`six1-event.*`, { async: true })
-  async handleDynamicEvent(@Payload('data') payload: any): Promise<void> {
-    const eventName = payload.eventName || 'unknown_event';
-    let userId = payload.userId || null;
-    const createEventLogsDto = plainToInstance(
-      CreateEventLogsDto,
-      payload.data || {},
-    );
-    await this.logs.createEventLogByEventName(
-      userId,
-      eventName,
-      createEventLogsDto,
-    );
-  }*/
-
-  /**
-   * Dynamically handles all other events with a specific prefix.
    * @param envelope - The envelope of the event.
    * @param eventName - The name of the event.
    */
-  @OnEvent('six1-event.*', { async: true })
+  @OnEvent('six1-event.notification.*', { async: true })
   async handle(envelope: any): Promise<void> {
     
     let eventName:string = envelope.eventName;
     if(eventName){
-      eventName = eventName.replace('six1-event.','');
+      eventName = eventName.replace('six1-event.notification.','');
     }
+    console.log(`Event Bridge-> six1-event.notification.* ->Received event: ${eventName} with payload:`, envelope);
     const eventId = await this.catalog.getIdByName(eventName);
-
+ 
     const entityId = envelope?.entity?.entityId ?? envelope?.entity?.id ?? null;
     const entityType =
       envelope?.entity?.entityType ??
@@ -149,11 +130,11 @@ export class EventLogsController {
 
     const dto = plainToInstance(CreateEventLogDto, {
       eventId,
-      userId: envelope?.userId ?? null,
+      userId: envelope?.userId ?? 1,
       entityId: entityId ?? undefined,
       entityType: entityType ?? undefined,
       externalId: envelope?.externalId ?? undefined,
-      createdBy: envelope?.createdBy ?? envelope?.userId ?? undefined,
+      createdBy: envelope?.createdBy ?? envelope?.userId ?? 1,
     });
 
     await this.logs.create(1, dto, {

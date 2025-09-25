@@ -1,7 +1,8 @@
 import { Injectable, Inject } from '@nestjs/common';
-import jsonLogic from 'json-logic-js';
 import { EventsService } from '../events/events.service';
 import { SCHEDULER_PORT, SchedulerPort } from './scheduler.port';
+import * as jsonLogicPkg from 'json-logic-js';
+const jsonLogic: any = (jsonLogicPkg as any).default ?? (jsonLogicPkg as any);
 
 type JsonLogicTrigger = { type: 'jsonlogic'; logic: any; actionsOnMet?: Action[] };
 type TimeTrigger = { type: 'time'; after: string; from?: string; actionsOnMet?: Action[] }; // after: "PT24H"

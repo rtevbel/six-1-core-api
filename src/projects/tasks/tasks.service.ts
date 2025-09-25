@@ -240,7 +240,8 @@ export class TasksService {
           name: `Task for ${step.descriptions[0].name}`, // Name of the task
           description: `${step.descriptions[0].description}`, // Optional description
           taskStatusId: taskDefaultStatus?.projectTaskStatusId ?? 1, // Default task status ID (e.g., 'Pending')
-          processTemplateStepId: step.processTemplateStepId, // Process template step ID
+          stepInstanceId: 1, // Process template step ID
+          statusControl: 'manual', // Default status control
           priority: 'medium', // Default priority
           estimatedDuration: 2.0, // Default estimated duration (in hours)
           parentTaskId: undefined, // No parent task by default

@@ -7,6 +7,7 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
+  OneToOne
 } from 'typeorm';
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../project_task_statuses/entities/project_task_status.entity';
@@ -221,4 +222,17 @@ export class TaskEntity {
    * A task can have multiple sub-tasks.
    */
   subTasks?: TaskEntity[];
+
+   /**
+   * Relationship to ProcessInstanceStepEntity.
+   * A task can be linked to one process instance step.
+   */
+   @OneToOne(
+    () => ProcessInstanceStepEntity,
+    (linkedStepInstance) => linkedStepInstance.linkedTask,
+    { nullable: true, onDelete: 'SET NULL' }
+   )
+    @JoinColumn({ name: 'step_instance_id' })
+    linkedStepInstance?: ProcessInstanceStepEntity;
+
 }

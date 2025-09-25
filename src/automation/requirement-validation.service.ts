@@ -1,7 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { AJV } from './ajv.module';
 
-type RequirementEnvelope = {
+export type RequirementEnvelope = {
   version?: string;
   validator?: 'jsonschema';
   autoApproveOnValid?: boolean;
