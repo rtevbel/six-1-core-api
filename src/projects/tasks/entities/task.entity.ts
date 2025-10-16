@@ -7,12 +7,18 @@ import {
   ManyToOne,
   JoinColumn,
   Index,
-  OneToOne
+  OneToOne,
+  OneToMany,
 } from 'typeorm';
 import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../project_task_statuses/entities/project_task_status.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
+import { TaskCommentsEntity } from '../comments/entities/comment.entity';
+import { TaskAttachmentsEntity } from '../attachments/entities/attachment.entity';
+import { TaskMentionsEntity } from '../mentions/entities/mention.entity';
+import {TaskDependencyEntity} from "../../../scheduler/entities/task_dependency.entity";
+
 
 /**
  * Entity class for `tasks`.
@@ -234,5 +240,50 @@ export class TaskEntity {
    )
     @JoinColumn({ name: 'step_instance_id' })
     linkedStepInstance?: ProcessInstanceStepEntity;
+
+  /**
+   * One-to-many relationship with the `TaskCommentsEntity`.
+   * A task can have multiple comments.
+   */
+  @OneToMany(() => TaskCommentsEntity, (comment) => comment.task, {
+    cascade: true,
+  })
+  comments!: TaskCommentsEntity[];
+
+  /**
+   * One-to-many relationship with the `TaskAttachmentsEntity`.
+   * A task can have multiple attachments.
+   */
+  @OneToMany(() => TaskAttachmentsEntity, (attachment) => attachment.task, {
+    cascade: true,
+  })
+  attachments!: TaskAttachmentsEntity[];
+
+   /**
+   * One-to-many relationship with the `TaskMentionsEntity`.
+   * A task can have multiple mentions.
+   */
+   @OneToMany(() => TaskMentionsEntity, (mention) => mention.task, {
+    cascade: true,
+  })
+  mentions!: TaskMentionsEntity[];
+
+   /**
+   * Inverse relationship to TaskDependencyEntity.
+   * A task can have multiple dependencies.
+   */
+   @OneToMany(() => TaskDependencyEntity, (dependency) => dependency.task, {
+    cascade: true,
+  })
+  dependencies!: TaskDependencyEntity[];
+
+  /**
+   * Inverse relationship to TaskDependencyEntity.
+   * A task can be depended on by multiple other tasks.
+   */
+  @OneToMany(() => TaskDependencyEntity, (dependency) => dependency.dependsOnTask, {
+    cascade: true,
+  })
+  dependentTasks!: TaskDependencyEntity[];
 
 }

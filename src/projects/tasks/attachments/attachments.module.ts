@@ -1,15 +1,12 @@
 import { Module } from '@nestjs/common';
-import { TasksService } from './tasks.service';
-import { TasksController } from './tasks.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { TaskEntity } from './entities/task.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
-import { ensureDefinedConfigParam } from '../../common/functions';
-import { MESSAGE_BROKER_PROJECT_TASK_SERVICE_CLIENT_TOKEN } from './constants';
-import { ProcessTemplateStepsModule } from '../../process_templates/process_template_steps/process_template_steps.module';
-import { ProjectTaskStatusesModule } from '../project_task_statuses/project_task_statuses.module';
-
+import { TaskAttachmentsService } from './attachments.service';
+import { TaskAttachmentsController } from './attachments.controller';
+import { TaskAttachmentsEntity } from './entities/attachment.entity';
+import { ensureDefinedConfigParam } from '../../../common/functions';
+import { MESSAGE_BROKER_TASK_ATTACHMENT_SERVICE_CLIENT_TOKEN } from './constants';
 import {
   MESSAGE_BROKER_USERNAME_KEY,
   MESSAGE_BROKER_HOST_KEY,
@@ -17,27 +14,24 @@ import {
   MESSAGE_BROKER_PORT_KEY,
   MESSAGE_BROKER_URL_KEY,
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
-} from '../../common/constants';
-import { CommentsModule } from './comments/comments.module';
-import { AttachmentsModule } from './attachments/attachments.module';
-import { MentionsModule } from './mentions/mentions.module';
+} from '../../../common/constants';
 
 /**
- * TasksModule is responsible for managing tasks.
+ * AttachmentsModule is responsible for managing task attachments.
  * It includes the controller and service for handling operations
- * related to tasks and integrates necessary configurations.
+ * related to attachments and integrates necessary configurations.
  *
  * @version 0.0.1
  */
 @Module({
   // Imports required modules and configurations.
   imports: [
-    // Registers the TaskEntity for TypeORM.
-    TypeOrmModule.forFeature([TaskEntity]),
+    // Registers the TaskAttachmentsEntity for TypeORM.
+    TypeOrmModule.forFeature([TaskAttachmentsEntity]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {
-        name: MESSAGE_BROKER_PROJECT_TASK_SERVICE_CLIENT_TOKEN,
+        name: MESSAGE_BROKER_TASK_ATTACHMENT_SERVICE_CLIENT_TOKEN,
         useFactory: async (configService: ConfigService) => ({
           transport: Transport.RMQ,
           options: {
@@ -77,19 +71,14 @@ import { MentionsModule } from './mentions/mentions.module';
         inject: [ConfigService],
       },
     ]),
-    ProcessTemplateStepsModule,
-    ProjectTaskStatusesModule,
-    CommentsModule,
-    AttachmentsModule,
-    MentionsModule,
   ],
   // Specifies the controllers that handle incoming requests.
-  controllers: [TasksController],
+  controllers: [TaskAttachmentsController],
 
   // Specifies the providers that contain the business logic.
-  providers: [TasksService],
+  providers: [TaskAttachmentsService],
 
-  //Specifies the providers that are exposed as API from this module
-  exports: [TasksService],
+  // Specifies the providers that are exposed as API from this module.
+  exports: [TaskAttachmentsService],
 })
-export class TasksModule {}
+export class AttachmentsModule {}

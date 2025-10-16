@@ -31,6 +31,9 @@ import { ProjectTaskStatusEntity } from '../../../projects/project_task_statuses
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 import { TenantTeamProjectEntity } from '../../tenant_teams/tenant_team_projects/entities/tenant_team_project.entity';
 import {ProcessInstanceEntity} from "../../../process_instances/entities/process_instance.entity";
+import {TaskCommentsEntity} from "../../../projects/tasks/comments/entities/comment.entity";
+import {TaskAttachmentsEntity} from "../../../projects/tasks/attachments/entities/attachment.entity";
+import {TaskMentionsEntity} from "../../../projects/tasks/mentions/entities/mention.entity";
 
 /**
  * Entity class for `tenant_users` table.
@@ -513,4 +516,45 @@ export class TenantUsersEntity {
     cascade: true,
   })
   createdProcessInstances!: ProcessInstanceEntity[];
+
+  /**
+   * One-to-many relationship with the `TaskCommentsEntity` for comments created by the user.
+   * A user can create multiple comments.
+   */
+  @OneToMany(() => TaskCommentsEntity, (comment) => comment.createdByUser)
+  createdComments!: TaskCommentsEntity[];
+
+  /**
+   * One-to-many relationship with the `TaskCommentsEntity` for comments updated by the user.
+   * A user can update multiple comments.
+   */
+  @OneToMany(() => TaskCommentsEntity, (comment) => comment.updatedByUser)
+  updatedComments!: TaskCommentsEntity[];
+
+/**
+ * One-to-many relationship with the `TaskAttachmentsEntity`.
+ * A user can create multiple attachments.
+ */
+  @OneToMany(() => TaskAttachmentsEntity, (attachment) => attachment.createdByUser, {
+    cascade: true,
+  })
+  createdAttachments!: TaskAttachmentsEntity[];
+
+   /**
+   * One-to-many relationship with the `TaskMentionsEntity`.
+   * A user can be mentioned in multiple mentions.
+   */
+   @OneToMany(() => TaskMentionsEntity, (mention) => mention.mentionedUser, {
+    cascade: true,
+  })
+  mentions!: TaskMentionsEntity[];
+
+  /**
+   * One-to-many relationship with the `TaskMentionsEntity`.
+   * A user can create multiple mentions.
+   */
+  @OneToMany(() => TaskMentionsEntity, (mention) => mention.createdByUser, {
+    cascade: true,
+  })
+  createdMentions!: TaskMentionsEntity[];
 }

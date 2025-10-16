@@ -44,6 +44,8 @@ import { ProjectsModule } from './projects/projects.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
 import { AutomationModule } from './automation/automation.module';
+import { StorageModule } from './storage/storage.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 /**
  * Root module of the application.
@@ -136,7 +138,9 @@ import { AutomationModule } from './automation/automation.module';
     CategoriesModule,
     ProjectsModule,
     AutomationModule,
-    ProcessInstancesModule
+    ProcessInstancesModule,
+    StorageModule,
+    SchedulerModule
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

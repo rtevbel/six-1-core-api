@@ -289,4 +289,28 @@ export class TasksService {
 
     return `task-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
   }
+
+   /**
+   * Retrieves a single task by ID for a specific project.
+   * @param userId - ID of the user requesting the data.
+   * @param id - ID of the task to retrieve.
+   * @returns The TaskEntity matching the ID.
+   * @throws RpcException if no record is found.
+   */
+   async findOneByTaskId(
+    userId: number,
+    id: number,
+  ): Promise<TaskEntity> {
+    const task = await this.taskRepository.findOneByOrFail({
+      taskId: id,
+    });
+
+    if (!task) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskEntity.name),
+      );
+    }
+
+    return task;
+  }
 }
