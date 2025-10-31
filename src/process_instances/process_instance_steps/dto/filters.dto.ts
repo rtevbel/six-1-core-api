@@ -55,8 +55,9 @@ export class FiltersDto {
    * Must be one of 'stepInstanceId', 'processInstanceId','processTemplateStepId'.
    */
   @IsOptional()
-  @IsIn(['stepInstanceId', 'processInstanceId','processTemplateStepId'], {
-    message: 'sortBy key must be from this list (stepInstanceId, processInstanceId , processTemplateStepId)',
+  @IsIn(['stepInstanceId', 'processInstanceId', 'processTemplateStepId'], {
+    message:
+      'sortBy key must be from this list (stepInstanceId, processInstanceId , processTemplateStepId)',
   })
   @IsString()
   sortBy: string = 'stepInstanceId';

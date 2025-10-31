@@ -1,140 +1,160 @@
-// src/scheduler/services/scheduler.service.ts
+import { Injectable, Inject, Logger, BadRequestException } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { InjectQueue } from '@nestjs/bullmq';
-import { Injectable, Inject, Logger } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import { DateTime } from 'luxon';
 import { randomUUID } from 'crypto';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  CALENDAR_PROVIDER, CalendarProvider,
-  TASK_CONTEXT_PROVIDER, TaskContextProvider,
-} from '../core/interfaces';
-import {
-  weekdayFromLuxon, buildIntervalsForDay, isWithinAnyInterval, nextStartAfter,
-} from '../core/time_utils';
-import { DependencyResolverService } from './dependency_resolver.service';
-import { ScheduledTasksService } from './scheduled_tasks.service';
+import {ScheduleWindowDto} from "../dto/schedule-window.dto";
+
+import { CalendarProvider, TaskContextProvider } from '../core/interfaces';
+import { TASK_CONTEXT_PROVIDER, CALENDAR_PROVIDER } from '../constants';
 import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
+import { ResourceAssignmentShiftEntity } from '../entities/resource_assignment_shifts.entity';
+import { ScheduledTasksService } from './scheduled_tasks.service';
+import { DependencyResolverService } from './dependency_resolver.service';
 import { HistoryService } from './history.service';
 import { EventsService } from './events.service';
+import { ResourceAssignmentsService } from './resource_assignments.service';
+import { weekdayFromLuxon, buildIntervalsForDay, isWithinAnyInterval, nextStartAfter } from '../core/time_utils';
+import { NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE, NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
+import { FiltersDto } from '../dto/filters.dto';
+import { FindAllResultInterface } from '../interfaces/findall-result.interface';
 
+
+/**
+ * SchedulerService:
+ * - Fits requested windows into calendars (tenant and/or user)
+ * - Applies dependency gates
+ * - Prevents overlaps for serial shifts
+ * - Enqueues BullMQ jobs for start/end with idempotency tokens
+ */
 @Injectable()
 export class SchedulerService {
   private readonly logger = new Logger(SchedulerService.name);
 
   constructor(
-    @InjectQueue('task-scheduler') private readonly queue: Queue, // Inject the BullMQ queue for task scheduling
-    @Inject(CALENDAR_PROVIDER) private readonly calendar: CalendarProvider, // Inject the calendar provider for time-related operations
-    @Inject(TASK_CONTEXT_PROVIDER) private readonly taskCtx: TaskContextProvider, // Inject the task context provider for task metadata
-    private readonly deps: DependencyResolverService, // Service to compute task dependencies
-    private readonly scheduledTasks: ScheduledTasksService, // Service to manage scheduled tasks
-    private readonly history: HistoryService, // Service to manage task history snapshots
-    private readonly events: EventsService, // Service to emit task-related events
-    @InjectRepository(ScheduledTaskEntity) private readonly schedRepo: Repository<ScheduledTaskEntity>, // TypeORM repository for scheduled tasks
+    @InjectQueue('task-scheduler') private readonly queue: Queue,
+    @Inject(CALENDAR_PROVIDER) private readonly calendar: CalendarProvider,
+    @Inject(TASK_CONTEXT_PROVIDER) private readonly taskCtx: TaskContextProvider,
+    private readonly deps: DependencyResolverService,
+    private readonly scheduledTasks: ScheduledTasksService,
+    private readonly history: HistoryService,
+    private readonly events: EventsService,
+    private readonly resourceAssignments: ResourceAssignmentsService,
+
+    @InjectRepository(ScheduledTaskEntity)
+    private readonly schedRepo: Repository<ScheduledTaskEntity>,
+    @InjectRepository(ResourceAssignmentShiftEntity)
+    private readonly shiftRepo: Repository<ResourceAssignmentShiftEntity>,
   ) {}
 
+  /* ---------- time helpers ---------- */
+
+  private async nextAllowedUtc(
+    tenantId: number,
+    tenantUserId: number | null,
+    requestedUtc: Date,
+    tz: string,
+  ): Promise<Date> {
+    let cursor = DateTime.fromJSDate(requestedUtc, { zone: 'utc' }).setZone(tz);
+    for (let i = 0; i < 366; i++) {
+      const dateStr = cursor.toISODate();
+      const isOff = await this.calendar.isOffDateLocal(tenantId, tenantUserId ?? undefined, dateStr ? dateStr : '');
+      const weekday = weekdayFromLuxon(cursor);
+      const slots = isOff ? [] : await this.calendar.getWorkingIntervalsLocal(tenantId, tenantUserId ?? undefined, dateStr ? dateStr : '', weekday);
+      const intervals = buildIntervalsForDay(cursor, slots);
+      if (intervals.length) {
+        if (isWithinAnyInterval(cursor, intervals)) return cursor.setZone('utc').toJSDate();
+        const nxt = nextStartAfter(cursor, intervals);
+        if (nxt) return nxt.setZone('utc').toJSDate();
+      }
+      cursor = cursor.plus({ days: 1 }).startOf('day');
+    }
+    return DateTime.fromJSDate(requestedUtc, { zone: 'utc' }).toJSDate();
+  }
+
+  private msUntil(d: Date): number {
+    return Math.max(0, DateTime.fromJSDate(d).diffNow().milliseconds);
+  }
+
   /**
-   * Schedule a task window with requested start and end times.
-   * This method computes dependencies, validates against the calendar, and enqueues start/end jobs.
+   * Schedules a parent window (no assignee) for a task after applying
+   * dependency and calendar constraints.
+   * @param userId - ID of the user initiating the schedule.
+   * @param input - Window request payload.
+   * @returns Scheduled window details (ids and effective times).
    */
-  async scheduleTaskWindow(input: {
+  async scheduleTaskWindow(userId: number, input: {
     taskId: number;
-    taskStatusId: number;
     requestedStartUtc: Date;
     requestedEndUtc: Date;
     priority?: number;
-    createdBy?: number | null;
+    parentScheduledTaskId?: number | null;
   }) {
-    // Retrieve tenant and user context for the task
-    const { tenantId, tenantUserId } = await this.taskCtx.getTaskContext(input.taskId);
+    const ctx = await this.taskCtx.getTaskContext(input.taskId);
+    const { tenantId , taskStatusId , assigneeId } = ctx;
+   
 
-    // Compute task dependencies and determine gated start and end times
-    const dep = await this.deps.computeConstraints(input.taskId);
-    const startCandidate = DateTime.fromJSDate(input.requestedStartUtc, { zone: 'utc' });
-    const endCandidate = DateTime.fromJSDate(input.requestedEndUtc, { zone: 'utc' });
+    // Dependency gate
+    const depGate = await this.deps.earliestGateUtc(input.taskId);
 
-    const gatedStart = dep.earliestStartUtc
-      ? DateTime.max(startCandidate, DateTime.fromJSDate(dep.earliestStartUtc, { zone: 'utc' }))
-      : startCandidate;
+    // Requested window adjusted by dependencies / constraints
+    let reqStart = DateTime.fromJSDate(input.requestedStartUtc);
+    let reqEnd   = DateTime.fromJSDate(input.requestedEndUtc);
 
-    const gatedEnd = dep.earliestFinishUtc
-      ? DateTime.max(endCandidate, DateTime.fromJSDate(dep.earliestFinishUtc, { zone: 'utc' }))
-      : endCandidate;
+    if (depGate) {
+      const g = DateTime.fromJSDate(depGate);
+      if (reqStart < g) reqStart = g;
+      if (reqEnd < reqStart) reqEnd = reqStart.plus({ minutes: 1 });
+    }
 
-    const depGateUtc = (dep.earliestStartUtc || dep.earliestFinishUtc)
-      ? DateTime.max(
-          dep.earliestStartUtc ? DateTime.fromJSDate(dep.earliestStartUtc, { zone: 'utc' }) : gatedStart,
-          dep.earliestFinishUtc ? DateTime.fromJSDate(dep.earliestFinishUtc, { zone: 'utc' }) : gatedEnd,
-        ).toJSDate()
-      : null;
+    if (ctx.startConstraintType && ctx.startConstraintUtc) {
+      const c = DateTime.fromJSDate(ctx.startConstraintUtc);
+      switch (ctx.startConstraintType) {
+        case 'NoEarlierThan': if (reqStart < c) reqStart = c; break;
+        case 'On':            reqStart = c; break;
+        case 'MustStartOn':   reqStart = c; break;
+        case 'NoLaterThan':   /* keep reqStart; validation can warn */ break;
+        case 'MustFinishOn':
+          reqEnd = DateTime.fromJSDate(ctx.finishConstraintUtc ?? reqEnd.toJSDate());
+          if (reqStart > reqEnd) reqStart = reqEnd.minus({ minutes: 1 });
+          break;
+        case 'ASAP':
+        default: break;
+      }
+    }
 
-    // Validate against the calendar and compute effective start and end times
-    const tz = await this.calendar.getTimezone(tenantId, tenantUserId ?? undefined);
-    const effectiveStartUtc = await this.nextAllowedUtc(tenantId, tenantUserId, gatedStart.toJSDate(), tz);
-    const effectiveEndUtc = await this.nextAllowedUtc(tenantId, tenantUserId, gatedEnd.toJSDate(), tz);
-    const finalEndUtc = DateTime.max(
-      DateTime.fromJSDate(effectiveEndUtc, { zone: 'utc' }),
-      DateTime.fromJSDate(effectiveStartUtc, { zone: 'utc' }).plus({ minutes: 1 }),
-    ).toJSDate();
+    // Fit to tenant calendar
+    const tz = await this.calendar.getTimezone(tenantId);
+    const effStart = await this.nextAllowedUtc(tenantId, null, reqStart.toJSDate(), tz);
+    const effEnd   = await this.nextAllowedUtc(tenantId, null, reqEnd.toJSDate(), tz);
+    const effectiveEnd = DateTime.max(DateTime.fromJSDate(effStart), DateTime.fromJSDate(effEnd)).toJSDate();
 
-    // Create snapshots for calendar and dependencies
-    const calendarSnapshot = { tz, computedAt: new Date().toISOString() };
-    const dependencySnapshot = dep.snapshot;
-
-    // Create an active scheduled task row in the database
+    // Create active scheduled row (parent: no assignee)
     const row = await this.scheduledTasks.createActive({
-      tenantId, tenantUserId,
+      parentScheduledTaskId: input.parentScheduledTaskId ?? null,
+      tenantId,
+      tenantUserId: null,
       taskId: input.taskId,
-      taskStatusId: input.taskStatusId,
-      requestedStartUtc: input.requestedStartUtc,
-      requestedEndUtc: input.requestedEndUtc,
-      effectiveStartUtc,
-      effectiveEndUtc: finalEndUtc,
+      taskStatusId: taskStatusId,
+      requestedStartUtc: reqStart.toJSDate(),
+      requestedEndUtc: reqEnd.toJSDate(),
+      effectiveStartUtc: effStart,
+      effectiveEndUtc: effectiveEnd,
       tzUsed: tz,
-      dependencyGateUtc: depGateUtc,
-      blockedUntilUtc: null,
-      blockReason: 'none',
+      dependencyGateUtc: depGate ?? null,
       priority: input.priority ?? 0,
       startJobToken: randomUUID(),
       endJobToken: randomUUID(),
+      blockReason: 'none',
       startAttempts: 0,
       endAttempts: 0,
-      lastError: null,
-      calendarSnapshot,
-      dependencySnapshot,
-      createdBy: input.createdBy ?? null,
-      updatedBy: input.createdBy ?? null,
     } as Partial<ScheduledTaskEntity>);
 
-    // Save a snapshot of the task history
     await this.history.snapshot(row);
 
-    // Enqueue start and end jobs with calculated delays
-    const startDelay = Math.max(0, DateTime.fromJSDate(row.effectiveStartUtc, { zone: 'utc' }).diffNow().milliseconds);
-    const endDelay = Math.max(0, DateTime.fromJSDate(row.effectiveEndUtc, { zone: 'utc' }).diffNow().milliseconds);
-
-    const startJob = await this.queue.add('task.start',
-      { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.startJobToken },
-      { jobId: row.startJobToken!, delay: Math.round(startDelay), priority: row.priority,
-        attempts: 5, backoff: { type: 'exponential', delay: 60_000 }, removeOnComplete: true, removeOnFail: false });
-
-    const endJob = await this.queue.add('task.end',
-      { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.endJobToken },
-      { jobId: row.endJobToken!, delay: Math.round(endDelay), priority: row.priority,
-        attempts: 5, backoff: { type: 'exponential', delay: 60_000 }, removeOnComplete: true, removeOnFail: false });
-
-    // Update the task row with job IDs and status
-    row.startJobId = String(startJob.id);
-    row.endJobId = String(endJob.id);
-    row.status = 'queued';
-    await this.schedRepo.save(row);
-
-    // Emit events for the enqueued jobs
-    await this.events.emit(row.scheduledTaskId, 'enqueued_start', { at: row.effectiveStartUtc }, row.startJobId);
-    await this.events.emit(row.scheduledTaskId, 'enqueued_end', { at: row.effectiveEndUtc }, row.endJobId);
-
-    // Return the scheduled task details
     return {
       scheduledTaskId: row.scheduledTaskId,
       effectiveStartUtc: row.effectiveStartUtc,
@@ -144,34 +164,345 @@ export class SchedulerService {
   }
 
   /**
-   * Re-validate the calendar for the current time.
-   * If the calendar is closed, compute the next allowed UTC time in the same timezone.
+   * Schedules serial child shifts for a task, enforcing non-overlap and
+   * fitting each child to the assignee's calendar.
+   * @param userId - ID of the user initiating the schedule.
+   * @param input - Shifts request payload.
+   * @returns Array of created shift/schedule mappings and effective times.
    */
-async nextRunnableUtcOrNow(row: ScheduledTaskEntity): Promise<Date> {
-    const tz = row.tzUsed || (await this.calendar.getTimezone(row.tenantId, row.tenantUserId ?? undefined));
-    const tenantUserId = row.tenantUserId !== undefined ? row.tenantUserId : null;
-    return this.nextAllowedUtc(row.tenantId, tenantUserId, new Date(), tz);
-}
+  async scheduleFromShifts(userId: number, input: {
+    taskId: number;
+    priority?: number;
+    parentScheduledTaskId?: number;
+    shifts: Array<{
+      resourceAssignmentId: number;
+      tenantUserId: number;
+      plannedStartUtc: Date;
+      plannedEndUtc: Date;
+      sequenceNo?: number;
+    }>;
+  }) {
+    if (!input.shifts?.length) throw new BadRequestException('No shifts provided');
+
+    // Validate resource assignments exist
+    const assignmentIds = input.shifts.map(s => s.resourceAssignmentId);
+    await this.resourceAssignments.validateExistence(assignmentIds);
+
+    const ctx = await this.taskCtx.getTaskContext(input.taskId);
+    const { tenantId , taskStatusId , assigneeId } = ctx;
+    const ordered = [...input.shifts].sort((a, b) => (a.sequenceNo ?? 1) - (b.sequenceNo ?? 1));
+
+    // Serialize plan (no overlaps between consecutive items in the requested plan)
+    for (let i = 1; i < ordered.length; i++) {
+      const prevEnd = DateTime.fromJSDate(ordered[i - 1].plannedEndUtc);
+      const curStart = DateTime.fromJSDate(ordered[i].plannedStartUtc);
+      if (curStart < prevEnd) {
+        ordered[i].plannedStartUtc = prevEnd.toJSDate();
+        if (DateTime.fromJSDate(ordered[i].plannedEndUtc) < prevEnd) {
+          ordered[i].plannedEndUtc = prevEnd.plus({ minutes: 1 }).toJSDate();
+        }
+      }
+    }
+
+    const created: Array<{ shiftId: number; scheduledTaskId: number; effectiveStartUtc: Date; effectiveEndUtc: Date }> = [];
+    let prevChildEndUtc: Date | null = null;
+
+    for (const s of ordered) {
+      const seq = s.sequenceNo ?? 1;
+
+      // Persist the shift (set scalar fields directly)
+      const shift = this.shiftRepo.create({
+        resourceAssignmentId: s.resourceAssignmentId,
+        tenantUserId: s.tenantUserId,
+        sequenceNo: seq,
+        plannedStartUtc: s.plannedStartUtc,
+        plannedEndUtc: s.plannedEndUtc,
+        status: 'planned',
+      });
+      
+      const savedShift = await this.shiftRepo.save(shift);
+
+      // Respect serial (child can't start before previous child ended)
+      const serialStart =
+        prevChildEndUtc && DateTime.fromJSDate(s.plannedStartUtc) < DateTime.fromJSDate(prevChildEndUtc)
+          ? prevChildEndUtc
+          : s.plannedStartUtc;
+
+      // Fit to user calendar
+      const tz = await this.calendar.getTimezone(tenantId, s.tenantUserId);
+      const effStart = await this.nextAllowedUtc(tenantId, s.tenantUserId, serialStart, tz);
+      const effEndCandidate = await this.nextAllowedUtc(tenantId, s.tenantUserId, s.plannedEndUtc, tz);
+      let effEnd = DateTime.max(DateTime.fromJSDate(effStart), DateTime.fromJSDate(effEndCandidate)).toJSDate();
+
+      // Prevent conflicts with user's other active schedules
+      const conflicts = await this.scheduledTasks.findUserOverlaps(s.tenantUserId, effStart, effEnd);
+      if (conflicts.length) {
+        const maxEnd = conflicts.reduce((m, r) => (r.effectiveEndUtc > m ? r.effectiveEndUtc : m), effStart);
+        const pushedStart = DateTime.fromJSDate(maxEnd).plus({ minutes: 1 }).toJSDate();
+        const pushedEffStart = await this.nextAllowedUtc(tenantId, s.tenantUserId, pushedStart, tz);
+        const pushedEffEnd   = await this.nextAllowedUtc(tenantId, s.tenantUserId, s.plannedEndUtc, tz);
+        effEnd = DateTime.max(DateTime.fromJSDate(pushedEffStart), DateTime.fromJSDate(pushedEffEnd)).toJSDate();
+
+        const sameTaskConf = await this.scheduledTasks.findTaskChildOverlaps(input.taskId, pushedEffStart, effEnd);
+        if (sameTaskConf.length) {
+          throw new BadRequestException('Same-task child overlap after push; adjust shifts or durations.');
+        }
+        (s as any).__effStart = pushedEffStart;
+        (s as any).__effEnd   = effEnd;
+      } else {
+        (s as any).__effStart = effStart;
+        (s as any).__effEnd   = effEnd;
+      }
+
+      // Create child schedule row (assignee set)
+      const row = await this.scheduledTasks.createActive({
+        parentScheduledTaskId: input.parentScheduledTaskId ?? null,
+        tenantId,
+        tenantUserId: s.tenantUserId,
+        taskId: input.taskId,
+        taskStatusId: taskStatusId,
+        requestedStartUtc: s.plannedStartUtc,
+        requestedEndUtc: s.plannedEndUtc,
+        effectiveStartUtc: (s as any).__effStart,
+        effectiveEndUtc: (s as any).__effEnd,
+        tzUsed: tz,
+        dependencyGateUtc: null,
+        priority: input.priority ?? 0,
+        startJobToken: randomUUID(),
+        endJobToken: randomUUID(),
+        blockReason: 'none',
+        startAttempts: 0,
+        endAttempts: 0,
+      } as Partial<ScheduledTaskEntity>);
+
+      // Link shift → scheduled task by setting the FK directly
+      savedShift.scheduledTaskId = row.scheduledTaskId;
+      await this.shiftRepo.save(savedShift);
+
+      await this.history.snapshot(row);
+      
+      // Enqueue start/end
+      const startJob = await this.queue.add(
+        'task.start',
+        { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.startJobToken },
+        {
+          jobId: row.startJobToken!,
+          delay: Math.round(this.msUntil(row.effectiveStartUtc)),
+          priority: row.priority,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 60_000 },
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+      
+      const endJob = await this.queue.add(
+        'task.end',
+        { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.endJobToken },
+        {
+          jobId: row.endJobToken!,
+          delay: Math.round(this.msUntil(row.effectiveEndUtc)),
+          priority: row.priority,
+          attempts: 5,
+          backoff: { type: 'exponential', delay: 60_000 },
+          removeOnComplete: true,
+          removeOnFail: false,
+        },
+      );
+
+      await this.scheduledTasks.markQueued(row.scheduledTaskId, String(startJob.id), String(endJob.id));
+      await this.events.emit(row.scheduledTaskId, 'enqueued_start', { at: row.effectiveStartUtc }, String(startJob.id));
+      await this.events.emit(row.scheduledTaskId, 'enqueued_end',   { at: row.effectiveEndUtc },   String(endJob.id));
+
+      created.push({
+        shiftId: savedShift.shiftId,
+        scheduledTaskId: row.scheduledTaskId,
+        effectiveStartUtc: row.effectiveStartUtc,
+        effectiveEndUtc: row.effectiveEndUtc,
+      });
+      prevChildEndUtc = row.effectiveEndUtc;
+    }
+
+    return { created };
+  }
 
   /**
-   * Compute the next allowed UTC time based on the calendar and working intervals.
+   * Retrieves active schedules in a tenant scope with paging and sorting.
+   * @param userId - ID of the user requesting the data.
+   * @param params - Tenant scope and pagination/sort options.
+   * @returns Paged list of schedules.
    */
-  private async nextAllowedUtc(tenantId: number, tenantUserId: number | null, requestedUtc: Date, tz: string): Promise<Date> {
-    let cursorLocal = DateTime.fromJSDate(requestedUtc, { zone: 'utc' }).setZone(tz);
-    for (let i = 0; i < 366; i++) { // Iterate up to 1 year to find the next allowed time
-      const dateStr = cursorLocal.toISODate() || '';
-      const isOff = await this.calendar.isOffDateLocal(tenantId, tenantUserId ?? undefined, dateStr);
-      const weekday = weekdayFromLuxon(cursorLocal);
-      const slots = isOff ? [] : await this.calendar.getWorkingIntervalsLocal(tenantId, tenantUserId ?? undefined, dateStr, weekday);
-      const intervals = buildIntervalsForDay(cursorLocal, slots);
-
-      if (intervals.length) {
-        if (isWithinAnyInterval(cursorLocal, intervals)) return cursorLocal.setZone('utc').toJSDate();
-        const nextStart = nextStartAfter(cursorLocal, intervals);
-        if (nextStart) return nextStart.setZone('utc').toJSDate();
-      }
-      cursorLocal = cursorLocal.plus({ days: 1 }).startOf('day');
+  async findAll(userId: number, filtersDto: FiltersDto): Promise<FindAllResultInterface> {
+    const findQuery = this.buildFindQuery(filtersDto);
+    const [items, total] = await this.schedRepo.findAndCount(findQuery);
+    if (!items.length) {
+      throw new RpcException(
+        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
+          '{entity_name}',
+          ScheduledTaskEntity.name,
+        ),
+      );
     }
-    return DateTime.fromJSDate(requestedUtc, { zone: 'utc' }).toJSDate();
+    return {
+      scheduledTaskRecords: items,
+      pagination: this.buildPagination(filtersDto, total),
+    };
+  }
+
+  /**
+   * Retrieves active schedules for a task in a tenant scope.
+   * @param userId - ID of the user requesting the data.
+   * @param params - Tenant/task scope with pagination.
+   * @returns Paged list of schedules.
+   */
+  async findAllByTask(userId: number, filtersDto: FiltersDto): Promise<FindAllResultInterface> {
+    const findQuery = this.buildFindQuery({ ...filtersDto, search: undefined });
+    if (filtersDto.taskId) {
+      (findQuery.where as any).taskId = filtersDto.taskId;
+    }
+    const [items, total] = await this.schedRepo.findAndCount(findQuery);
+    if (!items.length) {
+      throw new RpcException(
+        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
+          '{entity_name}',
+          ScheduledTaskEntity.name,
+        ),
+      );
+    }
+    return {
+      scheduledTaskRecords: items,
+      pagination: this.buildPagination(filtersDto, total),
+    };
+  }
+
+  /**
+   * Retrieves a schedule by ID.
+   * @param userId - ID of the user requesting the data.
+   * @param scheduledTaskId - Scheduled row ID.
+   * @returns The schedule row or null if not found.
+   */
+  async findOne(userId: number, scheduledTaskId: number) {
+    const row = await this.schedRepo.findOne({ where: { scheduledTaskId } });
+    if (!row) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ScheduledTaskEntity.name),
+      );
+    }
+    return row;
+  }
+
+  /**
+   * Reschedules an active row, fitting requested times to the relevant calendar.
+   * @param userId - ID of the user updating the schedule.
+   * @param input - Reschedule request payload.
+   * @returns New effective times.
+   */
+  async reschedule(userId: number, input: { scheduledTaskId: number; requestedStartUtc: Date; requestedEndUtc: Date }) {
+    const row = await this.schedRepo.findOne({ where: { scheduledTaskId: input.scheduledTaskId } });
+    if (!row) throw new BadRequestException('Scheduled task not found');
+
+    // Fit to calendar (tenant or tenant_user)
+    const tenantId = row.tenantId!;
+    const tz = await this.calendar.getTimezone(tenantId, row.tenantUserId ?? undefined);
+    const effStart = await this.nextAllowedUtc(tenantId, row.tenantUserId ?? null, input.requestedStartUtc, tz);
+    const effEndCandidate = await this.nextAllowedUtc(tenantId, row.tenantUserId ?? null, input.requestedEndUtc, tz);
+    const effEnd = DateTime.max(DateTime.fromJSDate(effStart), DateTime.fromJSDate(effEndCandidate)).toJSDate();
+
+    row.requestedStartUtc = input.requestedStartUtc;
+    row.requestedEndUtc = input.requestedEndUtc;
+    row.effectiveStartUtc = effStart;
+    row.effectiveEndUtc = effEnd;
+    row.updatedAt = new Date();
+    await this.schedRepo.save(row);
+    await this.history.snapshot(row);
+    return { scheduledTaskId: row.scheduledTaskId, effectiveStartUtc: row.effectiveStartUtc, effectiveEndUtc: row.effectiveEndUtc };
+  }
+
+  /**
+   * Pauses an active schedule until a specified UTC time.
+   * @param userId - ID of the user pausing the schedule.
+   * @param input - Pause request payload.
+   * @returns Confirmation with pause-until time.
+   */
+  async pause(userId: number, input: { scheduledTaskId: number; pausedUntilUtc: Date }) {
+    const row = await this.schedRepo.findOne({ where: { scheduledTaskId: input.scheduledTaskId } });
+    if (!row) throw new BadRequestException('Scheduled task not found');
+    await this.scheduledTasks.pauseUntil(row.scheduledTaskId, input.pausedUntilUtc, 'calendar');
+    return { paused: true, until: input.pausedUntilUtc };
+  }
+
+  /**
+   * Resumes a paused schedule.
+   * @param userId - ID of the user resuming the schedule.
+   * @param input - Resume request payload.
+   * @returns Confirmation of resume.
+   */
+  async resume(userId: number, input: { scheduledTaskId: number }) {
+    const row = await this.schedRepo.findOne({ where: { scheduledTaskId: input.scheduledTaskId } });
+    if (!row) throw new BadRequestException('Scheduled task not found');
+    await this.scheduledTasks.resume(row.scheduledTaskId);
+    return { resumed: true };
+  }
+
+  /**
+   * Cancels an active schedule.
+   * @param userId - ID of the user cancelling the schedule.
+   * @param input - Cancel request payload.
+   * @returns Confirmation of cancellation.
+   */
+  async cancel(userId: number, input: { scheduledTaskId: number }) {
+    const row = await this.schedRepo.findOne({ where: { scheduledTaskId: input.scheduledTaskId } });
+    if (!row) throw new BadRequestException('Scheduled task not found');
+    row.status = 'cancelled' as any;
+    row.isActive = 0 as any;
+    row.updatedAt = new Date();
+    await this.schedRepo.save(row);
+    await this.history.snapshot(row);
+    return { cancelled: true };
+  }
+
+  /**
+   * Builds a TypeORM find query for scheduled tasks with relations/filters/sort/paging.
+   * @private
+   */
+  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
+    const query: Record<string, any> = {};
+
+    query.where = { tenantId: filtersDto.tenantId, isActive: 1 } as any;
+
+    if (filtersDto.search) {
+      // Placeholder for future text search on columns
+    }
+
+    if (filtersDto.sortBy) {
+      query.order = {
+        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
+      };
+    }
+
+    if (filtersDto.limit) {
+      filtersDto.page = filtersDto.page || 1;
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+
+      query.take = filtersDto.limit;
+      query.skip = (filtersDto.page - 1) * filtersDto.limit;
+    }
+
+    return query;
+  }
+
+  /**
+   * Builds pagination structure matching project services.
+   * @private
+   */
+  private buildPagination(
+    filtersDto: FiltersDto,
+    total: number,
+  ): { total: number; page: number; limit: number } {
+    return {
+      total,
+      page: filtersDto.page || 1,
+      limit: filtersDto.limit || 10,
+    };
   }
 }

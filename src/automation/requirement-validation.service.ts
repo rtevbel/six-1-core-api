@@ -34,7 +34,7 @@ export class RequirementValidationService {
     const ok = validate(submittedData);
     return {
       valid: !!ok,
-      errors: ok ? [] : validate.errors ?? [],
+      errors: ok ? [] : (validate.errors ?? []),
       autoApprove: !!jsonSchemaEnvelope.autoApproveOnValid && !!ok,
     };
   }

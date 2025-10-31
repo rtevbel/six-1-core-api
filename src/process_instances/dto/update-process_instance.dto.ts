@@ -6,7 +6,9 @@ import { IsNumber } from 'class-validator';
  * DTO for updating an existing ProcessInstance.
  * Extends CreateProcessInstanceDto with optional fields.
  */
-export class UpdateProcessInstanceDto extends PartialType(CreateProcessInstanceDto) {
+export class UpdateProcessInstanceDto extends PartialType(
+  CreateProcessInstanceDto,
+) {
   /**
    * ID of the process instance to be updated.
    */

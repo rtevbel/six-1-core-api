@@ -26,7 +26,7 @@ import { CategoryEntity } from '../../categories/entities/category.entity';
 import { ProcessTemplateEntity } from '../../process_templates/entities/process_template.entity';
 import { ProjectEntity } from '../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../projects/project_task_statuses/entities/project_task_status.entity';
-import {ProcessInstanceEntity} from "../../process_instances/entities/process_instance.entity";
+import { ProcessInstanceEntity } from '../../process_instances/entities/process_instance.entity';
 
 /**
  * Entity class for `tenants` table.
@@ -250,11 +250,15 @@ export class TenantEntity {
   projectTaskStatuses!: ProjectTaskStatusEntity[];
 
   /**
- * Relationship to ProcessInstanceEntity.
- * A tenant can have multiple process instances.
- */
-  @OneToMany(() => ProcessInstanceEntity, (processInstance) => processInstance.tenant, {
-    cascade: true,
-  })
+   * Relationship to ProcessInstanceEntity.
+   * A tenant can have multiple process instances.
+   */
+  @OneToMany(
+    () => ProcessInstanceEntity,
+    (processInstance) => processInstance.tenant,
+    {
+      cascade: true,
+    },
+  )
   processInstances!: ProcessInstanceEntity[];
 }

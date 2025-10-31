@@ -1,6 +1,6 @@
-import { promises as fs } from "fs";
-import * as path from "path";
-import * as crypto from "crypto";
+import { promises as fs } from 'fs';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import {
   IStorageProvider,
   PutInput,
@@ -9,14 +9,14 @@ import {
   HeadOutput,
   MultipartCreateOutput,
   MultipartPartUrl,
-} from "../interfaces/storage-provider.interface";
+} from '../interfaces/storage-provider.interface';
 
 /**
  * LocalProvider is a storage provider implementation for local file storage.
  * It provides methods for uploading, downloading, and managing files locally.
  */
 export class LocalProvider implements IStorageProvider {
-  public readonly driver = "local"; // Identifier for the storage driver
+  public readonly driver = 'local'; // Identifier for the storage driver
   private baseDir: string; // Base directory for storing files
   private publicBaseUrl?: string; // Public base URL for accessing files (e.g., http://localhost:4000/static)
 
@@ -42,7 +42,9 @@ export class LocalProvider implements IStorageProvider {
   async put(input: PutInput) {
     const p = this.fullPath(input.key);
     await fs.mkdir(path.dirname(p), { recursive: true });
-    const buf = Buffer.isBuffer(input.body) ? input.body : Buffer.from(input.body as any);
+    const buf = Buffer.isBuffer(input.body)
+      ? input.body
+      : Buffer.from(input.body as any);
     await fs.writeFile(p, buf);
     return { key: input.key };
   }
@@ -70,13 +72,20 @@ export class LocalProvider implements IStorageProvider {
       return {
         contentLength: st.size,
         contentType: null,
-        etag: crypto.createHash("md5").update(p).digest("hex"),
+        etag: crypto.createHash('md5').update(p).digest('hex'),
         lastModified: st.mtime,
         metadata: {},
         exists: true,
       };
     } catch {
-      return { contentLength: null, contentType: null, etag: null, lastModified: null, metadata: {}, exists: false };
+      return {
+        contentLength: null,
+        contentType: null,
+        etag: null,
+        lastModified: null,
+        metadata: {},
+        exists: false,
+      };
     }
   }
 
@@ -86,7 +95,7 @@ export class LocalProvider implements IStorageProvider {
    * @returns A presigned URL for uploading the file.
    */
   async presignUpload(input: PresignUploadInput) {
-    const url = `${this.publicBaseUrl ?? "http://localhost:3000"}/dev-upload/${encodeURIComponent(input.key)}`;
+    const url = `${this.publicBaseUrl ?? 'http://localhost:3000'}/dev-upload/${encodeURIComponent(input.key)}`;
     return { url, key: input.key };
   }
 
@@ -122,11 +131,11 @@ export class LocalProvider implements IStorageProvider {
         const p = path.join(d, e.name);
         const rel = path.relative(base, p);
         if (e.isDirectory()) await walk(p, base);
-        else out.push(rel.replaceAll("\\", "/"));
+        else out.push(rel.replaceAll('\\', '/'));
       }
     }
     await walk(dir, this.baseDir);
-    return { keys: out.map((k) => `${prefix}/${k}`.replace(/\/+/g, "/")) };
+    return { keys: out.map((k) => `${prefix}/${k}`.replace(/\/+/g, '/')) };
   }
 
   /**
@@ -134,7 +143,7 @@ export class LocalProvider implements IStorageProvider {
    * @returns A dummy upload ID.
    */
   async createMultipart(): Promise<MultipartCreateOutput> {
-    return { uploadId: "local" };
+    return { uploadId: 'local' };
   }
 
   /**
@@ -145,8 +154,16 @@ export class LocalProvider implements IStorageProvider {
    * @param partNumber - The part number.
    * @returns A presigned URL for uploading the part.
    */
-  async presignUploadPart(_b: string, _k: string, _u: string, partNumber: number): Promise<MultipartPartUrl> {
-    return { url: `${this.publicBaseUrl ?? ""}/dev-upload/part/${partNumber}`, partNumber };
+  async presignUploadPart(
+    _b: string,
+    _k: string,
+    _u: string,
+    partNumber: number,
+  ): Promise<MultipartPartUrl> {
+    return {
+      url: `${this.publicBaseUrl ?? ''}/dev-upload/part/${partNumber}`,
+      partNumber,
+    };
   }
 
   /**

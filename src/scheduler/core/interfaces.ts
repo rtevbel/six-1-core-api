@@ -1,83 +1,32 @@
-/**
- * Represents the days of the week.
- */
-export type Weekday =
-  | 'monday'
-  | 'tuesday'
-  | 'wednesday'
-  | 'thursday'
-  | 'friday'
-  | 'saturday'
-  | 'sunday';
+export const CALENDAR_PROVIDER = Symbol('CALENDAR_PROVIDER');
+export const TASK_CONTEXT_PROVIDER = Symbol('TASK_CONTEXT_PROVIDER');
 
-/**
- * Represents a time interval with a start and end time.
- * The time format is 'HH:mm:ss'.
- */
-export type TimeInterval = { start: string; end: string };
-
-/**
- * Interface for a calendar provider service.
- * Provides methods to retrieve timezone, check if a date is an off date,
- * and get working intervals for a specific date and weekday.
- */
 export interface CalendarProvider {
-  /**
-   * Retrieves the timezone for a given tenant and optional tenant user.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The optional ID of the tenant user.
-   * @returns A promise that resolves to the timezone string.
-   */
-  getTimezone(tenantId: number, tenantUserId?: number | null): Promise<string>;
+  /** Best timezone for schedule fitting (tenant-user > tenant > 'UTC') */
+  getTimezone(tenantId: number, tenantUserId?: number): Promise<string>;
 
-  /**
-   * Checks if a given date is an off date (non-working day) in the local timezone.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The optional ID of the tenant user.
-   * @param localISODate - The date in ISO format (e.g., 'YYYY-MM-DD').
-   * @returns A promise that resolves to a boolean indicating if the date is an off date.
-   */
-  isOffDateLocal(
-    tenantId: number,
-    tenantUserId: number | null | undefined,
-    localISODate: string,
-  ): Promise<boolean>;
+  /** Is this local date a day off for this tenant / user? (YYYY-MM-DD in local tz) */
+  isOffDateLocal(tenantId: number, tenantUserId: number | undefined, isoDate: string): Promise<boolean>;
 
-  /**
-   * Retrieves the working intervals for a specific date and weekday in the local timezone.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The optional ID of the tenant user.
-   * @param localISODate - The date in ISO format (e.g., 'YYYY-MM-DD').
-   * @param weekday - The day of the week.
-   * @returns A promise that resolves to an array of time intervals.
-   */
+  /** Working time windows (local) for this weekday, e.g. [{start:'09:00',end:'13:00'}, ...] */
   getWorkingIntervalsLocal(
     tenantId: number,
-    tenantUserId: number | null | undefined,
-    localISODate: string,
-    weekday: Weekday,
-  ): Promise<TimeInterval[]>;
+    tenantUserId: number | undefined,
+    isoDate: string,     // 'YYYY-MM-DD'
+    weekday: number,     // 1=Mon..7=Sun (Luxon)
+  ): Promise<Array<{ start: string; end: string }>>;
 }
 
-/**
- * Interface for a task context provider service.
- * Provides methods to retrieve the context of a task, including tenant and user information.
- */
 export interface TaskContextProvider {
-  /**
-   * Retrieves the context for a given task.
-   * @param taskId - The ID of the task.
-   * @returns A promise that resolves to an object containing tenant and user information.
-   */
-  getTaskContext(taskId: number): Promise<{ tenantId: number; tenantUserId: number | null }>;
+  /** Minimal context to scope calendar/ACL and constraints for a task */
+  getTaskContext(taskId: number): Promise<{
+    tenantId: number;
+    projectId: number;
+    taskStatusId: number;
+    assigneeId: number | null,
+    // Optional: constraints from task
+    startConstraintType?: 'ASAP'|'NoEarlierThan'|'On'|'NoLaterThan'|'MustStartOn'|'MustFinishOn'|null;
+    startConstraintUtc?: Date|null;
+    finishConstraintUtc?: Date|null;
+  }>;
 }
-
-/**
- * Constant identifier for the calendar provider service.
- */
-export const CALENDAR_PROVIDER = 'CALENDAR_PROVIDER';
-
-/**
- * Constant identifier for the task context provider service.
- */
-export const TASK_CONTEXT_PROVIDER = 'TASK_CONTEXT_PROVIDER';

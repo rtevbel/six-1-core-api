@@ -9,6 +9,6 @@ export const MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_PATTERN =
   'v0.1_update_process_instance_step';
 export const MICROSERVICE_REMOVE_PROCESS_INSTANCE_STEP_PATTERN =
   'v0.1_remove_process_instance_step';
-  
+
 export const MESSAGE_BROKER_PROCESS_INSTANCE_STEP_SERVICE_CLIENT_TOKEN =
   'process_instance_step_service_token';

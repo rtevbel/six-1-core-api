@@ -14,7 +14,6 @@ import {
  * used for filtering, sorting, and pagination.
  */
 export class FiltersDto {
-
   /**
    * Task ID for filtering results.
    * Optional field, must be a number if provided.

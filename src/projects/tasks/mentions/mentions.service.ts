@@ -47,9 +47,8 @@ export class TaskMentionsService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [mentions, total] = await this.mentionRepository.findAndCount(
-      findQuery,
-    );
+    const [mentions, total] =
+      await this.mentionRepository.findAndCount(findQuery);
 
     if (mentions.length === 0) {
       throw new RpcException(
@@ -79,7 +78,10 @@ export class TaskMentionsService {
 
     if (!mention) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskMentionsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskMentionsEntity.name,
+        ),
       );
     }
 
@@ -103,7 +105,10 @@ export class TaskMentionsService {
 
     if (!mention) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskMentionsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskMentionsEntity.name,
+        ),
       );
     }
 
@@ -128,14 +133,14 @@ export class TaskMentionsService {
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
-    query.relations = ['mentionedUser.user','createdByUser.user'];
+    query.relations = ['mentionedUser.user', 'createdByUser.user'];
     // Base where condition to filter by commentId
-    if(filtersDto.taskId){
+    if (filtersDto.taskId) {
       query.where = { taskId: filtersDto.taskId };
-    }else if(filtersDto.commentId){
+    } else if (filtersDto.commentId) {
       query.where = { commentId: filtersDto.commentId };
     }
-    
+
     if (filtersDto.search) {
       query.where = [{ mention: Like(`%${filtersDto.search}%`) }];
     }

@@ -71,10 +71,16 @@ export type EventEnvelope<TData = unknown> = {
  *   - An EntityRef object
  * @returns An EntityRef object or undefined if the input is invalid.
  */
-export function normalizeEntityRef(input?: any): { entityType: string | null; entityId: number | string | null } | undefined {
+export function normalizeEntityRef(
+  input?: any,
+): { entityType: string | null; entityId: number | string | null } | undefined {
   if (!input) return undefined;
 
-  if (typeof input === 'object' && 'entityId' in input && 'entityType' in input) {
+  if (
+    typeof input === 'object' &&
+    'entityId' in input &&
+    'entityType' in input
+  ) {
     return input as any;
   }
 
@@ -84,11 +90,7 @@ export function normalizeEntityRef(input?: any): { entityType: string | null; en
   }
 
   const direct =
-    input?.projectId ??
-    input?.id ??
-    input?._id ??
-    input?.entityId ??
-    null;
+    input?.projectId ?? input?.id ?? input?._id ?? input?.entityId ?? null;
 
   if (direct != null) {
     return { entityType: input?.constructor?.name ?? null, entityId: direct };
@@ -97,12 +99,14 @@ export function normalizeEntityRef(input?: any): { entityType: string | null; en
   // Try instance or prototype getId()
   if (typeof input?.getId === 'function') {
     const v = input.getId();
-    if (v != null) return { entityType: input?.constructor?.name ?? null, entityId: v };
+    if (v != null)
+      return { entityType: input?.constructor?.name ?? null, entityId: v };
   }
   const proto = Object.getPrototypeOf(input);
   if (proto && typeof proto.getId === 'function') {
     const v = proto.getId.call(input);
-    if (v != null) return { entityType: input?.constructor?.name ?? null, entityId: v };
+    if (v != null)
+      return { entityType: input?.constructor?.name ?? null, entityId: v };
   }
 
   // Fallback

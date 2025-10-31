@@ -17,8 +17,9 @@ import { ProcessInstanceStepEntity } from '../../../process_instances/process_in
 import { TaskCommentsEntity } from '../comments/entities/comment.entity';
 import { TaskAttachmentsEntity } from '../attachments/entities/attachment.entity';
 import { TaskMentionsEntity } from '../mentions/entities/mention.entity';
-import {TaskDependencyEntity} from "../../../scheduler/entities/task_dependency.entity";
-
+import { TaskDependencyEntity } from '../../../scheduler/entities/task_dependency.entity';
+import { TenantEntity } from '../../../tenants/entities/tenant.entity';
+import { TenantTeamEntity } from '../../../tenants/tenant_teams/entities/tenant_team.entity';
 
 /**
  * Entity class for `tasks`.
@@ -31,6 +32,16 @@ export class TaskEntity {
     unsigned: true,
   })
   taskId!: number;
+
+  @Column({
+    name: 'tenant_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+    comment: 'Denormalized from project for fast scoping & ACL',
+  })
+  @Index('task_tenant_id')
+  tenantId!: number;
 
   @Column({
     name: 'project_id',
@@ -47,6 +58,7 @@ export class TaskEntity {
     length: 255,
     nullable: false,
     unique: true,
+    comment: 'Kept as-is for compatibility',
   })
   taskIdentifier!: string;
 
@@ -79,7 +91,7 @@ export class TaskEntity {
     type: 'bigint',
     unsigned: true,
     nullable: true,
-    comment: 'Linked process step instance',
+    comment: 'Linked process step',
   })
   @Index('tasks_step_instance_id')
   stepInstanceId?: number;
@@ -104,12 +116,24 @@ export class TaskEntity {
   estimatedDuration?: number;
 
   @Column({
+    name: 'effort_hours',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    unsigned: true,
+    nullable: true,
+    comment: 'Effort-driven scheduling input (optional)',
+  })
+  effortHours?: number;
+
+  @Column({
     name: 'parent_task_id',
     type: 'bigint',
     unsigned: true,
     nullable: true,
     comment: 'If it is a sub-task',
   })
+  @Index('task_parent_task_id')
   parentTaskId?: number;
 
   @Column({
@@ -120,6 +144,69 @@ export class TaskEntity {
     nullable: false,
   })
   statusControl!: 'manual' | 'process' | 'hybrid';
+
+  @Column({
+    name: 'scheduling_mode',
+    type: 'enum',
+    enum: ['manual', 'fixed_duration', 'fixed_effort'],
+    default: 'manual',
+    nullable: false,
+    comment: 'Guides scheduler behavior',
+  })
+  schedulingMode!: 'manual' | 'fixed_duration' | 'fixed_effort';
+
+  @Column({
+    name: 'default_shift_hours',
+    type: 'decimal',
+    precision: 10,
+    scale: 2,
+    unsigned: true,
+    nullable: true,
+    comment: 'Common shift length for auto-splitting (e.g., 4.00)',
+  })
+  defaultShiftHours?: number;
+
+  @Column({
+    name: 'primary_assignee_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Default/owner (single active assignee at a time)',
+  })
+  @Index('task_primary_assignee_id')
+  primaryAssigneeId?: number;
+
+  @Column({
+    name: 'team_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Owning team (nullable; derive from project if null)',
+  })
+  @Index('task_team_id')
+  teamId?: number;
+
+  @Column({
+    name: 'start_constraint_type',
+    type: 'enum',
+    enum: ['ASAP', 'NoEarlierThan', 'On', 'NoLaterThan', 'MustStartOn', 'MustFinishOn'],
+    nullable: true,
+  })
+  startConstraintType?: 'ASAP' | 'NoEarlierThan' | 'On' | 'NoLaterThan' | 'MustStartOn' | 'MustFinishOn';
+
+  @Column({
+    name: 'start_constraint_utc',
+    type: 'datetime',
+    nullable: true,
+  })
+  startConstraintUtc?: Date;
+
+  @Column({
+    name: 'finish_constraint_utc',
+    type: 'datetime',
+    nullable: true,
+  })
+  finishConstraintUtc?: Date;
 
   @Column({
     name: 'status_locked_until',
@@ -141,10 +228,10 @@ export class TaskEntity {
     name: 'updated_by',
     type: 'bigint',
     unsigned: true,
-    default: 0,
+    nullable: true,
     comment: 'Tenant User ID',
   })
-  updatedBy!: number;
+  updatedBy?: number;
 
   @CreateDateColumn({
     name: 'created_at',
@@ -160,6 +247,14 @@ export class TaskEntity {
     onUpdate: 'CURRENT_TIMESTAMP',
   })
   updatedAt!: Date;
+
+  /**
+   * Relationship to TenantEntity.
+   * A task belongs to one tenant (denormalized).
+   */
+  @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'tenant_id' })
+  tenant!: TenantEntity;
 
   /**
    * Relationship to ProjectEntity.
@@ -202,7 +297,7 @@ export class TaskEntity {
 
   /**
    * Relationship to TenantUsersEntity.
-   * A task is updated by one user.
+   * A task is updated by one user (nullable; SET NULL on user delete).
    */
   @ManyToOne(() => TenantUsersEntity, (user) => user.updatedTasks, {
     nullable: true,
@@ -211,35 +306,38 @@ export class TaskEntity {
   @JoinColumn({ name: 'updated_by' })
   updatedByUser?: TenantUsersEntity;
 
-
   /**
    * Relationship to ProcessInstanceStepEntity.
-   * A task can be linked to one process instance step.
+   * A task can be linked to one process instance step (many-to-one view).
    */
-  @ManyToOne(() => ProcessInstanceStepEntity, (stepInstance) => stepInstance.tasks, {
-    nullable: true,
-    onDelete: 'SET NULL',
-  })
+  @ManyToOne(
+    () => ProcessInstanceStepEntity,
+    (stepInstance) => stepInstance.tasks,
+    {
+      nullable: true,
+      onDelete: 'SET NULL',
+    },
+  )
   @JoinColumn({ name: 'step_instance_id' })
   stepInstance?: ProcessInstanceStepEntity;
 
   /**
-   * Relationship to TaskEntity.
-   * A task can have multiple sub-tasks.
-   */
-  subTasks?: TaskEntity[];
-
-   /**
    * Relationship to ProcessInstanceStepEntity.
-   * A task can be linked to one process instance step.
+   * Alternate one-to-one view using the same FK (if you keep this dual mapping).
    */
-   @OneToOne(
+  @OneToOne(
     () => ProcessInstanceStepEntity,
     (linkedStepInstance) => linkedStepInstance.linkedTask,
-    { nullable: true, onDelete: 'SET NULL' }
-   )
-    @JoinColumn({ name: 'step_instance_id' })
-    linkedStepInstance?: ProcessInstanceStepEntity;
+    { nullable: true, onDelete: 'SET NULL' },
+  )
+  @JoinColumn({ name: 'step_instance_id' })
+  linkedStepInstance?: ProcessInstanceStepEntity;
+
+  /**
+   * One-to-many relationship with TaskEntity for sub-tasks.
+   */
+  @OneToMany(() => TaskEntity, (task) => task.parentTask)
+  subTasks?: TaskEntity[];
 
   /**
    * One-to-many relationship with the `TaskCommentsEntity`.
@@ -259,20 +357,20 @@ export class TaskEntity {
   })
   attachments!: TaskAttachmentsEntity[];
 
-   /**
+  /**
    * One-to-many relationship with the `TaskMentionsEntity`.
    * A task can have multiple mentions.
    */
-   @OneToMany(() => TaskMentionsEntity, (mention) => mention.task, {
+  @OneToMany(() => TaskMentionsEntity, (mention) => mention.task, {
     cascade: true,
   })
   mentions!: TaskMentionsEntity[];
 
-   /**
+  /**
    * Inverse relationship to TaskDependencyEntity.
    * A task can have multiple dependencies.
    */
-   @OneToMany(() => TaskDependencyEntity, (dependency) => dependency.task, {
+  @OneToMany(() => TaskDependencyEntity, (dependency) => dependency.task, {
     cascade: true,
   })
   dependencies!: TaskDependencyEntity[];
@@ -281,9 +379,32 @@ export class TaskEntity {
    * Inverse relationship to TaskDependencyEntity.
    * A task can be depended on by multiple other tasks.
    */
-  @OneToMany(() => TaskDependencyEntity, (dependency) => dependency.dependsOnTask, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => TaskDependencyEntity,
+    (dependency) => dependency.dependsOnTask,
+    {
+      cascade: true,
+    },
+  )
   dependentTasks!: TaskDependencyEntity[];
 
+  /**
+   * NEW: Primary assignee relation (nullable; SET NULL on user delete).
+   */
+  @ManyToOne(() => TenantUsersEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'primary_assignee_id' })
+  primaryAssignee?: TenantUsersEntity;
+
+  /**
+   * NEW: Team relation (nullable; SET NULL on team delete).
+   */
+  @ManyToOne(() => TenantTeamEntity, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
+  @JoinColumn({ name: 'team_id' })
+  team?: TenantTeamEntity;
 }

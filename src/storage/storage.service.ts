@@ -1,23 +1,23 @@
-import { Inject, Injectable } from "@nestjs/common";
-import * as crypto from "crypto";
-import * as path from "path";
-import { STORAGE_PROVIDER } from "./constants";
+import { Inject, Injectable } from '@nestjs/common';
+import * as crypto from 'crypto';
+import * as path from 'path';
+import { STORAGE_PROVIDER } from './constants';
 import {
   IStorageProvider,
   PresignUploadInput,
   PresignGetInput,
   PutInput,
   HeadOutput,
-} from "./interfaces/storage-provider.interface";
+} from './interfaces/storage-provider.interface';
 
 type StartDirectUploadInput = {
   filename: string;
   contentType?: string;
   tenantId?: string;
   userId?: string;
-  prefix?: string;          // e.g. "attachments" | "avatars"
+  prefix?: string; // e.g. "attachments" | "avatars"
   bucket?: string;
-  expiresIn?: number;       // seconds for presigned PUT
+  expiresIn?: number; // seconds for presigned PUT
 };
 
 type ConfirmDirectUploadInput = {
@@ -28,9 +28,9 @@ type ConfirmDirectUploadInput = {
 type GetPresignedDownloadUrlInput = {
   key: string;
   bucket?: string;
-  expiresIn?: number;       // seconds for presigned GET
-  inline?: boolean;         // true = inline, false = attachment
-  downloadName?: string;    // filename in Content-Disposition
+  expiresIn?: number; // seconds for presigned GET
+  inline?: boolean; // true = inline, false = attachment
+  downloadName?: string; // filename in Content-Disposition
 };
 
 type GenerateKeyInput = {
@@ -47,7 +47,9 @@ type GenerateKeyInput = {
  */
 @Injectable()
 export class StorageService {
-  constructor(@Inject(STORAGE_PROVIDER) private readonly provider: IStorageProvider) {}
+  constructor(
+    @Inject(STORAGE_PROVIDER) private readonly provider: IStorageProvider,
+  ) {}
 
   /** Get the driver name of the current storage provider. */
   get driver() {
@@ -85,13 +87,31 @@ export class StorageService {
   }
 
   /** Multipart: create session. */
-  async createMultipart(bucket: string | undefined, key: string, contentType?: string) {
-    return this.provider.createMultipart(bucket ?? (undefined as any), key, contentType);
+  async createMultipart(
+    bucket: string | undefined,
+    key: string,
+    contentType?: string,
+  ) {
+    return this.provider.createMultipart(
+      bucket ?? (undefined as any),
+      key,
+      contentType,
+    );
   }
 
   /** Multipart: presign one part. */
-  async presignUploadPart(bucket: string | undefined, key: string, uploadId: string, partNumber: number) {
-    return this.provider.presignUploadPart(bucket ?? (undefined as any), key, uploadId, partNumber);
+  async presignUploadPart(
+    bucket: string | undefined,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+  ) {
+    return this.provider.presignUploadPart(
+      bucket ?? (undefined as any),
+      key,
+      uploadId,
+      partNumber,
+    );
   }
 
   /** Multipart: complete session. */
@@ -99,23 +119,36 @@ export class StorageService {
     bucket: string | undefined,
     key: string,
     uploadId: string,
-    parts: Array<{ ETag: string; PartNumber: number }>
+    parts: Array<{ ETag: string; PartNumber: number }>,
   ) {
-    return this.provider.completeMultipart(bucket ?? (undefined as any), key, uploadId, parts);
+    return this.provider.completeMultipart(
+      bucket ?? (undefined as any),
+      key,
+      uploadId,
+      parts,
+    );
   }
 
   /** Multipart: abort session. */
-  async abortMultipart(bucket: string | undefined, key: string, uploadId: string) {
-    return this.provider.abortMultipart(bucket ?? (undefined as any), key, uploadId);
+  async abortMultipart(
+    bucket: string | undefined,
+    key: string,
+    uploadId: string,
+  ) {
+    return this.provider.abortMultipart(
+      bucket ?? (undefined as any),
+      key,
+      uploadId,
+    );
   }
-
 
   /**
    * Build a canonical object key:
    * {tenantId}/{userId}/{prefix}/{uuid}.{ext}
    */
   generateKey({ filename, tenantId, userId, prefix }: GenerateKeyInput) {
-    const ext = (path.extname(filename) || "").replace(/^\./, "").toLowerCase() || "bin";
+    const ext =
+      (path.extname(filename) || '').replace(/^\./, '').toLowerCase() || 'bin';
     const uuid = crypto.randomUUID();
     const parts = [
       tenantId?.trim(),
@@ -123,7 +156,7 @@ export class StorageService {
       prefix?.trim(),
       `${uuid}.${ext}`,
     ].filter(Boolean) as string[];
-    return parts.join("/").replace(/\/+/g, "/");
+    return parts.join('/').replace(/\/+/g, '/');
   }
 
   /**
@@ -155,7 +188,7 @@ export class StorageService {
     const meta = await this.head(bucket, key);
     if (!meta.exists) {
       // You may throw a custom exception type in your codebase.
-      throw new Error("Uploaded object not found (HEAD 404).");
+      throw new Error('Uploaded object not found (HEAD 404).');
     }
     return {
       key,
@@ -178,9 +211,9 @@ export class StorageService {
     inline = false,
     downloadName,
   }: GetPresignedDownloadUrlInput) {
-    const dispType = inline ? "inline" : "attachment";
-    const fallback = key.split("/").pop() ?? "download";
-    const safeName = (downloadName || fallback).replace(/"/g, "");
+    const dispType = inline ? 'inline' : 'attachment';
+    const fallback = key.split('/').pop() ?? 'download';
+    const safeName = (downloadName || fallback).replace(/"/g, '');
 
     const { url } = await this.presignGet({
       key,

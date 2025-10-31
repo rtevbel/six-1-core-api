@@ -1,4 +1,4 @@
-import { Readable } from "stream";
+import { Readable } from 'stream';
 
 /**
  * Input type for uploading a file.
@@ -19,7 +19,7 @@ export type PresignUploadInput = {
   key: string; // The key (path) where the file will be uploaded.
   contentType?: string; // Optional MIME type of the file.
   expiresIn?: number; // Optional expiration time for the presigned URL (in seconds).
-  acl?: "private" | "public-read"; // Optional access control list.
+  acl?: 'private' | 'public-read'; // Optional access control list.
   metadata?: Record<string, string>; // Optional metadata to attach to the file.
 };
 
@@ -95,7 +95,9 @@ export interface IStorageProvider {
    * @param input - Input parameters for the presigned upload.
    * @returns A promise resolving to the presigned URL and additional fields.
    */
-  presignUpload(input: PresignUploadInput): Promise<{ url: string; fields?: Record<string, string>; key: string }>;
+  presignUpload(
+    input: PresignUploadInput,
+  ): Promise<{ url: string; fields?: Record<string, string>; key: string }>;
 
   /**
    * Generates a presigned URL for downloading a file.
@@ -111,7 +113,11 @@ export interface IStorageProvider {
    * @param maxKeys - Optional maximum number of keys to return.
    * @returns A promise resolving to the list of file keys.
    */
-  list(bucket: string, prefix: string, maxKeys?: number): Promise<{ keys: string[] }>;
+  list(
+    bucket: string,
+    prefix: string,
+    maxKeys?: number,
+  ): Promise<{ keys: string[] }>;
 
   /**
    * Initiates a multipart upload.
@@ -120,7 +126,11 @@ export interface IStorageProvider {
    * @param contentType - Optional MIME type of the file.
    * @returns A promise resolving to the multipart upload ID.
    */
-  createMultipart(bucket: string, key: string, contentType?: string): Promise<MultipartCreateOutput>;
+  createMultipart(
+    bucket: string,
+    key: string,
+    contentType?: string,
+  ): Promise<MultipartCreateOutput>;
 
   /**
    * Generates a presigned URL for uploading a specific part of a multipart upload.
@@ -130,7 +140,12 @@ export interface IStorageProvider {
    * @param partNumber - The part number.
    * @returns A promise resolving to the presigned URL for the part.
    */
-  presignUploadPart(bucket: string, key: string, uploadId: string, partNumber: number): Promise<MultipartPartUrl>;
+  presignUploadPart(
+    bucket: string,
+    key: string,
+    uploadId: string,
+    partNumber: number,
+  ): Promise<MultipartPartUrl>;
 
   /**
    * Completes a multipart upload.
@@ -143,7 +158,7 @@ export interface IStorageProvider {
     bucket: string,
     key: string,
     uploadId: string,
-    parts: Array<{ ETag: string; PartNumber: number }>
+    parts: Array<{ ETag: string; PartNumber: number }>,
   ): Promise<void>;
 
   /**

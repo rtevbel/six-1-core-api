@@ -9,7 +9,7 @@ import {
   Check,
   ManyToOne,
   JoinColumn,
-  OneToMany
+  OneToMany,
 } from 'typeorm';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
@@ -17,20 +17,13 @@ import { ProjectTaskStatusEntity } from '../../projects/project_task_statuses/en
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 import { ScheduledTaskHistoryEntity } from './scheduled_task_history.entity';
 import { ScheduledTaskEventsEntity } from './scheduled_task_event.entity';
-
-export type BlockReason = 'none' | 'calendar' | 'dependency';
-export type ScheduledTaskStatus =
-  | 'scheduled'
-  | 'queued'
-  | 'running'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'paused'
-  | 'expired';
+import { ResourceAssignmentShiftEntity } from './resource_assignment_shifts.entity';
+import {BlockReason,ScheduledTaskStatus} from "../constants";
 
 @Check('chk_requested_window', '`requested_end_utc` >= `requested_start_utc`')
 @Check('chk_effective_window', '`effective_end_utc` >= `effective_start_utc`')
+@Index('idx_user', ['tenantUserId'])
+@Index('idx_user_active_window', ['tenantUserId', 'isActive', 'effectiveStartUtc', 'effectiveEndUtc'])
 @Entity('scheduled_tasks')
 export class ScheduledTaskEntity {
   @PrimaryGeneratedColumn({
@@ -39,6 +32,10 @@ export class ScheduledTaskEntity {
     unsigned: true,
   })
   scheduledTaskId!: number;
+
+  @Index('idx_parent_scheduled_task_id') 
+  @Column({ name: 'parent_scheduled_task_id', type: 'bigint', unsigned: true, nullable: true })
+  parentScheduledTaskId!: number | null;
 
   @Column({
     name: 'tenant_id',
@@ -342,7 +339,7 @@ export class ScheduledTaskEntity {
     generatedType: 'VIRTUAL',
     nullable: true,
   })
-  @Index('uq_active_per_task', { unique: true })
+  @Index('uq_active_per_task', { unique: false })
   activeGuard?: number | null;
 
   @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })
@@ -362,12 +359,16 @@ export class ScheduledTaskEntity {
   taskStatus!: ProjectTaskStatusEntity;
 
   /**
- * Relationship to ScheduledTaskHistoryEntity.
- * A scheduled task can have multiple history records.
- */
-  @OneToMany(() => ScheduledTaskHistoryEntity, (history) => history.scheduledTask, {
-    cascade: true,
-  })
+   * Relationship to ScheduledTaskHistoryEntity.
+   * A scheduled task can have multiple history records.
+   */
+  @OneToMany(
+    () => ScheduledTaskHistoryEntity,
+    (history) => history.scheduledTask,
+    {
+      cascade: true,
+    },
+  )
   history!: ScheduledTaskHistoryEntity[];
 
   /**
@@ -378,6 +379,16 @@ export class ScheduledTaskEntity {
     cascade: true,
   })
   events!: ScheduledTaskEventsEntity[];
+
+
+  /**
+   * Inverse relationship to ResourceAssignmentShiftEntity.
+   * Represents all shifts associated with this scheduled task.
+   */
+  @OneToMany(() => ResourceAssignmentShiftEntity, (shift) => shift.scheduledTask, {
+    cascade: true,
+  })
+  resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
 
   public getId() {
     return this.scheduledTaskId;

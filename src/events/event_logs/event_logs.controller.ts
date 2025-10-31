@@ -114,14 +114,16 @@ export class EventLogsController {
    */
   @OnEvent('six1-event.notification.*', { async: true })
   async handle(envelope: any): Promise<void> {
-    
-    let eventName:string = envelope.eventName;
-    if(eventName){
-      eventName = eventName.replace('six1-event.notification.','');
+    let eventName: string = envelope.eventName;
+    if (eventName) {
+      eventName = eventName.replace('six1-event.notification.', '');
     }
-    console.log(`Event Bridge-> six1-event.notification.* ->Received event: ${eventName} with payload:`, envelope);
+    console.log(
+      `Event Bridge-> six1-event.notification.* ->Received event: ${eventName} with payload:`,
+      envelope,
+    );
     const eventId = await this.catalog.getIdByName(eventName);
- 
+
     const entityId = envelope?.entity?.entityId ?? envelope?.entity?.id ?? null;
     const entityType =
       envelope?.entity?.entityType ??

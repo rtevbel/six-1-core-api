@@ -1,90 +1,72 @@
-// src/scheduler/services/scheduled-tasks.service.ts
-
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
 
 /**
- * ScheduledTasksService is responsible for managing scheduled tasks, including
- * retrieving active tasks, deactivating tasks, and creating new active tasks.
+ * CRUD helpers for scheduled_tasks that enforce "active row" semantics.
  */
 @Injectable()
 export class ScheduledTasksService {
   constructor(
     @InjectRepository(ScheduledTaskEntity)
-    private readonly repo: Repository<ScheduledTaskEntity>, // Repository for scheduled tasks
-    private readonly ds: DataSource, // DataSource for managing transactions
+    private readonly repo: Repository<ScheduledTaskEntity>,
   ) {}
 
-  /**
-   * Retrieves the active scheduled task for a given task ID.
-   * @param taskId - The ID of the task to retrieve.
-   * @returns The active scheduled task entity, or null if none exists.
-   */
-  async getActiveByTask(taskId: number) {
-    return this.repo.findOne({ where: { taskId, isActive: 1 as any } });
-  }
-
-  /**
-   * Deactivates all other active scheduled tasks for a given task ID.
-   * @param taskId - The ID of the task for which to deactivate other active tasks.
-   */
-  async deactivateOthers(taskId: number) {
-    await this.repo
-      .createQueryBuilder()
-      .update(ScheduledTaskEntity)
-      .set({ isActive: 0 as any }) // Set isActive to 0 (inactive)
-      .where('task_id = :taskId AND is_active = 1', { taskId }) // Target active tasks with the given task ID
-      .execute();
-  }
-
-  /**
-   * Creates a new active scheduled task for a given task ID, deactivating any existing active tasks.
-   * @param row - Partial data for the new scheduled task entity.
-   * @returns The newly created active scheduled task entity.
-   */
-  async createActive(row: Partial<ScheduledTaskEntity>): Promise<ScheduledTaskEntity> {
-    return this.ds.transaction(async (trx) => {
-      // Deactivate any existing active tasks for the given task ID
-      await trx
-        .getRepository(ScheduledTaskEntity)
-        .createQueryBuilder()
-        .update(ScheduledTaskEntity)
-        .set({ isActive: 0 as any })
-        .where('task_id = :taskId AND is_active = 1', { taskId: row.taskId })
-        .execute();
-
-      // Retrieve the latest version of the task
-      const prev = await trx.getRepository(ScheduledTaskEntity).find({
-        where: { taskId: row.taskId! },
-        select: ['version'],
-        order: { version: 'DESC' as any }, // Order by descending version
-        take: 1, // Limit to the most recent version
-      });
-
-      // Calculate the next version number
-      const nextVersion = (prev[0]?.version ?? 0) + 1;
-
-      // Create a new scheduled task entity with the updated version and active status
-      const entity = trx.getRepository(ScheduledTaskEntity).create({
-        ...row,
-        version: nextVersion, // Incremented version number
-        isActive: 1 as any, // Mark as active
-        status: 'scheduled', // Default status
-      });
-
-      // Save the new entity and return it
-      return trx.getRepository(ScheduledTaskEntity).save(entity);
-    });
-  }
-
-  /**
-   * Saves a scheduled task entity to the database.
-   * @param row - The scheduled task entity to save.
-   * @returns The saved scheduled task entity.
-   */
-  async save(row: ScheduledTaskEntity) {
+  async createActive(partial: Partial<ScheduledTaskEntity>) {
+    const row = this.repo.create({
+      ...partial,
+      isActive: 1,
+      status: 'scheduled',
+      version: (partial.version ?? 0) + 1,
+    } as ScheduledTaskEntity);
     return this.repo.save(row);
+  }
+
+  async deactivateAllForTask(taskId: number) {
+    await this.repo.update({ taskId, isActive: 1 }, { isActive: 0 });
+  }
+
+  async loadActive(id: number) {
+    return this.repo.findOne({ where: { scheduledTaskId: id, isActive: 1 } });
+  }
+
+  async markQueued(id: number, startJobId: string | null, endJobId: string | null) {
+    await this.repo.update({ scheduledTaskId: id }, { status: 'queued', startJobId, endJobId });
+  }
+
+  async markRunning(id: number, when: Date) {
+    await this.repo.update({ scheduledTaskId: id }, { actualStartUtc: when, status: 'running' });
+  }
+
+  async markCompleted(id: number, when: Date) {
+    await this.repo.update({ scheduledTaskId: id }, { actualEndUtc: when, status: 'completed', isActive: 0 });
+  }
+
+  async pauseUntil(id: number, untilUtc: Date, reason: 'calendar'|'dependency') {
+    await this.repo.update({ scheduledTaskId: id }, { blockedUntilUtc: untilUtc, blockReason: reason, status: 'paused' });
+  }
+
+  async resume(id: number) {
+    await this.repo.update({ scheduledTaskId: id }, { blockedUntilUtc: null, blockReason: 'none', status: 'scheduled' });
+  }
+
+  /** Any active schedule for this user overlapping [from,to)? */
+  async findUserOverlaps(tenantUserId: number, fromUtc: Date, toUtc: Date) {
+    return this.repo.createQueryBuilder('s')
+      .where('s.tenant_user_id = :uid', { uid: tenantUserId })
+      .andWhere('s.is_active = 1')
+      .andWhere('(s.effective_start_utc < :to) AND (s.effective_end_utc > :from)', { from: fromUtc, to: toUtc })
+      .getMany();
+  }
+
+  /** Any active *child* schedule on this task overlapping [from,to)? */
+  async findTaskChildOverlaps(taskId: number, fromUtc: Date, toUtc: Date) {
+    return this.repo.createQueryBuilder('s')
+      .where('s.task_id = :tid', { tid: taskId })
+      .andWhere('s.tenant_user_id IS NOT NULL')
+      .andWhere('s.is_active = 1')
+      .andWhere('(s.effective_start_utc < :to) AND (s.effective_end_utc > :from)', { from: fromUtc, to: toUtc })
+      .getMany();
   }
 }

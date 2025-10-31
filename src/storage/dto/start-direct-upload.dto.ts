@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsNumber } from "class-validator";
+import { IsOptional, IsString, IsNumber } from 'class-validator';
 
 /**
  * Data Transfer Object for starting a direct upload.

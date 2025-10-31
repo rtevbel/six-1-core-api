@@ -53,10 +53,17 @@ export class FiltersDto {
    * Must be one of 'requirementInstanceId', 'stepInstanceId' ,'processTemplateStepRequirementId'.
    */
   @IsOptional()
-  @IsIn(['requirementInstanceId', 'stepInstanceId','processTemplateStepRequirementId'], {
-    message:
-      'sortBy key must be from this list (requirementInstanceId, stepInstanceId , processTemplateStepRequirementId)',
-  })
+  @IsIn(
+    [
+      'requirementInstanceId',
+      'stepInstanceId',
+      'processTemplateStepRequirementId',
+    ],
+    {
+      message:
+        'sortBy key must be from this list (requirementInstanceId, stepInstanceId , processTemplateStepRequirementId)',
+    },
+  )
   @IsString()
   sortBy: string = 'requirementInstanceId';
 

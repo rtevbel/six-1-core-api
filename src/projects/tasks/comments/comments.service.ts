@@ -47,9 +47,8 @@ export class CommentsService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [comments, total] = await this.commentRepository.findAndCount(
-      findQuery,
-    );
+    const [comments, total] =
+      await this.commentRepository.findAndCount(findQuery);
 
     if (comments.length === 0) {
       throw new RpcException(
@@ -79,7 +78,10 @@ export class CommentsService {
 
     if (!comment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskCommentsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskCommentsEntity.name,
+        ),
       );
     }
 
@@ -103,7 +105,10 @@ export class CommentsService {
 
     if (!comment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskCommentsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskCommentsEntity.name,
+        ),
       );
     }
 

@@ -28,9 +28,7 @@ import {
 @Module({
   imports: [
     // Registers the ProcessInstanceEntity for TypeORM.
-    TypeOrmModule.forFeature([
-      ProcessInstanceEntity,
-    ]),
+    TypeOrmModule.forFeature([ProcessInstanceEntity]),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
       {

@@ -1,5 +1,5 @@
 // src/storage/dto/presign-download.dto.ts
-import { IsOptional, IsString, IsBoolean, IsNumber } from "class-validator";
+import { IsOptional, IsString, IsBoolean, IsNumber } from 'class-validator';
 
 /**
  * Data Transfer Object for generating a presigned URL for downloading a file.

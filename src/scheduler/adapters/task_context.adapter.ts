@@ -1,30 +1,41 @@
 import { Injectable } from '@nestjs/common';
-import { TaskContextProvider } from '../core/interfaces';
-import { TasksService } from '../../projects/tasks/tasks.service';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 
 /**
- * TaskContextAdapter is an implementation of the TaskContextProvider interface.
- * It provides methods to retrieve the context of a task, including the tenant ID
- * and the tenant user ID associated with the task.
+ * TaskContextAdapter
+ * - Resolves tenantId/projectId and (optionally) scheduling constraints from task row.
  */
 @Injectable()
-export class TaskContextAdapter implements TaskContextProvider {
-  constructor(private readonly tasksService: TasksService) {}
+export class TaskContextAdapter {
+  constructor(
+    @InjectRepository(TaskEntity)
+    private readonly taskRepo: Repository<TaskEntity>,
+  ) {}
 
-  /**
-   * Retrieves the context of a task, including the tenant ID and the tenant user ID.
-   * @param taskId - The ID of the task.
-   * @returns A promise that resolves to an object containing the tenant ID and tenant user ID.
-   */
-  async getTaskContext(taskId: number): Promise<{ tenantId: number; tenantUserId: number | null }> {
-    // Fetch the task details using the TasksService
-    const task = await this.tasksService.findOneByTaskId(1, taskId);
+  async getTaskContext(taskId: number): Promise<{
+    tenantId: number;
+    projectId: number;
+    taskStatusId: number;
+    assigneeId: number | null;
+    startConstraintType?: 'ASAP'|'NoEarlierThan'|'On'|'NoLaterThan'|'MustStartOn'|'MustFinishOn'|null;
+    startConstraintUtc?: Date|null;
+    finishConstraintUtc?: Date|null;
+  }> {
+    const t = await this.taskRepo.findOne({ where: { taskId } });
+    if (!t) throw new Error(`Task ${taskId} not found`);
 
-    //TODO: Need to change with actual data 
-    // Return the tenant ID and the tenant user ID (or null if not assigned)
-    // return { tenantId: task., tenantUserId: task.assigneeTenantUserId ?? null };
-
-    // Uncomment the following line for placeholder data during development
-     return { tenantId: 1, tenantUserId: null }; // placeholder
+    return {
+      tenantId: t.tenantId,
+      projectId: t.projectId,
+      taskStatusId: t.taskStatusId,
+      assigneeId: t.primaryAssigneeId ?? null,
+      startConstraintType: (t as any).startConstraintType ?? null,
+      startConstraintUtc:  (t as any).startConstraintUtc ?? null,
+      finishConstraintUtc: (t as any).finishConstraintUtc ?? null,
+    };
   }
 }
+
+export { TaskContextAdapter as TaskContextProvider }; // satisfies TASK_CONTEXT_PROVIDER token

@@ -56,7 +56,8 @@ export class StatusMappingFiltersDto {
    */
   @IsOptional()
   @IsIn(['mappingId', 'projectId', 'stepInstanceId'], {
-    message: 'sortBy key must be from this list (mappingId, projectId , stepInstanceId)',
+    message:
+      'sortBy key must be from this list (mappingId, projectId , stepInstanceId)',
   })
   @IsString()
   sortBy: string = 'mappingId';

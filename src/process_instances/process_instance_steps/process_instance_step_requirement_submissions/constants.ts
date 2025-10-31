@@ -9,6 +9,6 @@ export const MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_REQUIREMENT_SUBMISSION_PA
   'v0.1_update_process_instance_step_requirement_submission';
 export const MICROSERVICE_REMOVE_PROCESS_INSTANCE_STEP_REQUIREMENT_SUBMISSION_PATTERN =
   'v0.1_remove_process_instance_step_requirement_submission';
-  
+
 export const MESSAGE_BROKER_PROCESS_INSTANCE_STEP_REQUIREMENT_SUBMISSION_SERVICE_CLIENT_TOKEN =
   'process_instance_step_requirement_submission_service_token';

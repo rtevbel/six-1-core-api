@@ -6,11 +6,11 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
-  OneToMany
+  OneToMany,
 } from 'typeorm';
 import { ProcessInstanceStepEntity } from '../../entities/process_instance_step.entity';
 import { ProcessTemplateStepRequirementEntity } from '../../../../process_templates/process_template_steps/process_template_step_requirements/entities/process_template_step_requirement.entity';
-import {ProcessInstanceStepRequirementSubmissionEntity} from "../../process_instance_step_requirement_submissions/entities/process_instance_step_requirement_submission.entity";
+import { ProcessInstanceStepRequirementSubmissionEntity } from '../../process_instance_step_requirement_submissions/entities/process_instance_step_requirement_submission.entity';
 
 /**
  * Entity class for `process_instance_step_requirements` table.
@@ -135,7 +135,7 @@ export class ProcessInstanceStepRequirementEntity {
   )
   @JoinColumn({ name: 'process_template_step_requirement_id' })
   processTemplateStepRequirement!: ProcessTemplateStepRequirementEntity;
-  
+
   /**
    * Relationship to ProcessInstanceStepRequirementSubmissionEntity.
    * A requirement can have multiple submissions.
@@ -145,5 +145,4 @@ export class ProcessInstanceStepRequirementEntity {
     (submission) => submission.processInstanceStepRequirement,
   )
   submissions!: ProcessInstanceStepRequirementSubmissionEntity[];
-
 }

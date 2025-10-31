@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsNumber } from "class-validator";
+import { IsString, IsOptional, IsNumber } from 'class-validator';
 
 /**
  * Data Transfer Object for presigned upload requests.

@@ -23,7 +23,6 @@ export class CreateProcessInstanceStepRequirementSubmissionDto {
    */
   @IsObject()
   submittedData!: Record<string, any>;
- 
 
   /**
    * Indicates if the submission is valid (optional).

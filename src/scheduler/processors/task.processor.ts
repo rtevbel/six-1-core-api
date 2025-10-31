@@ -1,128 +1,111 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Job } from 'bullmq';
+import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
+import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Logger } from '@nestjs/common';
-import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
-import { SchedulerService } from '../services/scheduler.service';
-import { EventsService } from '../services/events.service';
 import { DateTime } from 'luxon';
+import { Inject } from '@nestjs/common';
 
-// Define a processor for the 'task-scheduler' queue
+import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
+import { ScheduledTasksService } from '../services/scheduled_tasks.service';
+import { EventsService } from '../services/events.service';
+import { CalendarProvider } from '../core/interfaces';
+import { CALENDAR_PROVIDER } from '../constants';
+import {
+  weekdayFromLuxon,
+  buildIntervalsForDay,
+  isWithinAnyInterval,
+  nextStartAfter,
+} from '../core/time_utils';
+
+/**
+ * Worker guarantees:
+ * - Idempotent via start/end tokens
+ * - If calendar is closed at run time, defers the job to the next valid slot (and pauses schedule)
+ */
 @Processor('task-scheduler')
-export class TaskProcessor extends WorkerHost{
- 
- // Create a logger instance for this class
-  private readonly logger = new Logger(TaskProcessor.name);
-
-  // Inject dependencies via the constructor
+export class TaskProcessor extends WorkerHost {
   constructor(
-    @InjectRepository(ScheduledTaskEntity) private readonly repo: Repository<ScheduledTaskEntity>, // Repository for accessing scheduled tasks
-    private readonly scheduler: SchedulerService, // Service for scheduling tasks
-    private readonly events: EventsService, // Service for emitting events
-  ) {}
+    @InjectRepository(ScheduledTaskEntity)
+    private readonly repo: Repository<ScheduledTaskEntity>,
+    private readonly scheduled: ScheduledTasksService,
+    private readonly events: EventsService,
+    @Inject(CALENDAR_PROVIDER) private readonly calendar: CalendarProvider,
 
-async process(job: Job<any, any, string>): Promise<any> {
-    switch (job.name) {
-        case 'task.start': {
-            await this.onStart(job);
-            break; // Prevent fallthrough
-        }
-        case 'task.end': {
-            await this.onEnd(Job); // Call the defined function
-            break;
-        }
-        default: {
-            return true;
-        }
-    }
+    // ⬇️ Inject the same queue used by the service
+    @InjectQueue('task-scheduler')
+    private readonly queue: Queue,
+  ) {
+    super();
   }
 
-  // Process the 'task.start' job
-  async onStart(job: Job<{ scheduledTaskId: number; taskId: number; token: string }>) {
-    // Fetch the scheduled task from the database
-    const row = await this.repo.findOne({ where: { scheduledTaskId: job.data.scheduledTaskId } });
-    if (!row) return; // Exit if the task does not exist
-
-    // Ensure the token matches the active row and the task is active
-    if (row.startJobToken !== job.data.token || row.isActive !== 1) return;
-
-    // Determine the next runnable time for the task
-    const next = await this.scheduler.nextRunnableUtcOrNow(row);
-    const now = DateTime.utc();
-
-    // If the task is not ready to run, defer it
-    if (DateTime.fromJSDate(next, { zone: 'utc' }) > now.plus({ seconds: 1 })) {
-      row.blockedUntilUtc = next;
-      row.blockReason = 'calendar';
-      row.status = 'paused';
-      row.startAttempts = (row.startAttempts || 0) + 1;
-      await this.repo.save(row);
-
-      // Requeue the task with a delay
-      const rejob = await job.queue.add('task.start',
-        { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.startJobToken },
-        { jobId: row.startJobToken!, delay: Math.max(0, DateTime.fromJSDate(next, { zone: 'utc' }).diffNow().milliseconds),
-          priority: row.priority, attempts: 5, backoff: { type: 'exponential', delay: 60_000 } });
-
-      // Emit an event indicating the task was deferred
-      await this.events.emit(row.scheduledTaskId, 'deferred', { reason: 'calendar', until: next }, String(rejob.id));
-      this.logger.log(`Deferred start for task ${row.taskId} to ${next.toISOString()}`);
-      return;
-    }
-
-    // Mark the task as running and update its actual start time
-    row.actualStartUtc = new Date();
-    row.status = 'running';
-    row.blockedUntilUtc = null;
-    row.blockReason = 'none';
-    await this.repo.save(row);
-
-    // Emit an event indicating the task has started
-    await this.events.emit(row.scheduledTaskId, 'run_start', { when: row.actualStartUtc }, job.id?.toString() ?? null);
-    this.logger.log(`Started task ${row.taskId} (schedule ${row.scheduledTaskId})`);
+  async process(job: Job) {
+    if (job.name === 'task.start') return this.handleStart(job);
+    if (job.name === 'task.end')   return this.handleEnd(job);
   }
 
-  // Process the 'task.end' job
-  async onEnd(job: Job<{ scheduledTaskId: number; taskId: number; token: string }>) {
-    // Fetch the scheduled task from the database
-    const row = await this.repo.findOne({ where: { scheduledTaskId: job.data.scheduledTaskId } });
-    if (!row) return; // Exit if the task does not exist
+  private async handleStart(job: Job) {
+    const { scheduledTaskId, token } = job.data as { scheduledTaskId: number; token: string };
+    const row = await this.repo.findOne({ where: { scheduledTaskId } });
+    if (!row || row.isActive === 0 || row.startJobToken !== token) return; // idempotent no-op
 
-    // Ensure the token matches the active row and the task is active
-    if (row.endJobToken !== job.data.token || row.isActive !== 1) return;
+    // Only enforce calendar for child rows with a user
+    if (row.tenantUserId) {
+      const tz = row.tzUsed || 'UTC';
+      const nowLocal = DateTime.now().setZone(tz);
+      const isoDate = nowLocal.toISODate()!;
+      const weekday = weekdayFromLuxon(nowLocal);
 
-    // Determine the next runnable time for the task
-    const next = await this.scheduler.nextRunnableUtcOrNow(row);
-    const now = DateTime.utc();
+      const isOff = await this.calendar.isOffDateLocal(row.tenantId, row.tenantUserId, isoDate);
+      const slots = isOff ? [] : await this.calendar.getWorkingIntervalsLocal(row.tenantId, row.tenantUserId, isoDate, weekday);
+      const intervals = buildIntervalsForDay(nowLocal, slots);
 
-    // If the task is not ready to end, defer it
-    if (DateTime.fromJSDate(next, { zone: 'utc' }) > now.plus({ seconds: 1 })) {
-      row.blockedUntilUtc = next;
-      row.blockReason = 'calendar';
-      row.status = 'paused';
-      row.endAttempts = (row.endAttempts || 0) + 1;
-      await this.repo.save(row);
+      if (!isWithinAnyInterval(nowLocal, intervals)) {
+        // Defer to next interval start (or next day start if none today)
+        const next = nextStartAfter(nowLocal, intervals);
+        const nextUtc: Date = (next ?? nowLocal.plus({ days: 1 }).startOf('day')).setZone('utc').toJSDate();
 
-      // Requeue the task with a delay
-      const rejob = await job.queue.add('task.end',
-        { scheduledTaskId: row.scheduledTaskId, taskId: row.taskId, token: row.endJobToken },
-        { jobId: row.endJobToken!, delay: Math.max(0, DateTime.fromJSDate(next, { zone: 'utc' }).diffNow().milliseconds),
-          priority: row.priority, attempts: 5, backoff: { type: 'exponential', delay: 60_000 } });
+        await this.scheduled.pauseUntil(row.scheduledTaskId, nextUtc, 'calendar');
+        await this.events.emit(row.scheduledTaskId, 'deferred', { reason: 'calendar', nextUtc });
 
-      // Emit an event indicating the task was deferred
-      await this.events.emit(row.scheduledTaskId, 'deferred', { reason: 'calendar', until: next }, String(rejob.id));
-      this.logger.log(`Deferred end for task ${row.taskId} to ${next.toISOString()}`);
-      return;
+        // Requeue using injected queue (NOT job.queue)
+        await this.queue.add(
+          'task.start',
+          { scheduledTaskId, token },
+          {
+            jobId: token, // idempotent re-enqueue
+            delay: Math.max(0, DateTime.fromJSDate(nextUtc).diffNow().milliseconds),
+            attempts: 5,
+            backoff: { type: 'exponential', delay: 60_000 },
+            removeOnComplete: true,
+            removeOnFail: false,
+          },
+        );
+        return;
+      }
     }
 
-    // Mark the task as completed and update its actual end time
-    row.actualEndUtc = new Date();
-    row.status = 'completed';
-    await this.repo.save(row);
+    await this.scheduled.markRunning(row.scheduledTaskId, new Date());
+    await this.events.emit(row.scheduledTaskId, 'run_start', { jobId: job.id });
+  }
 
-    // Emit an event indicating the task has ended
-    await this.events.emit(row.scheduledTaskId, 'run_end', { when: row.actualEndUtc }, job.id?.toString() ?? null);
-    this.logger.log(`Completed task ${row.taskId} (schedule ${row.scheduledTaskId})`);
+  private async handleEnd(job: Job) {
+    const { scheduledTaskId, token } = job.data as { scheduledTaskId: number; token: string };
+    const row = await this.repo.findOne({ where: { scheduledTaskId } });
+    if (!row || row.isActive === 0 || row.endJobToken !== token) return; // idempotent no-op
+
+    await this.scheduled.markCompleted(row.scheduledTaskId, new Date());
+    await this.events.emit(row.scheduledTaskId, 'run_end', { jobId: job.id });
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job | undefined, err: Error) {
+    if (!job) return;
+    const id = (job.data && job.data.scheduledTaskId) as number | undefined;
+    if (!id) return;
+    await this.repo.update(
+      { scheduledTaskId: id },
+      { lastError: err?.message ?? 'failed', status: 'failed' },
+    );
+    await this.events.emit(id, 'failed', { reason: err?.message, name: job.name });
   }
 }

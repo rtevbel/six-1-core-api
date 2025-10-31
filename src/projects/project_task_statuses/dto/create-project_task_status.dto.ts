@@ -1,4 +1,10 @@
-import { IsString, IsNumber, IsNotEmpty, IsOptional, IsBoolean } from 'class-validator';
+import {
+  IsString,
+  IsNumber,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+} from 'class-validator';
 
 /**
  * Create Project Task Status DTO class.
@@ -100,7 +106,7 @@ export class CreateProjectTaskStatusDto {
    *
    * @type {number}
    */
-    @IsNumber() 
-    @IsNotEmpty()
-    createdBy!: number;
+  @IsNumber()
+  @IsNotEmpty()
+  createdBy!: number;
 }

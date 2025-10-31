@@ -65,4 +65,16 @@ export class CreateTenantUserOffDayDto {
   @IsNumber()
   @IsNotEmpty()
   createdBy!: number;
+
+  /**
+   * Updated by user ID.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsOptional()
+  @IsNumber()
+  updatedBy?: number;
 }

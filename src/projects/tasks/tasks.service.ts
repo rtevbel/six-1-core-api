@@ -222,8 +222,8 @@ export class TasksService {
         processTemplateId,
       );
 
-     // Fetch the default task status for the project
-     const taskDefaultStatus =
+    // Fetch the default task status for the project
+    const taskDefaultStatus =
       await this.projectTaskStatusesService.findOneByProjectId(
         userId,
         projectId,
@@ -234,6 +234,7 @@ export class TasksService {
       for (const step of templateSteps) {
         const taskDto: CreateTaskDto = {
           projectId,
+          tenantId: 1,
           taskIdentifier: this.generateUniqueTaskIdentifier(
             step.descriptions[0].name,
           ), // Unique identifier for the task
@@ -290,17 +291,14 @@ export class TasksService {
     return `task-${normalizedTaskName}-${uniqueId}`; // Unique identifier for the task
   }
 
-   /**
+  /**
    * Retrieves a single task by ID for a specific project.
    * @param userId - ID of the user requesting the data.
    * @param id - ID of the task to retrieve.
    * @returns The TaskEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-   async findOneByTaskId(
-    userId: number,
-    id: number,
-  ): Promise<TaskEntity> {
+  async findOneByTaskId(userId: number, id: number): Promise<TaskEntity> {
     const task = await this.taskRepository.findOneByOrFail({
       taskId: id,
     });

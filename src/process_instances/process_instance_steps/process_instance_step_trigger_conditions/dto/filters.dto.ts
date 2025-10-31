@@ -54,10 +54,17 @@ export class FiltersDto {
    * Must be one of 'triggerInstanceId', 'stepInstanceId' , 'processTemplateStepTriggerConditionId'.
    */
   @IsOptional()
-  @IsIn(['triggerInstanceId', 'stepInstanceId','processTemplateStepTriggerConditionId'], {
-    message:
-      'sortBy key must be from this list (triggerInstanceId, stepInstanceId , processTemplateStepTriggerConditionId)',
-  })
+  @IsIn(
+    [
+      'triggerInstanceId',
+      'stepInstanceId',
+      'processTemplateStepTriggerConditionId',
+    ],
+    {
+      message:
+        'sortBy key must be from this list (triggerInstanceId, stepInstanceId , processTemplateStepTriggerConditionId)',
+    },
+  )
   @IsString()
   sortBy: string = 'triggerInstanceId';
 

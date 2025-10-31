@@ -19,7 +19,7 @@ import {
   MICROSERVICE_FIND_ALL_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
   MICROSERVICE_FIND_ONE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
-  MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN
+  MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
 } from './constants';
 
 @Controller('process-instance-step-triggers')
@@ -34,7 +34,9 @@ export class ProcessInstanceStepTriggersController {
    * @param createDto - Data transfer object containing trigger details.
    * @returns The created trigger entity.
    */
-  @MessagePattern(MICROSERVICE_CREATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_CREATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   createTrigger(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,7 +51,9 @@ export class ProcessInstanceStepTriggersController {
    * @param filtersDto - Filters for querying triggers.
    * @returns A list of triggers matching the filters.
    */
-  @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ALL_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   findAllTriggers(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,7 +68,9 @@ export class ProcessInstanceStepTriggersController {
    * @param id - ID of the trigger to retrieve.
    * @returns The trigger entity or a NotFoundException.
    */
-  @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_FIND_ONE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   findOneTrigger(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
@@ -78,7 +84,9 @@ export class ProcessInstanceStepTriggersController {
    * @param updateDto - Data transfer object containing updated trigger details.
    * @returns The result of the update operation.
    */
-  @MessagePattern(MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_UPDATE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   @UsePipes(AppRpcValidationPipe)
   updateTrigger(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -97,7 +105,9 @@ export class ProcessInstanceStepTriggersController {
    * @param id - ID of the trigger to delete.
    * @returns The result of the delete operation.
    */
-  @MessagePattern(MICROSERVICE_REMOVE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN)
+  @MessagePattern(
+    MICROSERVICE_REMOVE_PROCESS_INSTANCE_STEP_TRIGGER_CONDITION_PATTERN,
+  )
   removeTrigger(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,

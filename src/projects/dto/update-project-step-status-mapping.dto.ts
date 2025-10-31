@@ -9,7 +9,9 @@ import { CreateProjectStepStatusMappingDto } from './create-project-step-status-
  *
  * Data transfer object for updating a project step status mapping.
  */
-export class UpdateProjectStepStatusMappingDto extends PartialType(CreateProjectStepStatusMappingDto) {
+export class UpdateProjectStepStatusMappingDto extends PartialType(
+  CreateProjectStepStatusMappingDto,
+) {
   /**
    * Mapping ID.
    *

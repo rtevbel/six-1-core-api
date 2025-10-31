@@ -29,7 +29,12 @@ export class AutomationEventBridgeListener {
     const stepId = await this.findStepIdByRequirement(requirementInstanceId);
     if (!stepId) return;
 
-    console.log(`Event Bridge-> six1-event.requirement.* ->Received requirement event with payload:`, payload, 'mapped to stepId:', stepId);
+    console.log(
+      `Event Bridge-> six1-event.requirement.* ->Received requirement event with payload:`,
+      payload,
+      'mapped to stepId:',
+      stepId,
+    );
     await this.orchestrator.attemptAdvance(stepId, {
       cause: 'event',
       correlationId: payload.correlationId,
@@ -38,8 +43,10 @@ export class AutomationEventBridgeListener {
 
   @OnEvent('six1-event.*', { async: true })
   async onAnyDomainEvent(payload: AnyEvent, eventName: string) {
-
-    console.log(`Event Bridge-> six1-event.* ->Received event: ${eventName} with payload:`, payload);
+    console.log(
+      `Event Bridge-> six1-event.* ->Received event: ${eventName} with payload:`,
+      payload,
+    );
     const processInstanceId =
       payload?.data?.processInstanceId ??
       payload?.data?.process_instance_id ??
@@ -87,7 +94,7 @@ export class AutomationEventBridgeListener {
         metStepIds.add(r.step_instance_id);
       }
     }
-    
+
     for (const stepId of metStepIds) {
       await this.orchestrator.attemptAdvance(stepId, {
         cause: 'event',
@@ -96,7 +103,9 @@ export class AutomationEventBridgeListener {
     }
   }
 
-  private async findStepIdByRequirement(requirementInstanceId: number): Promise<number | null> {
+  private async findStepIdByRequirement(
+    requirementInstanceId: number,
+  ): Promise<number | null> {
     const [row] = await this.ds.query(
       `SELECT step_instance_id
          FROM process_instance_step_requirements

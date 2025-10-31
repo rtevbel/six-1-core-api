@@ -7,12 +7,12 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-  OneToOne
+  OneToOne,
 } from 'typeorm';
 import { ProcessInstanceEntity } from '../../entities/process_instance.entity';
 import { ProcessTemplateStepEntity } from '../../../process_templates/process_template_steps/entities/process_template_step.entity';
-import {ProcessInstanceStepRequirementEntity} from "../process_instance_step_requirements/entities/process_instance_step_requirement.entity";
-import {ProcessInstanceStepTriggerEntity} from "../process_instance_step_trigger_conditions/entities/process_instance_step_trigger_condition.entity";
+import { ProcessInstanceStepRequirementEntity } from '../process_instance_step_requirements/entities/process_instance_step_requirement.entity';
+import { ProcessInstanceStepTriggerEntity } from '../process_instance_step_trigger_conditions/entities/process_instance_step_trigger_condition.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 
 /**
@@ -82,11 +82,24 @@ export class ProcessInstanceStepEntity {
   @Column({
     name: 'status',
     type: 'enum',
-    enum: ['pending', 'ready', 'in_progress', 'blocked', 'completed', 'canceled'],
+    enum: [
+      'pending',
+      'ready',
+      'in_progress',
+      'blocked',
+      'completed',
+      'canceled',
+    ],
     default: 'pending',
     comment: 'Current status of the step',
   })
-  status!: 'pending' | 'ready' | 'in_progress' | 'blocked' | 'completed' | 'canceled';
+  status!:
+    | 'pending'
+    | 'ready'
+    | 'in_progress'
+    | 'blocked'
+    | 'completed'
+    | 'canceled';
 
   @Column({
     name: 'blocked_reason',
@@ -184,9 +197,9 @@ export class ProcessInstanceStepEntity {
   processTemplateStep!: ProcessTemplateStepEntity;
 
   /**
- * Relationship to ProcessInstanceStepRequirementEntity.
- * A process instance step can have multiple requirements.
- */
+   * Relationship to ProcessInstanceStepRequirementEntity.
+   * A process instance step can have multiple requirements.
+   */
   @OneToMany(
     () => ProcessInstanceStepRequirementEntity,
     (requirement) => requirement.processInstanceStep,
@@ -196,11 +209,11 @@ export class ProcessInstanceStepEntity {
   )
   requirements!: ProcessInstanceStepRequirementEntity[];
 
-   /**
+  /**
    * Relationship to ProcessInstanceStepTriggerEntity.
    * A step can have multiple triggers.
    */
-   @OneToMany(
+  @OneToMany(
     () => ProcessInstanceStepTriggerEntity,
     (trigger) => trigger.stepInstance,
     {
@@ -218,14 +231,12 @@ export class ProcessInstanceStepEntity {
   })
   tasks!: TaskEntity[];
 
-    /**
+  /**
    * Relationship to TaskEntity.
    * A process instance step can be linked to one task.
    */
-    @OneToOne(
-      () => TaskEntity,
-      (linkedTask) => linkedTask.linkedStepInstance,
-      { nullable: true }
-    )
-    linkedTask?: TaskEntity;
+  @OneToOne(() => TaskEntity, (linkedTask) => linkedTask.linkedStepInstance, {
+    nullable: true,
+  })
+  linkedTask?: TaskEntity;
 }

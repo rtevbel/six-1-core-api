@@ -2,55 +2,89 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BullModule } from '@nestjs/bullmq';
 import { ClientsModule, Transport } from '@nestjs/microservices';
-import { ConfigService } from '@nestjs/config';
-
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ensureDefinedConfigParam } from '../common/functions';
 import { ScheduledTaskEntity } from './entities/scheduled_task.entity';
 import { ScheduledTaskHistoryEntity } from './entities/scheduled_task_history.entity';
 import { ScheduledTaskEventsEntity } from './entities/scheduled_task_event.entity';
+import { ResourceAssignmentShiftEntity } from './entities/resource_assignment_shifts.entity';
+import { ResourceEntity } from './entities/resource.entity';
+import { ResourceAssignmentEntity } from './entities/resource_assignment.entity';
 import { TaskDependencyEntity } from './entities/task_dependency.entity';
+import { TaskEntity } from '../projects/tasks/entities/task.entity';
+import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
+import { TenantUserConfigurationsEntity } from '../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
+import { TenantWorkingHoursEntity } from '../tenants/tenant_working_hours/entities/tenant_working_hour.entity';
+import { TenantUserWorkingHoursEntity } from '../tenants/tenant_users/tenant_user_working_hours/entities/tenant_user_working_hour.entity';
+import { TenantOffDaysEntity } from '../tenants/tenant_off_days/entities/tenant_off_day.entity';
+import { TenantUserOffDaysEntity } from '../tenants/tenant_users/tenant_user_off_days/entities/tenant_user_off_day.entity';
 
-import { SchedulerController } from './scheduler.controller';
 import { SchedulerService } from './services/scheduler.service';
 import { ScheduledTasksService } from './services/scheduled_tasks.service';
 import { DependencyResolverService } from './services/dependency_resolver.service';
-import { TaskProcessor } from './processors/task.processor';
 import { HistoryService } from './services/history.service';
 import { EventsService } from './services/events.service';
+import { ResourceAssignmentsService } from './services/resource_assignments.service';
+import { ResourcesService } from './services/resources.service';
+import { TaskProcessor } from './processors/task.processor';
+import { SchedulerController } from './scheduler.controller';
+import { ResourceAssignmentsController } from './controllers/resource_assignments.controller';
+import { ResourcesController } from './controllers/resources.controller';
 
 import { CalendarAdapter } from './adapters/calendar.adapter';
 import { TaskContextAdapter } from './adapters/task_context.adapter';
-import { CALENDAR_PROVIDER, TASK_CONTEXT_PROVIDER } from './core/interfaces';
+import { CALENDAR_PROVIDER, TASK_CONTEXT_PROVIDER } from './constants';
 
-import {
-  MESSAGE_BROKER_SCHEDULE_TASK_WINDOW_CLIENT_TOKEN
-} from './constants';
 import {
   MESSAGE_BROKER_USERNAME_KEY,
   MESSAGE_BROKER_HOST_KEY,
   MESSAGE_BROKER_PASSWORD_KEY,
   MESSAGE_BROKER_PORT_KEY,
   MESSAGE_BROKER_URL_KEY,
-  SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY
+  SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../common/constants';
-import { ensureDefinedConfigParam } from '../common/functions';
+import { MESSAGE_BROKER_SCHEDULE_TASK_WINDOW_CLIENT_TOKEN } from './constants';
+import { REDIS_DATABASE_HOST_KEY, REDIS_DATABASE_PASSWORD_KEY, REDIS_DATABASE_PORT_KEY } from '../auth/constants';
 
 /**
- * SchedulerModule is responsible for managing scheduled tasks and their dependencies.
- * It includes the controller, services, and integrations required for scheduling tasks.
+ * SchedulerModule is responsible for managing task scheduling.
+ * It includes the controller, services, and configurations for scheduling tasks.
  *
  * @version 0.0.1
  */
 @Module({
   // Imports required modules and configurations.
   imports: [
+    ConfigModule,
     // Registers the entities for TypeORM.
     TypeOrmModule.forFeature([
       ScheduledTaskEntity,
       ScheduledTaskHistoryEntity,
-      ScheduledTaskEntity,
+      ScheduledTaskEventsEntity,
+      ResourceAssignmentShiftEntity,
+      ResourceEntity,
+      ResourceAssignmentEntity,
       TaskDependencyEntity,
+      TaskEntity,
+      TenantConfigurationsEntity,
+      TenantUserConfigurationsEntity,
+      TenantWorkingHoursEntity,
+      TenantUserWorkingHoursEntity,
+      TenantOffDaysEntity,
+      TenantUserOffDaysEntity,
     ]),
-    // Registers the BullMQ queue for task scheduling.
+    // Configure BullMQ connection (Redis) and the queue
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>(REDIS_DATABASE_HOST_KEY),
+          port: config.get<number>(REDIS_DATABASE_PORT_KEY),
+          password: config.get<string>(REDIS_DATABASE_PASSWORD_KEY) || undefined,
+        },
+      }),
+      inject: [ConfigService],
+    }),
     BullModule.registerQueue({ name: 'task-scheduler' }),
     // Configures the message broker client for microservices.
     ClientsModule.registerAsync([
@@ -60,7 +94,6 @@ import { ensureDefinedConfigParam } from '../common/functions';
           transport: Transport.RMQ,
           options: {
             urls: [
-              // Constructs the message broker URL using configuration parameters.
               ensureDefinedConfigParam(
                 configService.get<string>(MESSAGE_BROKER_URL_KEY),
                 MESSAGE_BROKER_URL_KEY,
@@ -85,7 +118,6 @@ import { ensureDefinedConfigParam } from '../common/functions';
                   MESSAGE_BROKER_PORT_KEY,
                 ),
             ],
-            // Specifies the queue name and options.
             queue: configService.get(SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY),
             queueOptions: {
               durable: false,
@@ -97,25 +129,23 @@ import { ensureDefinedConfigParam } from '../common/functions';
     ]),
   ],
   // Specifies the controllers that handle incoming requests.
-  controllers: [SchedulerController],
+  controllers: [SchedulerController, ResourceAssignmentsController, ResourcesController],
 
   // Specifies the providers that contain the business logic.
   providers: [
-    SchedulerService, // Main service for scheduling tasks.
-    ScheduledTasksService, // Service for managing scheduled tasks.
-    DependencyResolverService, // Service for resolving task dependencies.
-    TaskProcessor, // Processor for handling task execution.
-    HistoryService, // Service for managing task history.
-    EventsService, // Service for managing task events.
-
-    CalendarAdapter, // Adapter for calendar-related operations.
-    { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter }, // Provides the calendar adapter.
-
-    TaskContextAdapter, // Adapter for task context operations.
-    { provide: TASK_CONTEXT_PROVIDER, useExisting: TaskContextAdapter }, // Provides the task context adapter.
+    SchedulerService,
+    ScheduledTasksService,
+    DependencyResolverService,
+    HistoryService,
+    EventsService,
+    ResourceAssignmentsService,
+    ResourcesService,
+    TaskProcessor,
+    CalendarAdapter,
+    { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },
+    TaskContextAdapter,
+    { provide: TASK_CONTEXT_PROVIDER, useExisting: TaskContextAdapter },
   ],
-
-  // Exports the SchedulerService for use in other modules.
-  exports: [SchedulerService],
+  exports: [ResourceAssignmentsService, ResourcesService],
 })
 export class SchedulerModule {}

@@ -20,7 +20,9 @@ export class BullMqSchedulerAdapter implements SchedulerPort, OnModuleDestroy {
 
     const queueName = process.env.AUTOMATION_QUEUE ?? 'automation';
     this.queue = new Queue(queueName, { connection: this.connection });
-    this.queueEvents = new QueueEvents(queueName, { connection: this.connection });
+    this.queueEvents = new QueueEvents(queueName, {
+      connection: this.connection,
+    });
 
     this.queueEvents.on('failed', (e) => console.error('[BullMQ][failed]', e));
     this.queueEvents.on('error', (e) => console.error('[BullMQ][error]', e));
@@ -37,6 +39,10 @@ export class BullMqSchedulerAdapter implements SchedulerPort, OnModuleDestroy {
   }
 
   async onModuleDestroy() {
-    await Promise.allSettled([this.queue.close(), this.queueEvents.close(), this.connection.quit()]);
+    await Promise.allSettled([
+      this.queue.close(),
+      this.queueEvents.close(),
+      this.connection.quit(),
+    ]);
   }
 }

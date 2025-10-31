@@ -1,4 +1,12 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, IsBoolean, MaxLength, IsPositive } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsBoolean,
+  MaxLength,
+  IsPositive,
+} from 'class-validator';
 
 /**
  * Create task attachment DTO class.

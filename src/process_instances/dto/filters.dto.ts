@@ -57,7 +57,8 @@ export class FiltersDto {
    */
   @IsOptional()
   @IsIn(['processInstanceId', 'processTemplateId'], {
-    message: 'sortBy key must be from this list (processInstanceId, processTemplateId)',
+    message:
+      'sortBy key must be from this list (processInstanceId, processTemplateId)',
   })
   @IsString()
   sortBy: string = 'processInstanceId';

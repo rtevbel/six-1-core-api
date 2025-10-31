@@ -1,4 +1,11 @@
-import { IsNumber, IsString, IsObject, IsOptional, IsBoolean, IsEnum } from 'class-validator';
+import {
+  IsNumber,
+  IsString,
+  IsObject,
+  IsOptional,
+  IsBoolean,
+  IsEnum,
+} from 'class-validator';
 
 /**
  * DTO for creating a new ProcessInstanceStepRequirement.

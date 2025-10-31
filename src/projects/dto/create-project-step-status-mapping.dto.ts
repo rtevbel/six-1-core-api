@@ -1,4 +1,10 @@
-import { IsNotEmpty, IsOptional, IsEnum, IsNumber, IsPositive } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsEnum,
+  IsNumber,
+  IsPositive,
+} from 'class-validator';
 
 /**
  * Create Project Step Status Mapping DTO.
@@ -43,8 +49,21 @@ export class CreateProjectStepStatusMappingDto {
    * @type {'pending' | 'ready' | 'in_progress' | 'completed' | 'blocked' | 'canceled'}
    */
   @IsNotEmpty()
-  @IsEnum(['pending', 'ready', 'in_progress', 'completed', 'blocked', 'canceled'])
-  stepEngineState!: 'pending' | 'ready' | 'in_progress' | 'completed' | 'blocked' | 'canceled';
+  @IsEnum([
+    'pending',
+    'ready',
+    'in_progress',
+    'completed',
+    'blocked',
+    'canceled',
+  ])
+  stepEngineState!:
+    | 'pending'
+    | 'ready'
+    | 'in_progress'
+    | 'completed'
+    | 'blocked'
+    | 'canceled';
 
   /**
    * Task Status ID.

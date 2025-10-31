@@ -30,10 +30,11 @@ import { ProjectEntity } from '../../../projects/entities/project.entity';
 import { ProjectTaskStatusEntity } from '../../../projects/project_task_statuses/entities/project_task_status.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 import { TenantTeamProjectEntity } from '../../tenant_teams/tenant_team_projects/entities/tenant_team_project.entity';
-import {ProcessInstanceEntity} from "../../../process_instances/entities/process_instance.entity";
-import {TaskCommentsEntity} from "../../../projects/tasks/comments/entities/comment.entity";
-import {TaskAttachmentsEntity} from "../../../projects/tasks/attachments/entities/attachment.entity";
-import {TaskMentionsEntity} from "../../../projects/tasks/mentions/entities/mention.entity";
+import { ProcessInstanceEntity } from '../../../process_instances/entities/process_instance.entity';
+import { TaskCommentsEntity } from '../../../projects/tasks/comments/entities/comment.entity';
+import { TaskAttachmentsEntity } from '../../../projects/tasks/attachments/entities/attachment.entity';
+import { TaskMentionsEntity } from '../../../projects/tasks/mentions/entities/mention.entity';
+import { ResourceAssignmentShiftEntity } from '../../../scheduler/entities/resource_assignment_shifts.entity';
 
 /**
  * Entity class for `tenant_users` table.
@@ -508,13 +509,17 @@ export class TenantUsersEntity {
   )
   projectAssignments!: TenantTeamProjectEntity[];
 
-/**
- * Relationship to ProcessInstanceEntity.
- * A tenant user can create multiple process instances.
- */
-  @OneToMany(() => ProcessInstanceEntity, (processInstance) => processInstance.createdByUser, {
-    cascade: true,
-  })
+  /**
+   * Relationship to ProcessInstanceEntity.
+   * A tenant user can create multiple process instances.
+   */
+  @OneToMany(
+    () => ProcessInstanceEntity,
+    (processInstance) => processInstance.createdByUser,
+    {
+      cascade: true,
+    },
+  )
   createdProcessInstances!: ProcessInstanceEntity[];
 
   /**
@@ -531,20 +536,24 @@ export class TenantUsersEntity {
   @OneToMany(() => TaskCommentsEntity, (comment) => comment.updatedByUser)
   updatedComments!: TaskCommentsEntity[];
 
-/**
- * One-to-many relationship with the `TaskAttachmentsEntity`.
- * A user can create multiple attachments.
- */
-  @OneToMany(() => TaskAttachmentsEntity, (attachment) => attachment.createdByUser, {
-    cascade: true,
-  })
+  /**
+   * One-to-many relationship with the `TaskAttachmentsEntity`.
+   * A user can create multiple attachments.
+   */
+  @OneToMany(
+    () => TaskAttachmentsEntity,
+    (attachment) => attachment.createdByUser,
+    {
+      cascade: true,
+    },
+  )
   createdAttachments!: TaskAttachmentsEntity[];
 
-   /**
+  /**
    * One-to-many relationship with the `TaskMentionsEntity`.
    * A user can be mentioned in multiple mentions.
    */
-   @OneToMany(() => TaskMentionsEntity, (mention) => mention.mentionedUser, {
+  @OneToMany(() => TaskMentionsEntity, (mention) => mention.mentionedUser, {
     cascade: true,
   })
   mentions!: TaskMentionsEntity[];
@@ -557,4 +566,13 @@ export class TenantUsersEntity {
     cascade: true,
   })
   createdMentions!: TaskMentionsEntity[];
+
+   /**
+   * Inverse relationship to ResourceAssignmentShiftEntity.
+   * Represents all shifts assigned to this tenant user.
+   */
+    @OneToMany(() => ResourceAssignmentShiftEntity, (shift) => shift.tenantUser, {
+      cascade: true,
+    })
+    resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
 }

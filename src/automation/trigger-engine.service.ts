@@ -4,14 +4,30 @@ import { SCHEDULER_PORT, SchedulerPort } from './scheduler.port';
 import * as jsonLogicPkg from 'json-logic-js';
 const jsonLogic: any = (jsonLogicPkg as any).default ?? (jsonLogicPkg as any);
 
-type JsonLogicTrigger = { type: 'jsonlogic'; logic: any; actionsOnMet?: Action[] };
-type TimeTrigger = { type: 'time'; after: string; from?: string; actionsOnMet?: Action[] }; // after: "PT24H"
-type EventTrigger = { type: 'event'; eventName: string; where?: any; actionsOnMet?: Action[] };
+type JsonLogicTrigger = {
+  type: 'jsonlogic';
+  logic: any;
+  actionsOnMet?: Action[];
+};
+type TimeTrigger = {
+  type: 'time';
+  after: string;
+  from?: string;
+  actionsOnMet?: Action[];
+}; // after: "PT24H"
+type EventTrigger = {
+  type: 'event';
+  eventName: string;
+  where?: any;
+  actionsOnMet?: Action[];
+};
 type TriggerEnvelope = JsonLogicTrigger | TimeTrigger | EventTrigger;
 
 type Action =
   | { emit: string }
-  | { enqueue: { queue: string; job: string; payload?: any; delayMs?: number } };
+  | {
+      enqueue: { queue: string; job: string; payload?: any; delayMs?: number };
+    };
 
 @Injectable()
 export class TriggerEngineService {
@@ -30,7 +46,10 @@ export class TriggerEngineService {
       case 'time': {
         const delayMs = this.isoDurationToMs(trigger.after);
         if (!delayMs) return false;
-        await this.scheduler.schedule(delayMs, 'time-trigger', { trigger, context });
+        await this.scheduler.schedule(delayMs, 'time-trigger', {
+          trigger,
+          context,
+        });
         return false;
       }
       case 'event': {
@@ -42,8 +61,17 @@ export class TriggerEngineService {
 
   private async execActions(actions: Action[] = [], ctx: any) {
     for (const a of actions) {
-      if ('emit' in a) await this.events.emitAsync(a.emit, { data: ctx, entity: { entityType: 'Process', entityId: ctx.processInstanceId } });
-      if ('enqueue' in a) await this.scheduler.schedule(a.enqueue.delayMs ?? 0, `${a.enqueue.queue}:${a.enqueue.job}`, a.enqueue.payload ?? ctx);
+      if ('emit' in a)
+        await this.events.emitAsync(a.emit, {
+          data: ctx,
+          entity: { entityType: 'Process', entityId: ctx.processInstanceId },
+        });
+      if ('enqueue' in a)
+        await this.scheduler.schedule(
+          a.enqueue.delayMs ?? 0,
+          `${a.enqueue.queue}:${a.enqueue.job}`,
+          a.enqueue.payload ?? ctx,
+        );
     }
   }
 

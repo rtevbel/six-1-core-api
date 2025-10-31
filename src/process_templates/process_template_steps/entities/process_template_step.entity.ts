@@ -13,7 +13,7 @@ import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant
 import { ProcessTemplateStepDescriptionEntity } from './process_template_step_description.entity';
 import { ProcessTemplateStepRequirementEntity } from '../process_template_step_requirements/entities/process_template_step_requirement.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
-import {ProcessInstanceStepEntity} from "../../../process_instances/process_instance_steps/entities/process_instance_step.entity";
+import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
 
 /**
  * Entity class for `process_template_steps` table.

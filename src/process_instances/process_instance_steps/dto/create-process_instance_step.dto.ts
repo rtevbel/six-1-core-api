@@ -52,8 +52,21 @@ export class CreateProcessInstanceStepDto {
   /**
    * Current status of the step.
    */
-  @IsEnum(['pending', 'ready', 'in_progress', 'blocked', 'completed', 'canceled'])
-  status!: 'pending' | 'ready' | 'in_progress' | 'blocked' | 'completed' | 'canceled';
+  @IsEnum([
+    'pending',
+    'ready',
+    'in_progress',
+    'blocked',
+    'completed',
+    'canceled',
+  ])
+  status!:
+    | 'pending'
+    | 'ready'
+    | 'in_progress'
+    | 'blocked'
+    | 'completed'
+    | 'canceled';
 
   /**
    * Reason why the step is blocked (optional).

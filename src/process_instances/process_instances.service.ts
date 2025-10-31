@@ -128,11 +128,10 @@ export class ProcessInstancesService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<ProcessInstanceEntity> {
-    const processInstance =
-      await this.processInstanceRepository.findOne({
-        where: { processInstanceId: id },
-        relations: ['processTemplate', 'tenant', 'createdByUser'],
-      });
+    const processInstance = await this.processInstanceRepository.findOne({
+      where: { processInstanceId: id },
+      relations: ['processTemplate', 'tenant', 'createdByUser'],
+    });
 
     if (!processInstance) {
       throw new RpcException(
@@ -159,10 +158,9 @@ export class ProcessInstancesService {
     id: number,
     updateProcessInstanceDto: UpdateProcessInstanceDto,
   ): Promise<UpdateResult> {
-    const processInstance =
-      await this.processInstanceRepository.findOneBy({
-        processInstanceId: id,
-      });
+    const processInstance = await this.processInstanceRepository.findOneBy({
+      processInstanceId: id,
+    });
 
     if (!processInstance) {
       throw new RpcException(

@@ -1,4 +1,10 @@
-import { IsNumber, IsOptional, IsEnum, IsString, IsDate } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsEnum,
+  IsString,
+  IsDate,
+} from 'class-validator';
 
 /**
  * DTO for creating a new ProcessInstance.

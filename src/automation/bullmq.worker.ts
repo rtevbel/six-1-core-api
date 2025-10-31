@@ -15,7 +15,7 @@ export class AutomationQueueWorker implements OnModuleDestroy {
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
     });
-    
+
     const queueName = process.env.AUTOMATION_QUEUE ?? 'automation';
 
     const processor: Processor = async (job) => {
@@ -23,7 +23,10 @@ export class AutomationQueueWorker implements OnModuleDestroy {
         const ctx = job.data?.context;
         const stepId = ctx?.step?.id;
         if (stepId) {
-          await this.orchestrator.attemptAdvance(stepId, { cause: 'timer', correlationId: ctx?.correlationId });
+          await this.orchestrator.attemptAdvance(stepId, {
+            cause: 'timer',
+            correlationId: ctx?.correlationId,
+          });
         }
         return;
       }
@@ -32,14 +35,18 @@ export class AutomationQueueWorker implements OnModuleDestroy {
         return;
       }
     };
-    
+
     this.worker = new Worker(queueName, processor, {
       connection,
       concurrency: +(process.env.AUTOMATION_WORKER_CONCURRENCY ?? 10),
     });
 
-    this.worker.on('error', (err) => console.error('[BullMQ][worker][error]', err));
+    this.worker.on('error', (err) =>
+      console.error('[BullMQ][worker][error]', err),
+    );
   }
 
-  async onModuleDestroy() { await this.worker?.close(); }
+  async onModuleDestroy() {
+    await this.worker?.close();
+  }
 }

@@ -121,7 +121,10 @@ export class ProcessInstanceStepsService {
       );
     }
 
-    return await this.processInstanceStepRepository.update(id, updateProcessInstanceStepDto);
+    return await this.processInstanceStepRepository.update(
+      id,
+      updateProcessInstanceStepDto,
+    );
   }
 
   /**
@@ -148,7 +151,6 @@ export class ProcessInstanceStepsService {
    * @returns The query object for TypeORM's `findAndCount` method.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    
     const query: Record<string, any> = {};
 
     query.where = { processInstanceId: filtersDto.processInstanceId };

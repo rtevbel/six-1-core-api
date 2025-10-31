@@ -7,8 +7,8 @@ import {
   CreateMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   AbortMultipartUploadCommand,
-} from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+} from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
   IStorageProvider,
   PutInput,
@@ -17,14 +17,14 @@ import {
   HeadOutput,
   MultipartCreateOutput,
   MultipartPartUrl,
-} from "../interfaces/storage-provider.interface";
+} from '../interfaces/storage-provider.interface';
 
 /**
  * R2Provider is a storage provider implementation for Cloudflare R2.
  * It provides methods for uploading, downloading, and managing files in R2 storage.
  */
 export class R2Provider implements IStorageProvider {
-  public readonly driver = "r2"; // Identifier for the storage driver
+  public readonly driver = 'r2'; // Identifier for the storage driver
   private readonly s3: S3Client; // AWS S3 client instance
   private readonly bucket: string; // Default bucket name
 
@@ -36,7 +36,7 @@ export class R2Provider implements IStorageProvider {
   }) {
     this.bucket = opts.bucket;
     this.s3 = new S3Client({
-      region: "auto",
+      region: 'auto',
       endpoint: `https://${opts.accountId}.r2.cloudflarestorage.com`,
       credentials: {
         accessKeyId: opts.accessKeyId,
@@ -58,7 +58,7 @@ export class R2Provider implements IStorageProvider {
         Body: input.body as any,
         ContentType: input.contentType,
         CacheControl: input.cacheControl,
-      })
+      }),
     );
     return { key: input.key };
   }
@@ -70,7 +70,7 @@ export class R2Provider implements IStorageProvider {
    */
   async delete(bucket: string, key: string) {
     await this.s3.send(
-      new DeleteObjectCommand({ Bucket: bucket ?? this.bucket, Key: key })
+      new DeleteObjectCommand({ Bucket: bucket ?? this.bucket, Key: key }),
     );
   }
 
@@ -83,7 +83,7 @@ export class R2Provider implements IStorageProvider {
   async head(bucket: string, key: string): Promise<HeadOutput> {
     try {
       const res = await this.s3.send(
-        new HeadObjectCommand({ Bucket: bucket ?? this.bucket, Key: key })
+        new HeadObjectCommand({ Bucket: bucket ?? this.bucket, Key: key }),
       );
       return {
         contentLength: res.ContentLength ?? null,
@@ -120,7 +120,7 @@ export class R2Provider implements IStorageProvider {
       Key: input.key,
       ContentType: input.contentType,
       Metadata: input.metadata,
-      ACL: input.acl === "public-read" ? "public-read" : undefined,
+      ACL: input.acl === 'public-read' ? 'public-read' : undefined,
     });
     const url = await getSignedUrl(this.s3, cmd, {
       expiresIn: input.expiresIn ?? 900,
@@ -135,7 +135,7 @@ export class R2Provider implements IStorageProvider {
    */
   async presignGet(input: PresignGetInput) {
     const Bucket = input.bucket ?? this.bucket;
-    const { GetObjectCommand } = await import("@aws-sdk/client-s3");
+    const { GetObjectCommand } = await import('@aws-sdk/client-s3');
     const getCmd = new GetObjectCommand({
       Bucket,
       Key: input.key,
@@ -161,7 +161,7 @@ export class R2Provider implements IStorageProvider {
         Bucket: bucket ?? this.bucket,
         Prefix: prefix,
         MaxKeys: maxKeys,
-      })
+      }),
     );
     return { keys: (res.Contents ?? []).map((o) => o.Key!).filter(Boolean) };
   }
@@ -176,14 +176,14 @@ export class R2Provider implements IStorageProvider {
   async createMultipart(
     bucket: string,
     key: string,
-    contentType?: string
+    contentType?: string,
   ): Promise<MultipartCreateOutput> {
     const res = await this.s3.send(
       new CreateMultipartUploadCommand({
         Bucket: bucket ?? this.bucket,
         Key: key,
         ContentType: contentType,
-      })
+      }),
     );
     return { uploadId: res.UploadId! };
   }
@@ -200,9 +200,9 @@ export class R2Provider implements IStorageProvider {
     bucket: string,
     key: string,
     uploadId: string,
-    partNumber: number
+    partNumber: number,
   ): Promise<MultipartPartUrl> {
-    const { UploadPartCommand } = await import("@aws-sdk/client-s3");
+    const { UploadPartCommand } = await import('@aws-sdk/client-s3');
     const cmd = new UploadPartCommand({
       Bucket: bucket ?? this.bucket,
       Key: key,
@@ -224,7 +224,7 @@ export class R2Provider implements IStorageProvider {
     bucket: string,
     key: string,
     uploadId: string,
-    parts: Array<{ ETag: string; PartNumber: number }>
+    parts: Array<{ ETag: string; PartNumber: number }>,
   ): Promise<void> {
     await this.s3.send(
       new CompleteMultipartUploadCommand({
@@ -232,7 +232,7 @@ export class R2Provider implements IStorageProvider {
         Key: key,
         UploadId: uploadId,
         MultipartUpload: { Parts: parts },
-      })
+      }),
     );
   }
 
@@ -245,14 +245,14 @@ export class R2Provider implements IStorageProvider {
   async abortMultipart(
     bucket: string,
     key: string,
-    uploadId: string
+    uploadId: string,
   ): Promise<void> {
     await this.s3.send(
       new AbortMultipartUploadCommand({
         Bucket: bucket ?? this.bucket,
         Key: key,
         UploadId: uploadId,
-      })
+      }),
     );
   }
 }

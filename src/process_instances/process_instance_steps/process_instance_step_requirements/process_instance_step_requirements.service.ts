@@ -31,7 +31,9 @@ export class ProcessInstanceStepRequirementsService {
   ): Promise<ProcessInstanceStepRequirementEntity> {
     const requirement =
       this.processInstanceStepRequirementRepository.create(createDto);
-    return await this.processInstanceStepRequirementRepository.save(requirement);
+    return await this.processInstanceStepRequirementRepository.save(
+      requirement,
+    );
   }
 
   /**
@@ -122,7 +124,10 @@ export class ProcessInstanceStepRequirementsService {
       );
     }
 
-    return await this.processInstanceStepRequirementRepository.update({requirementInstanceId:id}, updateDto);
+    return await this.processInstanceStepRequirementRepository.update(
+      { requirementInstanceId: id },
+      updateDto,
+    );
   }
 
   /**

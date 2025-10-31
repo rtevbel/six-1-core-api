@@ -46,7 +46,8 @@ export class ProcessInstanceStepTriggersService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [triggers, total] = await this.triggerRepository.findAndCount(findQuery);
+    const [triggers, total] =
+      await this.triggerRepository.findAndCount(findQuery);
 
     if (triggers.length === 0) {
       throw new RpcException(

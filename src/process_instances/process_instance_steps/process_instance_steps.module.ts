@@ -7,9 +7,9 @@ import { ProcessInstanceStepsController } from './process_instance_steps.control
 import { ProcessInstanceStepEntity } from './entities/process_instance_step.entity';
 import { ensureDefinedConfigParam } from '../../common/functions';
 import { MESSAGE_BROKER_PROCESS_INSTANCE_SERVICE_CLIENT_TOKEN } from '../constants';
-import {ProcessInstanceStepRequirementsModule} from "./process_instance_step_requirements/process_instance_step_requirements.module";
-import {ProcessInstanceStepRequirementSubmissionsModule} from "./process_instance_step_requirement_submissions/process_instance_step_requirement_submissions.module";
-import {ProcessInstanceStepTriggerConditionsModule} from "./process_instance_step_trigger_conditions/process_instance_step_trigger_conditions.module"
+import { ProcessInstanceStepRequirementsModule } from './process_instance_step_requirements/process_instance_step_requirements.module';
+import { ProcessInstanceStepRequirementSubmissionsModule } from './process_instance_step_requirement_submissions/process_instance_step_requirement_submissions.module';
+import { ProcessInstanceStepTriggerConditionsModule } from './process_instance_step_trigger_conditions/process_instance_step_trigger_conditions.module';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -74,7 +74,7 @@ import {
     ]),
     ProcessInstanceStepRequirementsModule,
     ProcessInstanceStepRequirementSubmissionsModule,
-    ProcessInstanceStepTriggerConditionsModule
+    ProcessInstanceStepTriggerConditionsModule,
   ],
   controllers: [ProcessInstanceStepsController],
   providers: [ProcessInstanceStepsService],

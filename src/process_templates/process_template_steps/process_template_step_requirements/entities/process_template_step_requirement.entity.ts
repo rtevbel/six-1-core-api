@@ -11,7 +11,7 @@ import {
 import { ProcessTemplateStepEntity } from '../../entities/process_template_step.entity';
 import { TenantUsersEntity } from '../../../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessTemplateStepRequirementSubmissionEntity } from '../../process_template_step_requirement_submissions/entities/process_template_step_requirement_submission.entity';
-import {ProcessInstanceStepRequirementEntity} from "../../../../process_instances/process_instance_steps/process_instance_step_requirements/entities/process_instance_step_requirement.entity";
+import { ProcessInstanceStepRequirementEntity } from '../../../../process_instances/process_instance_steps/process_instance_step_requirements/entities/process_instance_step_requirement.entity';
 
 /**
  * Entity class for `process_template_step_requirements` table.
@@ -135,9 +135,9 @@ export class ProcessTemplateStepRequirementEntity {
   submissions!: ProcessTemplateStepRequirementSubmissionEntity[];
 
   /**
- * Relationship to ProcessInstanceStepRequirementEntity.
- * A process template step requirement can have multiple process instance step requirements.
- */
+   * Relationship to ProcessInstanceStepRequirementEntity.
+   * A process template step requirement can have multiple process instance step requirements.
+   */
   @OneToMany(
     () => ProcessInstanceStepRequirementEntity,
     (instanceRequirement) => instanceRequirement.processTemplateStepRequirement,

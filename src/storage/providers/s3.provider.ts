@@ -1,5 +1,5 @@
-import { S3Client } from "@aws-sdk/client-s3";
-import { R2Provider } from "./r2.provider";
+import { S3Client } from '@aws-sdk/client-s3';
+import { R2Provider } from './r2.provider';
 
 /**
  * S3Provider extends R2Provider to provide support for AWS S3.
@@ -14,7 +14,7 @@ export class S3Provider extends R2Provider {
   }) {
     // Call the parent constructor with dummy values for R2-specific fields
     super({
-      accountId: "unused", // Not used for S3
+      accountId: 'unused', // Not used for S3
       accessKeyId: opts.accessKeyId,
       secretAccessKey: opts.secretAccessKey,
       bucket: opts.bucket,
@@ -32,6 +32,6 @@ export class S3Provider extends R2Provider {
 
     // Update the driver identifier to "s3"
     // @ts-ignore: Ignore TypeScript errors for accessing protected properties
-    this.driver = "s3";
+    this.driver = 's3';
   }
 }

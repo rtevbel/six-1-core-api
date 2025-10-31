@@ -232,7 +232,7 @@ export class EventsService {
       tenantId?: number | string;
       occurredAt?: Date;
     } = {},
-  ): Promise<any>{
+  ): Promise<any> {
     // Create an EventEnvelope object with the provided options and defaults
     const envelope: EventEnvelope<TData> = {
       eventName,
@@ -247,8 +247,7 @@ export class EventsService {
       occurredAt: opts.occurredAt ?? new Date(),
     };
     // Emit the event using the EventEmitter2 instance
-    return  await this.emitter.emitAsync(eventName, envelope);
-    
+    return await this.emitter.emitAsync(eventName, envelope);
   }
 
   /**

@@ -9,14 +9,18 @@ export class ProcessInstantiationService {
   constructor(private readonly ds: DataSource) {}
 
   // Retry wrapper for transient InnoDB issues (deadlocks/lock waits)
-  private async withTxRetry<T>(fn: (em: EntityManager) => Promise<T>, attempts = 4): Promise<T> {
+  private async withTxRetry<T>(
+    fn: (em: EntityManager) => Promise<T>,
+    attempts = 4,
+  ): Promise<T> {
     let lastErr: any;
     for (let i = 1; i <= attempts; i++) {
       try {
         return await this.ds.transaction('READ COMMITTED', fn);
       } catch (err: any) {
         const code = err?.code || err?.errno;
-        if ((code === 1205 || code === 1213) && i < attempts) { // lock wait timeout / deadlock
+        if ((code === 1205 || code === 1213) && i < attempts) {
+          // lock wait timeout / deadlock
           await new Promise((r) => setTimeout(r, 50 * i)); // small backoff
           lastErr = err;
           continue;
@@ -31,8 +35,14 @@ export class ProcessInstantiationService {
    * Standalone entry — runs in its own READ COMMITTED transaction with retry/backoff.
    * If you need to compose with a caller's transaction, use `instantiateProcessIn`.
    */
-  async instantiateProcess(templateId: number, tenantId: number, createdBy: number): Promise<number> {
-    return await this.withTxRetry(async (em) => this.instantiateProcessIn(em, templateId, tenantId, createdBy));
+  async instantiateProcess(
+    templateId: number,
+    tenantId: number,
+    createdBy: number,
+  ): Promise<number> {
+    return await this.withTxRetry(async (em) =>
+      this.instantiateProcessIn(em, templateId, tenantId, createdBy),
+    );
   }
 
   /**
@@ -51,7 +61,9 @@ export class ProcessInstantiationService {
        VALUES (?, ?, 'active', ?, NOW())`,
       [templateId, tenantId, createdBy],
     );
-    const processInstanceId: number = Number(res?.insertId ?? res?.[0]?.insertId);
+    const processInstanceId: number = Number(
+      res?.insertId ?? res?.[0]?.insertId,
+    );
 
     // 2) Fetch template steps + name via correlated subquery (ordered for consistent lock order)
     const steps: Array<{
@@ -91,7 +103,7 @@ export class ProcessInstantiationService {
           s.name ?? `Step ${s.step_order}`,
           s.task_type ?? null,
           s.step_order,
-          (s.is_optional ?? 0),
+          s.is_optional ?? 0,
           status,
         ],
       );
@@ -100,7 +112,9 @@ export class ProcessInstantiationService {
 
     // Map: template step id -> instance step id
     const tplToInst = new Map<number, number>();
-    steps.forEach((s, i) => tplToInst.set(s.process_template_step_id, stepInstanceIds[i]));
+    steps.forEach((s, i) =>
+      tplToInst.set(s.process_template_step_id, stepInstanceIds[i]),
+    );
 
     // 4) Bulk copy requirements (single INSERT ... VALUES (...),(...))
     if (steps.length) {
@@ -122,7 +136,7 @@ export class ProcessInstantiationService {
         for (const r of reqs) {
           const stepInstanceId = tplToInst.get(r.process_template_step_id);
           if (!stepInstanceId) continue;
-          placeholders.push('(?, ?, ?, ?, ?, ?, \"none\")');
+          placeholders.push('(?, ?, ?, ?, ?, ?, "none")');
           values.push(
             stepInstanceId,
             r.process_template_step_requirement_id,
@@ -160,7 +174,7 @@ export class ProcessInstantiationService {
         for (const t of trigs) {
           const stepInstanceId = tplToInst.get(t.process_template_step_id);
           if (!stepInstanceId) continue;
-          placeholders.push('(?, ?, ?, ?, ?, \"unmet\")');
+          placeholders.push('(?, ?, ?, ?, ?, "unmet")');
           values.push(
             stepInstanceId,
             t.step_trigger_condition_id,
@@ -183,4 +197,3 @@ export class ProcessInstantiationService {
     return processInstanceId;
   }
 }
-

@@ -7,8 +7,8 @@ import { ProcessInstanceStepRequirementSubmissionsController } from './process_i
 import { ProcessInstanceStepRequirementSubmissionEntity } from './entities/process_instance_step_requirement_submission.entity';
 import { ensureDefinedConfigParam } from '../../../common/functions';
 import { MESSAGE_BROKER_PROCESS_INSTANCE_STEP_REQUIREMENT_SUBMISSION_SERVICE_CLIENT_TOKEN } from './constants';
-import {ProcessInstanceStepRequirementsModule} from  "../process_instance_step_requirements/process_instance_step_requirements.module";
-import {AutomationModule} from "../../../automation/automation.module";
+import { ProcessInstanceStepRequirementsModule } from '../process_instance_step_requirements/process_instance_step_requirements.module';
+import { AutomationModule } from '../../../automation/automation.module';
 
 import {
   MESSAGE_BROKER_USERNAME_KEY,
@@ -72,7 +72,7 @@ import {
       },
     ]),
     ProcessInstanceStepRequirementsModule,
-    AutomationModule
+    AutomationModule,
   ],
   controllers: [ProcessInstanceStepRequirementSubmissionsController],
   providers: [ProcessInstanceStepRequirementSubmissionsService],

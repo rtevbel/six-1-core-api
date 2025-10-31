@@ -8,7 +8,9 @@ import { CreateTaskAttachmentDto } from './create-attachment.dto';
  *
  * Data transfer object for updating a task attachment.
  */
-export class UpdateTaskAttachmentDto extends PartialType(CreateTaskAttachmentDto) {
+export class UpdateTaskAttachmentDto extends PartialType(
+  CreateTaskAttachmentDto,
+) {
   /**
    * Attachment ID.
    *

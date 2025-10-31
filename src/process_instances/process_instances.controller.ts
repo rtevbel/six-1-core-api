@@ -41,7 +41,10 @@ export class ProcessInstancesController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createProcessInstanceDto: CreateProcessInstanceDto,
   ): Promise<ProcessInstanceEntity> {
-    return this.processInstancesService.create(userId, createProcessInstanceDto);
+    return this.processInstancesService.create(
+      userId,
+      createProcessInstanceDto,
+    );
   }
 
   /**

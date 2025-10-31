@@ -6,12 +6,12 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-  OneToOne
+  OneToOne,
 } from 'typeorm';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessTemplateEntity } from '../../process_templates/entities/process_template.entity';
-import {ProcessInstanceStepEntity} from "../process_instance_steps/entities/process_instance_step.entity";
+import { ProcessInstanceStepEntity } from '../process_instance_steps/entities/process_instance_step.entity';
 import { ProjectEntity } from '../../projects/entities/project.entity';
 
 /**
@@ -93,9 +93,13 @@ export class ProcessInstanceEntity {
    * Relationship to ProcessTemplateEntity.
    * A process instance is based on one process template.
    */
-  @ManyToOne(() => ProcessTemplateEntity, (template) => template.processInstances, {
-    onDelete: 'RESTRICT',
-  })
+  @ManyToOne(
+    () => ProcessTemplateEntity,
+    (template) => template.processInstances,
+    {
+      onDelete: 'RESTRICT',
+    },
+  )
   @JoinColumn({ name: 'process_template_id' })
   processTemplate!: ProcessTemplateEntity;
 
@@ -117,36 +121,32 @@ export class ProcessInstanceEntity {
   @JoinColumn({ name: 'created_by' })
   createdByUser!: TenantUsersEntity;
 
- /**
+  /**
    * Reverse relationship to ProcessInstanceStepEntity.
    * A process instance can have multiple steps.
    */
- @OneToMany(
-  () => ProcessInstanceStepEntity,
-  (processInstanceStep) => processInstanceStep.processInstance,
- )
- steps!: ProcessInstanceStepEntity[];
+  @OneToMany(
+    () => ProcessInstanceStepEntity,
+    (processInstanceStep) => processInstanceStep.processInstance,
+  )
+  steps!: ProcessInstanceStepEntity[];
 
   /**
    * One-to-many relationship with the `ProjectEntity`.
    * A process instance can have multiple projects linked to it.
    */
-  @OneToMany(
-    () => ProjectEntity,
-    (project) => project.processInstance,
-  )
+  @OneToMany(() => ProjectEntity, (project) => project.processInstance)
   projects?: ProjectEntity[];
-  
+
   /**
    * One-to-one Relationship to ProcessTemplateEntity.
    * A process instance can be linked to one process template.
    */
-  
+
   @OneToOne(
     () => ProcessTemplateEntity,
     (processTemplate) => processTemplate.processInstances,
   )
   @JoinColumn({ name: 'process_template_id' })
   processTemplates?: ProcessTemplateEntity[];
-
 }

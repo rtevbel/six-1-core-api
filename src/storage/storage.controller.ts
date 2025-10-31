@@ -1,23 +1,23 @@
 // src/storage/storage.controller.ts
-import { Controller, UsePipes } from "@nestjs/common";
-import { MessagePattern, Payload } from "@nestjs/microservices";
-import { StorageService } from "./storage.service";
-import { AppRpcValidationPipe } from "../common/pipes/app-rpc-validation.pipe";
-import { StartDirectUploadDto } from "./dto/start-direct-upload.dto";
-import { ConfirmDirectUploadDto } from "./dto/confirm-direct-upload.dto";
-import { PresignDownloadDto } from "./dto/presign-download.dto";
+import { Controller, UsePipes } from '@nestjs/common';
+import { MessagePattern, Payload } from '@nestjs/microservices';
+import { StorageService } from './storage.service';
+import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
+import { StartDirectUploadDto } from './dto/start-direct-upload.dto';
+import { ConfirmDirectUploadDto } from './dto/confirm-direct-upload.dto';
+import { PresignDownloadDto } from './dto/presign-download.dto';
 import {
   MICROSERVICE_PRESIGN_UPLOAD_PATTERN,
   MICROSERVICE_PRESIGN_GET_PATTERN,
   MICROSERVICE_START_DIRECT_UPLOAD_PATTERN,
   MICROSERVICE_CONFIRM_DIRECT_UPLOAD_PATTERN,
   MICROSERVICE_PRESIGN_DOWNLOAD_PATTERN,
-} from "./constants";
+} from './constants';
 
 /**
  * Controller for handling storage-related operations in a microservice style.
  */
-@Controller("storage")
+@Controller('storage')
 export class StorageController {
   constructor(private readonly storageService: StorageService) {}
 
@@ -31,8 +31,8 @@ export class StorageController {
   @MessagePattern(MICROSERVICE_START_DIRECT_UPLOAD_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async startDirectUpload(
-    @Payload("userId") userId: number,
-    @Payload("data") dto: StartDirectUploadDto,
+    @Payload('userId') userId: number,
+    @Payload('data') dto: StartDirectUploadDto,
   ) {
     // Prefer userId from auth, but allow override if provided in dto.userId
     const effectiveUserId = dto.userId ?? String(userId);
@@ -41,7 +41,7 @@ export class StorageController {
       contentType: dto.contentType,
       tenantId: dto.tenantId,
       userId: effectiveUserId,
-      prefix: dto.prefix ?? "attachments",
+      prefix: dto.prefix ?? 'attachments',
       bucket: dto.bucket,
       expiresIn: dto.expiresIn,
     });
@@ -57,8 +57,8 @@ export class StorageController {
   @MessagePattern(MICROSERVICE_CONFIRM_DIRECT_UPLOAD_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async confirmDirectUpload(
-    @Payload("userId") userId: number,
-    @Payload("data") dto: ConfirmDirectUploadDto,
+    @Payload('userId') userId: number,
+    @Payload('data') dto: ConfirmDirectUploadDto,
   ) {
     // Perform a HEAD request to confirm the upload
     const info = await this.storageService.confirmDirectUpload({
@@ -82,8 +82,8 @@ export class StorageController {
   @MessagePattern(MICROSERVICE_PRESIGN_DOWNLOAD_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async presignDownload(
-    @Payload("userId") userId: number,
-    @Payload("data") dto: PresignDownloadDto,
+    @Payload('userId') userId: number,
+    @Payload('data') dto: PresignDownloadDto,
   ) {
     return this.storageService.getPresignedDownloadUrl({
       key: dto.key,
@@ -103,8 +103,14 @@ export class StorageController {
   @MessagePattern(MICROSERVICE_PRESIGN_UPLOAD_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async presignUploadCompat(
-    @Payload("userId") _userId: number,
-    @Payload("data") body: { key: string; contentType?: string; expiresIn?: number; bucket?: string },
+    @Payload('userId') _userId: number,
+    @Payload('data')
+    body: {
+      key: string;
+      contentType?: string;
+      expiresIn?: number;
+      bucket?: string;
+    },
   ) {
     return this.storageService.presignUpload({
       key: body.key,
@@ -123,8 +129,8 @@ export class StorageController {
   @MessagePattern(MICROSERVICE_PRESIGN_GET_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async presignGetCompat(
-    @Payload("userId") _userId: number,
-    @Payload("data") body: { key: string; expiresIn?: number; bucket?: string },
+    @Payload('userId') _userId: number,
+    @Payload('data') body: { key: string; expiresIn?: number; bucket?: string },
   ) {
     return this.storageService.presignGet({
       key: body.key,

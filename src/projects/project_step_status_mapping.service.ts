@@ -19,7 +19,7 @@ export class ProjectStepStatusMappingService {
     @InjectRepository(ProjectStepStatusMappingEntity)
     private readonly projectStepStatusMappingRepository: Repository<ProjectStepStatusMappingEntity>,
   ) {}
-  
+
   /**
    * Creates a new ProjectStepStatusMapping record.
    * @param userId - ID of the user performing the operation.
@@ -47,7 +47,8 @@ export class ProjectStepStatusMappingService {
   ): Promise<FindAllStatusMappingResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [records, total] = await this.projectStepStatusMappingRepository.findAndCount(findQuery);
+    const [records, total] =
+      await this.projectStepStatusMappingRepository.findAndCount(findQuery);
 
     if (records.length === 0) {
       throw new RpcException(
@@ -59,7 +60,7 @@ export class ProjectStepStatusMappingService {
     }
 
     return {
-      projectStepStatusMappingRecords:records,
+      projectStepStatusMappingRecords: records,
       pagination: this.buildPagination(filtersDto, total),
     };
   }
@@ -74,11 +75,17 @@ export class ProjectStepStatusMappingService {
     userId: number,
     id: number,
   ): Promise<ProjectStepStatusMappingEntity> {
-    const record = await this.projectStepStatusMappingRepository.findOneByOrFail({ mappingId:id });
+    const record =
+      await this.projectStepStatusMappingRepository.findOneByOrFail({
+        mappingId: id,
+      });
 
     if (!record) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ProjectStepStatusMappingEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ProjectStepStatusMappingEntity.name,
+        ),
       );
     }
 
@@ -97,11 +104,17 @@ export class ProjectStepStatusMappingService {
     id: number,
     updateDto: UpdateProjectStepStatusMappingDto,
   ): Promise<UpdateResult> {
-    const record = await this.projectStepStatusMappingRepository.findOneByOrFail({ mappingId:id });
+    const record =
+      await this.projectStepStatusMappingRepository.findOneByOrFail({
+        mappingId: id,
+      });
 
     if (!record) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ProjectStepStatusMappingEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ProjectStepStatusMappingEntity.name,
+        ),
       );
     }
 
@@ -114,11 +127,10 @@ export class ProjectStepStatusMappingService {
    * @param id - ID of the record to delete.
    * @returns The result of the delete operation.
    */
-  async remove(
-    userId: number,
-    id: number,
-  ): Promise<DeleteResult> {
-    return await this.projectStepStatusMappingRepository.delete({ mappingId:id });
+  async remove(userId: number, id: number): Promise<DeleteResult> {
+    return await this.projectStepStatusMappingRepository.delete({
+      mappingId: id,
+    });
   }
 
   /**
@@ -126,12 +138,14 @@ export class ProjectStepStatusMappingService {
    * @param StatusMappingFiltersDto - Filters for searching and pagination.
    * @returns The query object for the repository.
    */
-  private buildFindQuery(filtersDto: StatusMappingFiltersDto): Record<string, any> {
+  private buildFindQuery(
+    filtersDto: StatusMappingFiltersDto,
+  ): Record<string, any> {
     const query: Record<string, any> = {};
 
     query.where = {};
     query.relations = ['taskStatus'];
-    
+
     if (filtersDto.search) {
       query.where = [
         { name: Like(`%${filtersDto.search}%`) },

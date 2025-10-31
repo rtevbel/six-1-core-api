@@ -25,7 +25,9 @@ import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.p
 
 @Controller('attachments')
 export class TaskAttachmentsController {
-  constructor(private readonly taskAttachmentsService: TaskAttachmentsService) {}
+  constructor(
+    private readonly taskAttachmentsService: TaskAttachmentsService,
+  ) {}
 
   /**
    * Handles the creation of a new attachment.

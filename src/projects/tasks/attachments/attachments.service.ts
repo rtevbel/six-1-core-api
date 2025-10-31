@@ -6,7 +6,7 @@ import { CreateTaskAttachmentDto } from './dto/create-attachment.dto';
 import { UpdateTaskAttachmentDto } from './dto/update-attachment.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
-import {FindAllResultInterface} from './interfaces/findall-result.interface';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
@@ -50,9 +50,8 @@ export class TaskAttachmentsService {
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
-    const [attachments, total] = await this.attachmentRepository.findAndCount(
-      findQuery,
-    );
+    const [attachments, total] =
+      await this.attachmentRepository.findAndCount(findQuery);
 
     if (attachments.length === 0) {
       throw new RpcException(
@@ -83,7 +82,10 @@ export class TaskAttachmentsService {
 
     if (!attachment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskAttachmentsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskAttachmentsEntity.name,
+        ),
       );
     }
 
@@ -109,7 +111,10 @@ export class TaskAttachmentsService {
 
     if (!attachment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskAttachmentsEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskAttachmentsEntity.name,
+        ),
       );
     }
 
@@ -132,13 +137,12 @@ export class TaskAttachmentsService {
    * @returns A query object for TypeORM.
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    
     const query: Record<string, any> = {};
 
     if (filtersDto.taskId) {
       query.where = { taskId: filtersDto.taskId };
     }
-    
+
     if (filtersDto.search) {
       query.where = [
         { fileName: Like(`%${filtersDto.search}%`) },

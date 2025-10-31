@@ -15,9 +15,12 @@ import { AutomationEventBridgeListener } from './automation-event-bridge.listene
   imports: [AjvModule],
   providers: [
     // events layer
-     EventCatalogService,
+    EventCatalogService,
     // automation core
-    RequirementValidationService, TriggerEngineService, StepOrchestratorService, ProcessInstantiationService,
+    RequirementValidationService,
+    TriggerEngineService,
+    StepOrchestratorService,
+    ProcessInstantiationService,
     // scheduler + worker + bridge
     BullMqSchedulerAdapter,
     { provide: SCHEDULER_PORT, useExisting: BullMqSchedulerAdapter },

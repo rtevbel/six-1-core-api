@@ -140,7 +140,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     AutomationModule,
     ProcessInstancesModule,
     StorageModule,
-    SchedulerModule
+    SchedulerModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */
