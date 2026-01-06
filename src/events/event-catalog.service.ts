@@ -60,13 +60,13 @@ export class EventCatalogService {
    * @returns A promise that resolves to the newly created event ID.
    */
   private async createInDb(eventName: string): Promise<number> {
-    let creatDto: CreateEventDto = {
+    const creatDto: CreateEventDto = {
       name: eventName,
       description: eventName,
       createdBy: 1,
     };
 
-    let eventData = await this.eventsService.create(1, creatDto);
+    const eventData = await this.eventsService.create(1, creatDto);
     return eventData.eventId ?? 0;
   }
 }

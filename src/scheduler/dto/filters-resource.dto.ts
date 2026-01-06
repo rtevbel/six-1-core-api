@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional, IsString, IsEnum, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsEnum,
+  MaxLength,
+} from 'class-validator';
 
 export class FiltersResourceDto {
   @IsOptional()
@@ -41,4 +48,3 @@ export class FiltersResourceDto {
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 }
-

@@ -15,6 +15,7 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_USER_PATTERN,
@@ -35,6 +36,7 @@ export class UserController {
    * @returns The created user entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_USER_PATTERN)
+  @RequirePermissions('users.create')
   @UsePipes(AppRpcValidationPipe)
   createUser(
     @Payload('data') createUserDto: CreateUserDto,
@@ -49,6 +51,7 @@ export class UserController {
    * @returns A list of users matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_USER_PATTERN)
+  @RequirePermissions('users.read')
   @UsePipes(AppRpcValidationPipe)
   findAllUsers(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class UserController {
    * @returns The user entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_USER_PATTERN)
+  @RequirePermissions('users.read')
   findOneUser(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class UserController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_USER_PATTERN)
+  @RequirePermissions('users.update')
   @UsePipes(AppRpcValidationPipe)
   updateUser(
     @Payload('userId') userId: number,
@@ -93,6 +98,7 @@ export class UserController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_USER_PATTERN)
+  @RequirePermissions('users.delete')
   removeUser(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

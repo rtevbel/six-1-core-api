@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNumber, IsNotEmpty, IsEnum } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsNotEmpty,
+  IsEnum,
+} from 'class-validator';
 
 /**
  * Create Resource DTO class.
@@ -80,4 +86,3 @@ export class CreateResourceDto {
   @IsOptional()
   isShared?: number;
 }
-

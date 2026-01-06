@@ -1,6 +1,4 @@
-import {
-  IsISO8601, IsNumber, IsOptional
-} from 'class-validator';
+import { IsISO8601, IsNumber, IsOptional } from 'class-validator';
 
 /**
  * Shift Input DTO class.

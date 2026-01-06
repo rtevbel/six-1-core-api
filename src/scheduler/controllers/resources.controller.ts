@@ -96,4 +96,3 @@ export class ResourcesController {
     return this.resourcesService.remove(userId, dto.resourceId);
   }
 }
-

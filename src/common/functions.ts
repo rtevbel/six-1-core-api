@@ -24,7 +24,7 @@ export async function hash_content(data: any): Promise<any> {
 export async function compare_hashed_content(
   hashed_content: any,
   content_to_compare: any,
-): Promise<Boolean> {
+): Promise<boolean> {
   return await bcrypt.compare(content_to_compare, hashed_content);
 }
 

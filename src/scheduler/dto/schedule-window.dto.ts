@@ -4,7 +4,7 @@ import {
   IsNumber,
   IsOptional,
   Min,
-  IsNotEmpty
+  IsNotEmpty,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -72,7 +72,7 @@ export class ScheduleWindowDto {
   @IsOptional()
   @IsInt()
   parentScheduledTaskId?: number;
-    /**
+  /**
    * User ID of the creator.
    *
    * - Required field.
@@ -80,19 +80,19 @@ export class ScheduleWindowDto {
    *
    * @type {number}
    */
-    @IsNumber()
-    @IsNotEmpty()
-    createdBy!: number;
-  
-    /**
-     * User ID of the updater.
-     *
-     * - Optional field.
-     * - Must be a number.
-     *
-     * @type {number}
-     */
-    @IsNumber()
-    @IsOptional()
-    updatedBy?: number;
+  @IsNumber()
+  @IsNotEmpty()
+  createdBy!: number;
+
+  /**
+   * User ID of the updater.
+   *
+   * - Optional field.
+   * - Must be a number.
+   *
+   * @type {number}
+   */
+  @IsNumber()
+  @IsOptional()
+  updatedBy?: number;
 }

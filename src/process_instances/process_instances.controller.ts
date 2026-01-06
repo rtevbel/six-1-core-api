@@ -11,6 +11,7 @@ import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_PROCESS_INSTANCE_PATTERN,
@@ -36,6 +37,7 @@ export class ProcessInstancesController {
    * @returns The created process instance entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_PROCESS_INSTANCE_PATTERN)
+  @RequirePermissions('process_instances.create')
   @UsePipes(AppRpcValidationPipe)
   createProcessInstance(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -54,6 +56,7 @@ export class ProcessInstancesController {
    * @returns A list of process instances matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_INSTANCE_PATTERN)
+  @RequirePermissions('process_instances.read')
   @UsePipes(AppRpcValidationPipe)
   findAllProcessInstances(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -69,6 +72,7 @@ export class ProcessInstancesController {
    * @returns The process instance entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_INSTANCE_PATTERN)
+  @RequirePermissions('process_instances.read')
   findOneProcessInstance(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -83,6 +87,7 @@ export class ProcessInstancesController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_PROCESS_INSTANCE_PATTERN)
+  @RequirePermissions('process_instances.update')
   @UsePipes(AppRpcValidationPipe)
   updateProcessInstance(
     @Payload('userId') userId: number,
@@ -102,6 +107,7 @@ export class ProcessInstancesController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN)
+  @RequirePermissions('process_instances.delete')
   removeProcessInstance(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

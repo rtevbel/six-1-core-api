@@ -6,7 +6,10 @@ import { ResourceEntity } from '../entities/resource.entity';
 import { CreateResourceDto } from '../dto/create-resource.dto';
 import { UpdateResourceDto } from '../dto/update-resource.dto';
 import { FiltersResourceDto } from '../dto/filters-resource.dto';
-import { NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE, NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
+import {
+  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
+  NO_RECORD_FOUND_MESSAGE,
+} from '../../common/constants';
 
 export interface FindAllResourcesResultInterface {
   resourceRecords: ResourceEntity[];
@@ -26,7 +29,10 @@ export class ResourcesService {
    * @param createDto - Data Transfer Object containing resource details.
    * @returns The created ResourceEntity.
    */
-  async create(userId: number, createDto: CreateResourceDto): Promise<ResourceEntity> {
+  async create(
+    userId: number,
+    createDto: CreateResourceDto,
+  ): Promise<ResourceEntity> {
     return await this.repo.save(this.repo.create(createDto));
   }
 
@@ -74,7 +80,10 @@ export class ResourcesService {
 
     if (!resource) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ResourceEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ResourceEntity.name,
+        ),
       );
     }
 
@@ -98,7 +107,10 @@ export class ResourcesService {
 
     if (!resource) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ResourceEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ResourceEntity.name,
+        ),
       );
     }
 
@@ -179,4 +191,3 @@ export class ResourcesService {
     };
   }
 }
-

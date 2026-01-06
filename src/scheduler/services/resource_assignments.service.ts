@@ -6,7 +6,10 @@ import { ResourceAssignmentEntity } from '../entities/resource_assignment.entity
 import { CreateResourceAssignmentDto } from '../dto/create-resource-assignment.dto';
 import { UpdateResourceAssignmentDto } from '../dto/update-resource-assignment.dto';
 import { FiltersResourceAssignmentDto } from '../dto/filters-resource-assignment.dto';
-import { NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE, NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
+import {
+  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
+  NO_RECORD_FOUND_MESSAGE,
+} from '../../common/constants';
 
 export interface FindAllResourceAssignmentsResultInterface {
   resourceAssignmentRecords: ResourceAssignmentEntity[];
@@ -77,7 +80,10 @@ export class ResourceAssignmentsService {
 
     if (!assignment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ResourceAssignmentEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ResourceAssignmentEntity.name,
+        ),
       );
     }
 
@@ -103,7 +109,10 @@ export class ResourceAssignmentsService {
 
     if (!assignment) {
       throw new RpcException(
-        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ResourceAssignmentEntity.name),
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ResourceAssignmentEntity.name,
+        ),
       );
     }
 
@@ -194,4 +203,3 @@ export class ResourceAssignmentsService {
     };
   }
 }
-

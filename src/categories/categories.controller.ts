@@ -11,6 +11,7 @@ import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { CategoryEntity } from './entities/category.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_CATEGORY_PATTERN,
@@ -34,6 +35,7 @@ export class CategoriesController {
    * @returns The created category entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_CATEGORY_PATTERN)
+  @RequirePermissions('categories.create')
   @UsePipes(AppRpcValidationPipe)
   createCategory(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,6 +51,7 @@ export class CategoriesController {
    * @returns A list of categories matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_CATEGORY_PATTERN)
+  @RequirePermissions('categories.read')
   @UsePipes(AppRpcValidationPipe)
   findAllCategories(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class CategoriesController {
    * @returns The category entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_CATEGORY_PATTERN)
+  @RequirePermissions('categories.read')
   findOneCategory(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class CategoriesController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_CATEGORY_PATTERN)
+  @RequirePermissions('categories.update')
   @UsePipes(AppRpcValidationPipe)
   updateCategory(
     @Payload('userId') userId: number,
@@ -97,6 +102,7 @@ export class CategoriesController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_CATEGORY_PATTERN)
+  @RequirePermissions('categories.delete')
   removeCategory(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

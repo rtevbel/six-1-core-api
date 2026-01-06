@@ -11,6 +11,7 @@ import { UpdateProjectDto } from './dto/update-project.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { ProjectEntity } from './entities/project.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_PROJECT_PATTERN,
@@ -34,6 +35,7 @@ export class ProjectsController {
    * @returns The created project entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_PROJECT_PATTERN)
+  @RequirePermissions('projects.create')
   @UsePipes(AppRpcValidationPipe)
   createProject(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,6 +51,7 @@ export class ProjectsController {
    * @returns A list of projects matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_PROJECT_PATTERN)
+  @RequirePermissions('projects.read')
   @UsePipes(AppRpcValidationPipe)
   findAllProjects(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class ProjectsController {
    * @returns The project entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PROJECT_PATTERN)
+  @RequirePermissions('projects.read')
   findOneProject(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class ProjectsController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_PROJECT_PATTERN)
+  @RequirePermissions('projects.update')
   @UsePipes(AppRpcValidationPipe)
   updateProject(
     @Payload('userId') userId: number,
@@ -97,6 +102,7 @@ export class ProjectsController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_PROJECT_PATTERN)
+  @RequirePermissions('projects.delete')
   removeProject(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

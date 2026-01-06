@@ -11,6 +11,7 @@ import { UpdateTaskDto } from './dto/update-task.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { TaskEntity } from './entities/task.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_PROJECT_TASK_PATTERN,
@@ -35,6 +36,7 @@ export class TasksController {
    * @returns The created task entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_PROJECT_TASK_PATTERN)
+  @RequirePermissions('tasks.create')
   @UsePipes(AppRpcValidationPipe)
   createTask(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -50,6 +52,7 @@ export class TasksController {
    * @returns A list of tasks matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_PROJECT_TASK_PATTERN)
+  @RequirePermissions('tasks.read')
   @UsePipes(AppRpcValidationPipe)
   findAllTasks(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -66,6 +69,7 @@ export class TasksController {
    * @returns The task entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PROJECT_TASK_PATTERN)
+  @RequirePermissions('tasks.read')
   findOneTask(
     @Payload('userId') userId: number,
     @Payload('projectId') projectId: number,
@@ -81,6 +85,7 @@ export class TasksController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_PROJECT_TASK_PATTERN)
+  @RequirePermissions('tasks.update')
   @UsePipes(AppRpcValidationPipe)
   updateTask(
     @Payload('userId') userId: number,
@@ -103,6 +108,7 @@ export class TasksController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_PROJECT_TASK_PATTERN)
+  @RequirePermissions('tasks.delete')
   removeTask(
     @Payload('userId') userId: number,
     @Payload('projectId') projectId: number,

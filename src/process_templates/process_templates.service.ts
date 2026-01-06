@@ -155,8 +155,15 @@ export class ProcessTemplatesService {
    */
   async findOne(userId: number, id: number): Promise<ProcessTemplateEntity> {
     const processTemplate =
-      await this.processTemplateRepository.findOneByOrFail({
-        processTemplateId: id,
+      await this.processTemplateRepository.findOne({
+        where: { processTemplateId: id },
+        relations: [
+          'descriptions',
+          'categories',
+          'categories.category.descriptions',
+          'steps',
+          'steps.descriptions',
+        ],
       });
 
     if (!processTemplate) {

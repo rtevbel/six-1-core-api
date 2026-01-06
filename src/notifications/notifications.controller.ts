@@ -109,7 +109,7 @@ export class NotificationsController {
    * Scheduled task to process event logs and create notifications every 10 minutes.
    * This method is triggered by a cron job.
    */
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  //@Cron(CronExpression.EVERY_10_SECONDS)
   processEventLogsAndCreateNotifications(): Promise<void> {
     return this.notificationsService.processEventLogsAndCreateNotifications();
   }

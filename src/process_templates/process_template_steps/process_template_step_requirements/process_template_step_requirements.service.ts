@@ -54,17 +54,10 @@ export class ProcessTemplateStepRequirementsService {
         findQuery,
       );
 
-    if (requirements.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          ProcessTemplateStepRequirementEntity.name,
-        ),
-      );
-    }
-
+    // Return empty array instead of throwing exception when no records found
+    // This allows the frontend to handle empty states gracefully
     return {
-      processTemplateStepRequirementRecords: requirements,
+      processTemplateStepRequirementRecords: requirements || [],
       pagination: this.buildPagination(filtersDto, total),
     };
   }

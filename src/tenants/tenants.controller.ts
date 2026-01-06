@@ -11,6 +11,7 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { TenantEntity } from './entities/tenant.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_TENANT_PATTERN,
@@ -34,6 +35,7 @@ export class TenantsController {
    * @returns The created tenant entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_PATTERN)
+  @RequirePermissions('tenants.create')
   @UsePipes(AppRpcValidationPipe)
   createTenant(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,6 +51,7 @@ export class TenantsController {
    * @returns A list of tenants matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_PATTERN)
+  @RequirePermissions('tenants.read')
   @UsePipes(AppRpcValidationPipe)
   findAllTenants(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class TenantsController {
    * @returns The tenant entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_TENANT_PATTERN)
+  @RequirePermissions('tenants.read')
   findOneTenant(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class TenantsController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_TENANT_PATTERN)
+  @RequirePermissions('tenants.update')
   @UsePipes(AppRpcValidationPipe)
   updateTenant(
     @Payload('userId') userId: number,
@@ -97,6 +102,7 @@ export class TenantsController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_TENANT_PATTERN)
+  @RequirePermissions('tenants.delete')
   removeTenant(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

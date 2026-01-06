@@ -46,6 +46,9 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AutomationModule } from './automation/automation.module';
 import { StorageModule } from './storage/storage.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
+import { SharingModule } from './sharing/sharing.module';
+import { CustomersModule } from './customers/customers.module';
+import { AuthorizationModule } from './authorization/authorization.module';
 
 /**
  * Root module of the application.
@@ -104,7 +107,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
         entities: [],
         autoLoadEntities: true, // Automatically load entities from modules
         synchronize: false, // Set to false to prevent automatic schema synchronization in production
-        logging: true, // Enable query logging,
+        logging: ['query', 'error'], // Enable query logging,
         extra: {
           supportBigNumbers: true,
           bigNumberStrings: false, // Ensures BIGINT is returned as a number
@@ -141,6 +144,9 @@ import { SchedulerModule } from './scheduler/scheduler.module';
     ProcessInstancesModule,
     StorageModule,
     SchedulerModule,
+    CustomersModule,
+    AuthorizationModule,
+    SharingModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

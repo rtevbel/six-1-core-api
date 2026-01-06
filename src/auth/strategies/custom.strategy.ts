@@ -47,10 +47,42 @@ export class CustomStrategy extends PassportStrategy(
    */
   async validate(@Payload() req: any): Promise<any> {
     const { username, email, password } = req;
-    const user = await this.authService.validateUser(password, username, email);
+    
+    // Check if username is provided and if it's an email
+    // If username is an email, use it as email, otherwise use it as username
+    let finalUsername: string | undefined = undefined;
+    let finalEmail: string | undefined = email;
+
+    if (username) {
+      if (this.isEmail(username)) {
+        // If username is actually an email, use it as email
+        finalEmail = username;
+      } else {
+        // Otherwise, use it as username
+        finalUsername = username;
+      }
+    }
+
+    const user = await this.authService.validateUser(
+      password,
+      finalUsername,
+      finalEmail,
+    );
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_ERROR_MESSAGE);
     }
     return user;
+  }
+
+  /**
+   * Checks if a string is a valid email address.
+   *
+   * @param {string} value - The string to check.
+   * @returns {boolean} - True if the string is a valid email, false otherwise.
+   */
+  private isEmail(value: string): boolean {
+    // Simple email regex pattern
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(value);
   }
 }

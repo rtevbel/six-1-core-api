@@ -160,9 +160,22 @@ export class CreateTaskDto {
    * Start Constraint Type (optional).
    * Specifies the type of constraint applied to the task's start date.
    */
-  @IsEnum(['ASAP', 'NoEarlierThan', 'On', 'NoLaterThan', 'MustStartOn', 'MustFinishOn'])
+  @IsEnum([
+    'ASAP',
+    'NoEarlierThan',
+    'On',
+    'NoLaterThan',
+    'MustStartOn',
+    'MustFinishOn',
+  ])
   @IsOptional()
-  startConstraintType?: 'ASAP' | 'NoEarlierThan' | 'On' | 'NoLaterThan' | 'MustStartOn' | 'MustFinishOn';
+  startConstraintType?:
+    | 'ASAP'
+    | 'NoEarlierThan'
+    | 'On'
+    | 'NoLaterThan'
+    | 'MustStartOn'
+    | 'MustFinishOn';
 
   /**
    * Start Constraint Datetime (optional, UTC).

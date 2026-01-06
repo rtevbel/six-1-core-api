@@ -86,4 +86,3 @@ export class ResourceAssignmentEntity {
   )
   shifts!: ResourceAssignmentShiftEntity[];
 }
-

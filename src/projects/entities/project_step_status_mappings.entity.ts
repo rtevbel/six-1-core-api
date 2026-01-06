@@ -41,9 +41,8 @@ export class ProjectStepStatusMappingEntity {
   @Column({
     name: 'step_instance_id_norm',
     type: 'bigint',
-    unsigned: true,
     generatedType: 'STORED',
-    asExpression: 'IFNULL(`step_instance_id`, 0)',
+    asExpression: 'CAST(IFNULL(`step_instance_id`, 0) AS UNSIGNED)',
   })
   stepInstanceIdNorm!: number;
 

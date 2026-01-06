@@ -63,7 +63,7 @@ export class ProcessInstanceEntity {
   @CreateDateColumn({
     name: 'started_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   startedAt!: Date;
 

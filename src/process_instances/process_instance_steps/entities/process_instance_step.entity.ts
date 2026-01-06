@@ -154,16 +154,17 @@ export class ProcessInstanceStepEntity {
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
     comment: 'Timestamp when the step was created',
   })
   createdAt!: Date;
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
     comment: 'Timestamp when the step was last updated',
   })
   updatedAt!: Date;

@@ -21,24 +21,24 @@ import { ensureDefinedConfigParam } from './common/functions';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  let configService: ConfigService = app.get(ConfigService);
+  const configService: ConfigService = app.get(ConfigService);
 
   //Get all required message broker params using ConfigService class
-  let brokerUsername: string = ensureDefinedConfigParam(
+  const brokerUsername: string = ensureDefinedConfigParam(
     configService.get<string>(MESSAGE_BROKER_USERNAME_KEY),
     MESSAGE_BROKER_USERNAME_KEY,
   );
 
-  let brokerPassword: string = ensureDefinedConfigParam(
+  const brokerPassword: string = ensureDefinedConfigParam(
     configService.get<string>(MESSAGE_BROKER_PASSWORD_KEY),
     MESSAGE_BROKER_PASSWORD_KEY,
   );
 
-  let brokerHost: string = ensureDefinedConfigParam(
+  const brokerHost: string = ensureDefinedConfigParam(
     configService.get<string>(MESSAGE_BROKER_HOST_KEY),
     MESSAGE_BROKER_HOST_KEY,
   );
-  let brokerPort: number = ensureDefinedConfigParam(
+  const brokerPort: number = ensureDefinedConfigParam(
     configService.get<number>(MESSAGE_BROKER_PORT_KEY),
     MESSAGE_BROKER_PORT_KEY,
   );
@@ -46,7 +46,7 @@ async function bootstrap() {
     configService.get<string>(MESSAGE_BROKER_URL_KEY),
     MESSAGE_BROKER_URL_KEY,
   );
-  let serviceMessageBrokerQueueName = ensureDefinedConfigParam(
+  const serviceMessageBrokerQueueName = ensureDefinedConfigParam(
     configService.get<string>(SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY),
     SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
   );

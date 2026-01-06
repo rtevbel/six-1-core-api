@@ -248,7 +248,7 @@ export class ProjectsService {
                     userId,
                   );
                 }
-                
+
                 await em.query(
                   `INSERT INTO tasks
                    (project_id, tenant_id, step_instance_id, name, task_indentifier, description, priority, estimated_duration, parent_task_id, task_status_id, status_control, effort_hours , scheduling_mode , default_shift_hours , primary_assignee_id , team_id , start_constraint_utc , finish_constraint_utc , created_by, updated_by, created_at)

@@ -1,4 +1,9 @@
-import { IsNumber, IsNotEmpty, IsOptional, IsDateString } from 'class-validator';
+import {
+  IsNumber,
+  IsNotEmpty,
+  IsOptional,
+  IsDateString,
+} from 'class-validator';
 
 /**
  * Create Resource Assignment DTO class.
@@ -56,4 +61,3 @@ export class CreateResourceAssignmentDto {
   @IsNotEmpty()
   assignedEnd!: string;
 }
-

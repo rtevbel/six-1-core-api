@@ -23,7 +23,12 @@ export class FiltersResourceAssignmentDto {
   limit?: number;
 
   @IsOptional()
-  @IsIn(['resourceAssignmentId', 'resourceId', 'scheduledTaskId', 'assignedStart'])
+  @IsIn([
+    'resourceAssignmentId',
+    'resourceId',
+    'scheduledTaskId',
+    'assignedStart',
+  ])
   @IsString()
   sortBy?: string;
 
@@ -32,4 +37,3 @@ export class FiltersResourceAssignmentDto {
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
 }
-

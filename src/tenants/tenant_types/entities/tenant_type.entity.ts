@@ -51,7 +51,7 @@ export class TenantTypeEntity {
     nullable: false,
     comment: 'Tenant status',
   })
-  @Index('tenant_types_status_id')
+  @Index('tenant_types_status_id', { unique: false })
   statusId!: number;
 
   @CreateDateColumn({
@@ -63,7 +63,8 @@ export class TenantTypeEntity {
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
+    type: 'datetime',
+    precision: 6,
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })

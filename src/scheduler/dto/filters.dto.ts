@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator';
+import {
+  IsIn,
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 export class FiltersDto {
   @IsOptional()
@@ -28,14 +34,18 @@ export class FiltersDto {
   limit?: number;
 
   @IsOptional()
-  @IsIn(['scheduledTaskId','taskId','effectiveStartUtc','effectiveEndUtc','createdAt'])
+  @IsIn([
+    'scheduledTaskId',
+    'taskId',
+    'effectiveStartUtc',
+    'effectiveEndUtc',
+    'createdAt',
+  ])
   @IsString()
   sortBy?: string;
 
   @IsOptional()
-  @IsIn(['ASC','DESC'])
+  @IsIn(['ASC', 'DESC'])
   @IsString()
-  sortOrder?: 'ASC'|'DESC';
+  sortOrder?: 'ASC' | 'DESC';
 }
-
-

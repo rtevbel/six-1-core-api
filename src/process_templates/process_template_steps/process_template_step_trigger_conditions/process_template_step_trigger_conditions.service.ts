@@ -49,17 +49,10 @@ export class ProcessTemplateStepTriggerConditionsService {
     const [conditions, total] =
       await this.triggerConditionRepository.findAndCount(findQuery);
 
-    if (conditions.length === 0) {
-      throw new RpcException(
-        NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
-          '{entity_name}',
-          ProcessTemplateStepTriggerConditionEntity.name,
-        ),
-      );
-    }
-
+    // Return empty array instead of throwing exception when no records found
+    // This allows the frontend to handle empty states gracefully
     return {
-      processTemplateStepTriggerConditionRecords: conditions,
+      processTemplateStepTriggerConditionRecords: conditions || [],
       pagination: this.buildPagination(filtersDto, total),
     };
   }

@@ -11,6 +11,7 @@ import { UpdateProcessTemplateDto } from './dto/update-process_template.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_PROCESS_TEMPLATE_PATTERN,
@@ -36,6 +37,7 @@ export class ProcessTemplatesController {
    * @returns The created process template entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.create')
   @UsePipes(AppRpcValidationPipe)
   createProcessTemplate(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -58,6 +60,7 @@ export class ProcessTemplatesController {
    * @returns A list of process templates matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.read')
   @UsePipes(AppRpcValidationPipe)
   findAllProcessTemplates(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -73,6 +76,7 @@ export class ProcessTemplatesController {
    * @returns The process template entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.read')
   findOneProcessTemplate(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -87,6 +91,7 @@ export class ProcessTemplatesController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.update')
   @UsePipes(AppRpcValidationPipe)
   updateProcessTemplate(
     @Payload('userId') userId: number,
@@ -106,6 +111,7 @@ export class ProcessTemplatesController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.delete')
   removeProcessTemplate(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

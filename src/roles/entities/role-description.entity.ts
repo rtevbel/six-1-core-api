@@ -56,14 +56,25 @@ export class RoleDescriptionEntity {
    * Timestamp when the record was created.
    * Automatically set to the current timestamp.
    */
-  @CreateDateColumn({ name: 'created_at', type: 'datetime' })
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+  })
   createdAt!: Date;
 
   /**
    * Timestamp when the record was last updated.
    * Automatically updated to the current timestamp on modification.
    */
-  @UpdateDateColumn({ name: 'updated_at', type: 'timestamp' })
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
+  })
   updatedAt!: Date;
 
   /**

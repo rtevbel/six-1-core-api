@@ -110,7 +110,8 @@ export class TenantUsersEntity {
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
+    type: 'datetime',
+    precision: 6,
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
@@ -567,12 +568,12 @@ export class TenantUsersEntity {
   })
   createdMentions!: TaskMentionsEntity[];
 
-   /**
+  /**
    * Inverse relationship to ResourceAssignmentShiftEntity.
    * Represents all shifts assigned to this tenant user.
    */
-    @OneToMany(() => ResourceAssignmentShiftEntity, (shift) => shift.tenantUser, {
-      cascade: true,
-    })
-    resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
+  @OneToMany(() => ResourceAssignmentShiftEntity, (shift) => shift.tenantUser, {
+    cascade: true,
+  })
+  resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
 }

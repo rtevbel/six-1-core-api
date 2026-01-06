@@ -14,6 +14,14 @@ import { RedisModule } from '@nestjs-modules/ioredis';
 import { AppConfigService } from '../common/services/app-config.service';
 import { ensureDefinedConfigParam } from '../common/functions';
 import { UsersModule } from '../users/users.module';
+import { AuthorizationModule } from '../authorization/authorization.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import { TenantUserRoleEntity } from '../tenants/tenant_users/tenant_user_roles/entities/tenant_user_role.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
+import { TenantEntity } from '../tenants/entities/tenant.entity';
+import { RoleDescriptionEntity } from '../roles/entities/role-description.entity';
+import { PermissionDescriptionEntity } from '../permissions/entities/permission_description.entity';
 import {
   MESSAGE_BROKER_AUTH_TOKEN,
   REDIS_CLIENT_TYPE,
@@ -46,6 +54,17 @@ import {
 @Module({
   // Imports required modules and configurations.
   imports: [
+    // Registers TypeORM entities for database operations.
+    TypeOrmModule.forFeature([
+      UserRoleEntity,
+      TenantUserRoleEntity,
+      TenantUsersEntity,
+      TenantEntity,
+      RoleDescriptionEntity,
+      PermissionDescriptionEntity,
+    ]),
+    // Imports AuthorizationModule for permission checking.
+    AuthorizationModule,
     // Configures Redis for caching.
     RedisModule.forRootAsync({
       imports: [ConfigModule],

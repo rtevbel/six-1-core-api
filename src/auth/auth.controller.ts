@@ -1,13 +1,11 @@
 import {
   Controller,
   UseGuards,
-  Request,
   UseFilters,
   Body,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { JwtAuthGuard } from './guards/jwt-guard';
 import { CustomAuthGuard } from './guards/custom-auth.guard';
 import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { OidcClient } from './oidc-client';
@@ -123,14 +121,25 @@ export class AuthController {
    *
    * @Version 0.0.1
    *
-   * This method returns authenticated user details.
+   * This method returns authenticated user details including roles and permissions.
    *
-   * @param {any} req -Request object containing authenticated user' details.
-   * @returns {Object} -Returns user details object.
+   * @param {any} payload -Payload object containing authenticated user' details.
+   * @returns {Promise<Object>} -Returns user profile object with userId, roles, and permissions.
    */
   @MessagePattern(V0_1_AUTH_USER_PROFILE_MESSAG_PATTERN)
-  @UseGuards(JwtAuthGuard)
-  getProfile(@Request() req: any): Object {
-    return req.user;
+  async getProfile(
+    @Payload()
+    payload: {
+      userId?: number;
+      tenantUserId?: number;
+    },
+  ): Promise<object> {
+    const { userId, tenantUserId } = payload;
+
+    if (!userId) {
+      throw new UnauthorizedException('User ID not found in request');
+    }
+
+    return await this.authService.getProfile(userId, tenantUserId);
   }
 }

@@ -156,7 +156,7 @@ export class UserService {
    *
    */
   async findOneBy(userId: number, findByDTO: FindByDTO): Promise<UserEntity> {
-    let user = await this.userRepository.findOneBy(findByDTO);
+    const user = await this.userRepository.findOneBy(findByDTO);
 
     if (!user) {
       throw new RpcException(

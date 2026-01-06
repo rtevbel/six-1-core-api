@@ -3,13 +3,13 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { SchedulerService } from './services/scheduler.service';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
-import {ScheduleWindowDto} from "./dto/schedule-window.dto";
-import {ScheduleFromShiftsDto} from "./dto/schedule-from-shifts.dto";
-import {PlanProjectDto} from "./dto/plan-project.dto";
-import {CommitPlanDto} from "./dto/commit-plan.dto";
+import { ScheduleWindowDto } from './dto/schedule-window.dto';
+import { ScheduleFromShiftsDto } from './dto/schedule-from-shifts.dto';
+import { PlanProjectDto } from './dto/plan-project.dto';
+import { CommitPlanDto } from './dto/commit-plan.dto';
 import { FiltersDto } from './dto/filters.dto';
 
-import { 
+import {
   MICROSERVICE_SCHEDULE_TASk_WINDOW_PATTERN,
   MICROSERVICE_SCHEDULE_TASk_FROM_SHIFT_PATTERN,
   MICROSERVICE_PLAN_PROJECT_PATTERN,
@@ -20,7 +20,7 @@ import {
   MICROSERVICE_RESCHEDULE_PATTERN,
   MICROSERVICE_PAUSE_PATTERN,
   MICROSERVICE_RESUME_PATTERN,
-  MICROSERVICE_CANCEL_PATTERN
+  MICROSERVICE_CANCEL_PATTERN,
 } from './constants';
 
 @Controller('scheduler')
@@ -116,7 +116,12 @@ export class SchedulerController {
   @UsePipes(AppRpcValidationPipe)
   async reschedule(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') dto: { scheduledTaskId: number; requestedStartUtc: string; requestedEndUtc: string },
+    @Payload('data')
+    dto: {
+      scheduledTaskId: number;
+      requestedStartUtc: string;
+      requestedEndUtc: string;
+    },
   ) {
     return this.scheduler.reschedule(userId, {
       scheduledTaskId: dto.scheduledTaskId,
@@ -132,7 +137,10 @@ export class SchedulerController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') dto: { scheduledTaskId: number; pausedUntilUtc: string },
   ) {
-    return this.scheduler.pause(userId, { scheduledTaskId: dto.scheduledTaskId, pausedUntilUtc: new Date(dto.pausedUntilUtc) });
+    return this.scheduler.pause(userId, {
+      scheduledTaskId: dto.scheduledTaskId,
+      pausedUntilUtc: new Date(dto.pausedUntilUtc),
+    });
   }
 
   /** Resume a schedule */
@@ -142,7 +150,9 @@ export class SchedulerController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') dto: { scheduledTaskId: number },
   ) {
-    return this.scheduler.resume(userId, { scheduledTaskId: dto.scheduledTaskId });
+    return this.scheduler.resume(userId, {
+      scheduledTaskId: dto.scheduledTaskId,
+    });
   }
 
   /** Cancel a schedule */
@@ -152,7 +162,9 @@ export class SchedulerController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') dto: { scheduledTaskId: number },
   ) {
-    return this.scheduler.cancel(userId, { scheduledTaskId: dto.scheduledTaskId });
+    return this.scheduler.cancel(userId, {
+      scheduledTaskId: dto.scheduledTaskId,
+    });
   }
 
   /**

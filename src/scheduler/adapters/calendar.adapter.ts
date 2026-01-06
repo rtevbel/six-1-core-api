@@ -48,12 +48,20 @@ export class CalendarAdapter implements CalendarProvider {
     isoDate: string,
   ): Promise<boolean> {
     // Check user off day first
+    const offDateCondition = Raw((alias) => `DATE(${alias}) = DATE(:isoDate)`, {
+      isoDate,
+    });
+
     if (tenantUserId) {
-      const u = await this.tuodRepo.findOne({ where: { tenantUserId, offDate: Raw(() => `DATE('${isoDate}')`) } });
+      const u = await this.tuodRepo.findOne({
+        where: { tenantUserId, offDate: offDateCondition },
+      });
       if (u) return true;
     }
     // Fallback to tenant-wide holiday
-    const t = await this.todRepo.findOne({ where: { tenantId, offDate: Raw(() => `DATE('${isoDate}')`) } });
+    const t = await this.todRepo.findOne({
+      where: { tenantId, offDate: offDateCondition },
+    });
     return !!t;
   }
 
@@ -63,7 +71,16 @@ export class CalendarAdapter implements CalendarProvider {
     isoDate: string,
     weekday: number, // 1..7 Mon..Sun
   ): Promise<Array<{ start: string; end: string }>> {
-    const dayMap = ['','monday','tuesday','wednesday','thursday','friday','saturday','sunday'] as const;
+    const dayMap = [
+      '',
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday',
+    ] as const;
     const dayOfWeek = dayMap[weekday] as (typeof dayMap)[number];
 
     // User working hours first
@@ -73,7 +90,10 @@ export class CalendarAdapter implements CalendarProvider {
         order: { startTime: 'ASC' },
       });
       if (userSlots.length) {
-        return userSlots.map(s => ({ start: s.startTime.slice(0,5), end: s.endTime.slice(0,5) }));
+        return userSlots.map((s) => ({
+          start: s.startTime.slice(0, 5),
+          end: s.endTime.slice(0, 5),
+        }));
       }
     }
 
@@ -82,6 +102,9 @@ export class CalendarAdapter implements CalendarProvider {
       where: { tenantId, dayOfWeek },
       order: { startTime: 'ASC' },
     });
-    return tenantSlots.map(s => ({ start: s.startTime.slice(0,5), end: s.endTime.slice(0,5) }));
+    return tenantSlots.map((s) => ({
+      start: s.startTime.slice(0, 5),
+      end: s.endTime.slice(0, 5),
+    }));
   }
 }

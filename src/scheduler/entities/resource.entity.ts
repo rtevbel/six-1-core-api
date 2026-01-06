@@ -11,6 +11,8 @@ import {
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
 import { ResourceAssignmentEntity } from './resource_assignment.entity';
+import { ResourceAvailabilityEntity } from './resource_availability.entity';
+import { ResourceBlackoutDateEntity } from './resource_blackout_date.entity';
 
 /**
  * Entity class for `resources` table.
@@ -19,7 +21,11 @@ import { ResourceAssignmentEntity } from './resource_assignment.entity';
  */
 @Entity('resources')
 export class ResourceEntity {
-  @PrimaryGeneratedColumn({ name: 'resource_id', type: 'bigint', unsigned: true })
+  @PrimaryGeneratedColumn({
+    name: 'resource_id',
+    type: 'bigint',
+    unsigned: true,
+  })
   resourceId!: number;
 
   @Column({ name: 'name', type: 'varchar', length: 255, nullable: false })
@@ -68,8 +74,8 @@ export class ResourceEntity {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
+    type: 'datetime',
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
@@ -90,7 +96,24 @@ export class ResourceEntity {
   /**
    * Inverse relationship to ResourceAssignmentEntity.
    */
-  @OneToMany(() => ResourceAssignmentEntity, (assignment) => assignment.resource)
+  @OneToMany(
+    () => ResourceAssignmentEntity,
+    (assignment) => assignment.resource,
+  )
   assignments!: ResourceAssignmentEntity[];
-}
 
+  /**
+   * Availability windows configured for this resource.
+   */
+  @OneToMany(
+    () => ResourceAvailabilityEntity,
+    (availability) => availability.resource,
+  )
+  availabilitySlots!: ResourceAvailabilityEntity[];
+
+  /**
+   * Blackout windows configured for this resource.
+   */
+  @OneToMany(() => ResourceBlackoutDateEntity, (blackout) => blackout.resource)
+  blackoutWindows!: ResourceBlackoutDateEntity[];
+}

@@ -6,6 +6,7 @@ import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import { UserRoleEntity } from './entities/user-role.entity';
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
+import { RequirePermissions } from '../../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_USER_ROLE_PATTERN,
@@ -26,6 +27,7 @@ export class UserRolesController {
    * @returns The created user-role entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_USER_ROLE_PATTERN)
+  @RequirePermissions('roles.manage')
   @UsePipes(AppRpcValidationPipe)
   createUserRole(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -41,6 +43,7 @@ export class UserRolesController {
    * @returns A list of user-role entities.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_USER_ROLE_PATTERN)
+  @RequirePermissions('roles.read')
   @UsePipes(AppRpcValidationPipe)
   findAllUserRoles(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -55,6 +58,7 @@ export class UserRolesController {
    * @returns The user-role entity matching the ID.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_USER_ROLE_PATTERN)
+  @RequirePermissions('roles.read')
   findOneUserRole(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
@@ -69,6 +73,7 @@ export class UserRolesController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_USER_ROLE_PATTERN)
+  @RequirePermissions('roles.manage')
   @UsePipes(AppRpcValidationPipe)
   updateUserRole(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -88,6 +93,7 @@ export class UserRolesController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_USER_ROLE_PATTERN)
+  @RequirePermissions('roles.manage')
   removeUserRole(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,

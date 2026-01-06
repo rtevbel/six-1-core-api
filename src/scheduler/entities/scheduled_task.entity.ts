@@ -18,12 +18,17 @@ import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 import { ScheduledTaskHistoryEntity } from './scheduled_task_history.entity';
 import { ScheduledTaskEventsEntity } from './scheduled_task_event.entity';
 import { ResourceAssignmentShiftEntity } from './resource_assignment_shifts.entity';
-import {BlockReason,ScheduledTaskStatus} from "../constants";
+import { BlockReason, ScheduledTaskStatus } from '../constants';
 
 @Check('chk_requested_window', '`requested_end_utc` >= `requested_start_utc`')
 @Check('chk_effective_window', '`effective_end_utc` >= `effective_start_utc`')
 @Index('idx_user', ['tenantUserId'])
-@Index('idx_user_active_window', ['tenantUserId', 'isActive', 'effectiveStartUtc', 'effectiveEndUtc'])
+@Index('idx_user_active_window', [
+  'tenantUserId',
+  'isActive',
+  'effectiveStartUtc',
+  'effectiveEndUtc',
+])
 @Entity('scheduled_tasks')
 export class ScheduledTaskEntity {
   @PrimaryGeneratedColumn({
@@ -33,8 +38,13 @@ export class ScheduledTaskEntity {
   })
   scheduledTaskId!: number;
 
-  @Index('idx_parent_scheduled_task_id') 
-  @Column({ name: 'parent_scheduled_task_id', type: 'bigint', unsigned: true, nullable: true })
+  @Index('idx_parent_scheduled_task_id')
+  @Column({
+    name: 'parent_scheduled_task_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+  })
   parentScheduledTaskId!: number | null;
 
   @Column({
@@ -316,7 +326,7 @@ export class ScheduledTaskEntity {
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
+    type: 'datetime',
     precision: 6,
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)',
@@ -334,8 +344,8 @@ export class ScheduledTaskEntity {
   @Column({
     name: 'active_guard',
     type: 'bigint',
-    unsigned: true,
-    asExpression: 'IF(`is_active` = 1, `task_id`, NULL)',
+    asExpression:
+      'CAST(IF(`is_active` = 1 AND `parent_scheduled_task_id` IS NULL, `task_id`, NULL) AS UNSIGNED)',
     generatedType: 'VIRTUAL',
     nullable: true,
   })
@@ -380,14 +390,17 @@ export class ScheduledTaskEntity {
   })
   events!: ScheduledTaskEventsEntity[];
 
-
   /**
    * Inverse relationship to ResourceAssignmentShiftEntity.
    * Represents all shifts associated with this scheduled task.
    */
-  @OneToMany(() => ResourceAssignmentShiftEntity, (shift) => shift.scheduledTask, {
-    cascade: true,
-  })
+  @OneToMany(
+    () => ResourceAssignmentShiftEntity,
+    (shift) => shift.scheduledTask,
+    {
+      cascade: true,
+    },
+  )
   resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
 
   public getId() {

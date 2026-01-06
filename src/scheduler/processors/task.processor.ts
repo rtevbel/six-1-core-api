@@ -1,4 +1,9 @@
-import { Processor, WorkerHost, OnWorkerEvent, InjectQueue } from '@nestjs/bullmq';
+import {
+  Processor,
+  WorkerHost,
+  OnWorkerEvent,
+  InjectQueue,
+} from '@nestjs/bullmq';
 import { Job, Queue } from 'bullmq';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -40,11 +45,14 @@ export class TaskProcessor extends WorkerHost {
 
   async process(job: Job) {
     if (job.name === 'task.start') return this.handleStart(job);
-    if (job.name === 'task.end')   return this.handleEnd(job);
+    if (job.name === 'task.end') return this.handleEnd(job);
   }
 
   private async handleStart(job: Job) {
-    const { scheduledTaskId, token } = job.data as { scheduledTaskId: number; token: string };
+    const { scheduledTaskId, token } = job.data as {
+      scheduledTaskId: number;
+      token: string;
+    };
     const row = await this.repo.findOne({ where: { scheduledTaskId } });
     if (!row || row.isActive === 0 || row.startJobToken !== token) return; // idempotent no-op
 
@@ -55,17 +63,39 @@ export class TaskProcessor extends WorkerHost {
       const isoDate = nowLocal.toISODate()!;
       const weekday = weekdayFromLuxon(nowLocal);
 
-      const isOff = await this.calendar.isOffDateLocal(row.tenantId, row.tenantUserId, isoDate);
-      const slots = isOff ? [] : await this.calendar.getWorkingIntervalsLocal(row.tenantId, row.tenantUserId, isoDate, weekday);
+      const isOff = await this.calendar.isOffDateLocal(
+        row.tenantId,
+        row.tenantUserId,
+        isoDate,
+      );
+      const slots = isOff
+        ? []
+        : await this.calendar.getWorkingIntervalsLocal(
+            row.tenantId,
+            row.tenantUserId,
+            isoDate,
+            weekday,
+          );
       const intervals = buildIntervalsForDay(nowLocal, slots);
 
       if (!isWithinAnyInterval(nowLocal, intervals)) {
         // Defer to next interval start (or next day start if none today)
         const next = nextStartAfter(nowLocal, intervals);
-        const nextUtc: Date = (next ?? nowLocal.plus({ days: 1 }).startOf('day')).setZone('utc').toJSDate();
+        const nextUtc: Date = (
+          next ?? nowLocal.plus({ days: 1 }).startOf('day')
+        )
+          .setZone('utc')
+          .toJSDate();
 
-        await this.scheduled.pauseUntil(row.scheduledTaskId, nextUtc, 'calendar');
-        await this.events.emit(row.scheduledTaskId, 'deferred', { reason: 'calendar', nextUtc });
+        await this.scheduled.pauseUntil(
+          row.scheduledTaskId,
+          nextUtc,
+          'calendar',
+        );
+        await this.events.emit(row.scheduledTaskId, 'deferred', {
+          reason: 'calendar',
+          nextUtc,
+        });
 
         // Requeue using injected queue (NOT job.queue)
         await this.queue.add(
@@ -73,7 +103,10 @@ export class TaskProcessor extends WorkerHost {
           { scheduledTaskId, token },
           {
             jobId: token, // idempotent re-enqueue
-            delay: Math.max(0, DateTime.fromJSDate(nextUtc).diffNow().milliseconds),
+            delay: Math.max(
+              0,
+              DateTime.fromJSDate(nextUtc).diffNow().milliseconds,
+            ),
             attempts: 5,
             backoff: { type: 'exponential', delay: 60_000 },
             removeOnComplete: true,
@@ -89,7 +122,10 @@ export class TaskProcessor extends WorkerHost {
   }
 
   private async handleEnd(job: Job) {
-    const { scheduledTaskId, token } = job.data as { scheduledTaskId: number; token: string };
+    const { scheduledTaskId, token } = job.data as {
+      scheduledTaskId: number;
+      token: string;
+    };
     const row = await this.repo.findOne({ where: { scheduledTaskId } });
     if (!row || row.isActive === 0 || row.endJobToken !== token) return; // idempotent no-op
 
@@ -106,6 +142,9 @@ export class TaskProcessor extends WorkerHost {
       { scheduledTaskId: id },
       { lastError: err?.message ?? 'failed', status: 'failed' },
     );
-    await this.events.emit(id, 'failed', { reason: err?.message, name: job.name });
+    await this.events.emit(id, 'failed', {
+      reason: err?.message,
+      name: job.name,
+    });
   }
 }

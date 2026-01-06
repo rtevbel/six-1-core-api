@@ -61,7 +61,8 @@ export class NotificationLogEntity {
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 

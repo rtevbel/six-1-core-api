@@ -1,11 +1,17 @@
 // Import validation decorators from class-validator
-import { IsISO8601, IsOptional, IsNumber, Min , IsNotEmpty } from 'class-validator';
+import {
+  IsISO8601,
+  IsOptional,
+  IsNumber,
+  Min,
+  IsNotEmpty,
+} from 'class-validator';
 // Data Transfer Object (DTO) for scheduling a task window
 export class CreateSchedulerDto {
   // Task ID (required, must be an number)
   @IsNumber()
   taskId!: number;
-  
+
   // Requested start time in ISO 8601 format (required)
   @IsISO8601()
   requestedStartUtc!: string;

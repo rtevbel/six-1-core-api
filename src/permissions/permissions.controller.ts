@@ -11,6 +11,7 @@ import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { PermissionEntity } from './entities/permission.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_PERMISSION_PATTERN,
@@ -34,6 +35,7 @@ export class PermissionsController {
    * @returns The created permission entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_PERMISSION_PATTERN)
+  @RequirePermissions('permissions.create')
   @UsePipes(AppRpcValidationPipe)
   createPermission(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,6 +51,7 @@ export class PermissionsController {
    * @returns A list of permissions matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_PERMISSION_PATTERN)
+  @RequirePermissions('permissions.read')
   @UsePipes(AppRpcValidationPipe)
   findAllPermissions(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class PermissionsController {
    * @returns The permission entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PERMISSION_PATTERN)
+  @RequirePermissions('permissions.read')
   findOnePermission(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class PermissionsController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_PERMISSION_PATTERN)
+  @RequirePermissions('permissions.update')
   @UsePipes(AppRpcValidationPipe)
   updatePermission(
     @Payload('userId') userId: number,
@@ -97,6 +102,7 @@ export class PermissionsController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_PERMISSION_PATTERN)
+  @RequirePermissions('permissions.delete')
   removePermission(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

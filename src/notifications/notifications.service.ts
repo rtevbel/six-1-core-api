@@ -204,9 +204,9 @@ export class NotificationsService {
     if (eventLogs.length > 0) {
       for (const eventLog of eventLogs) {
         //const { id: eventId, eventName, data } = eventLog;
-        let eventName: string = eventLog.event.name;
-        let eventId: number = eventLog.event.eventId;
-        let userId: number = eventLog.userId;
+        const eventName: string = eventLog.event.name;
+        const eventId: number = eventLog.event.eventId;
+        const userId: number = eventLog.userId;
 
         // Step 2: Fetch listeners for the current event
         const listeners =
@@ -214,11 +214,11 @@ export class NotificationsService {
 
         for (const listener of listeners) {
           //const { userId, notificationType } = ;
-          let notificationType: string = listener.channel.name;
-          let subject = listener.template
+          const notificationType: string = listener.channel.name;
+          const subject = listener.template
             ? listener.template.subject
             : `Notification for event: ${eventName}`;
-          let message = listener.template
+          const message = listener.template
             ? listener.template.message
             : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`;
 

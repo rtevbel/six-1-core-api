@@ -77,8 +77,9 @@ export class ProcessTemplateStepRequirementSubmissionEntity {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 

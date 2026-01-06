@@ -11,6 +11,7 @@ import { UpdateRoleDto } from './dto/update-role.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { RoleEntity } from './entities/role.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_CREATE_ROLE_PATTERN,
@@ -34,6 +35,7 @@ export class RolesController {
    * @returns The created role entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_ROLE_PATTERN)
+  @RequirePermissions('roles.create')
   @UsePipes(AppRpcValidationPipe)
   createRole(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -49,6 +51,7 @@ export class RolesController {
    * @returns A list of roles matching the filters.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_ROLE_PATTERN)
+  @RequirePermissions('roles.read')
   @UsePipes(AppRpcValidationPipe)
   findAllRoles(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -64,6 +67,7 @@ export class RolesController {
    * @returns The role entity or a NotFoundException.
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_ROLE_PATTERN)
+  @RequirePermissions('roles.read')
   findOneRole(
     @Payload('userId') userId: number,
     @Payload('data') id: number,
@@ -78,6 +82,7 @@ export class RolesController {
    * @returns The result of the update operation.
    */
   @MessagePattern(MICROSERVICE_UPDATE_ROLE_PATTERN)
+  @RequirePermissions('roles.update')
   @UsePipes(AppRpcValidationPipe)
   updateRole(
     @Payload('userId') userId: number,
@@ -97,6 +102,7 @@ export class RolesController {
    * @returns The result of the delete operation.
    */
   @MessagePattern(MICROSERVICE_REMOVE_ROLE_PATTERN)
+  @RequirePermissions('roles.delete')
   removeRole(
     @Payload('userId') userId: number,
     @Payload('data') id: number,

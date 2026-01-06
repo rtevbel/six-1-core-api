@@ -19,9 +19,16 @@ export class TaskContextAdapter {
     projectId: number;
     taskStatusId: number;
     assigneeId: number | null;
-    startConstraintType?: 'ASAP'|'NoEarlierThan'|'On'|'NoLaterThan'|'MustStartOn'|'MustFinishOn'|null;
-    startConstraintUtc?: Date|null;
-    finishConstraintUtc?: Date|null;
+    startConstraintType?:
+      | 'ASAP'
+      | 'NoEarlierThan'
+      | 'On'
+      | 'NoLaterThan'
+      | 'MustStartOn'
+      | 'MustFinishOn'
+      | null;
+    startConstraintUtc?: Date | null;
+    finishConstraintUtc?: Date | null;
   }> {
     const t = await this.taskRepo.findOne({ where: { taskId } });
     if (!t) throw new Error(`Task ${taskId} not found`);
@@ -32,7 +39,7 @@ export class TaskContextAdapter {
       taskStatusId: t.taskStatusId,
       assigneeId: t.primaryAssigneeId ?? null,
       startConstraintType: (t as any).startConstraintType ?? null,
-      startConstraintUtc:  (t as any).startConstraintUtc ?? null,
+      startConstraintUtc: (t as any).startConstraintUtc ?? null,
       finishConstraintUtc: (t as any).finishConstraintUtc ?? null,
     };
   }

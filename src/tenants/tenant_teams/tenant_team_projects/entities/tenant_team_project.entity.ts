@@ -60,7 +60,7 @@ export class TenantTeamProjectEntity {
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',
-    default: () => 'CURRENT_TIMESTAMP',
+    default: () => 'CURRENT_TIMESTAMP(6)',
     comment: 'When the project was assigned',
   })
   createdAt!: Date;

@@ -54,14 +54,25 @@ export class UserNotificationPreferenceEntity {
    * Timestamp indicating when the preference was created.
    * Automatically managed by TypeORM.
    */
-  @CreateDateColumn({ type: 'datetime', name: 'created_at' })
+  @CreateDateColumn({
+    type: 'datetime',
+    precision: 6,
+    name: 'created_at',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+  })
   createdAt!: Date;
 
   /**
    * Timestamp indicating when the preference was last updated.
    * Automatically managed by TypeORM.
    */
-  @UpdateDateColumn({ type: 'timestamp', name: 'updated_at' })
+  @UpdateDateColumn({
+    type: 'datetime',
+    precision: 6,
+    name: 'updated_at',
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
+  })
   updatedAt!: Date;
 
   /**

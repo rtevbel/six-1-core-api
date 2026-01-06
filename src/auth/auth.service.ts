@@ -5,6 +5,8 @@ import { OidcClient } from './oidc-client';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, Brackets } from 'typeorm';
 import {
   hash_content,
   compare_hashed_content,
@@ -19,7 +21,15 @@ import {
   MESSAGE_BROKER_AUTH_TOKEN,
 } from './constants';
 import { UserJWTTokenResponseInterface } from './interfaces/user-jwt-token-response.interface';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { UserService } from 'src/users/users.service';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import { TenantUserRoleEntity } from '../tenants/tenant_users/tenant_user_roles/entities/tenant_user_role.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
+import { TenantEntity } from '../tenants/entities/tenant.entity';
+import { RoleDescriptionEntity } from '../roles/entities/role-description.entity';
+import { PermissionDescriptionEntity } from '../permissions/entities/permission_description.entity';
+import { AuthorizationService } from '../authorization/authorization.service';
 
 /**
  * Auth service class.
@@ -63,6 +73,19 @@ export class AuthService {
     private readonly oidcClient: OidcClient,
     private readonly configService: ConfigService,
     @InjectRedis() private readonly redisClient: Redis,
+    @InjectRepository(UserRoleEntity)
+    private readonly userRoleRepository: Repository<UserRoleEntity>,
+    @InjectRepository(TenantUserRoleEntity)
+    private readonly tenantUserRoleRepository: Repository<TenantUserRoleEntity>,
+    @InjectRepository(TenantUsersEntity)
+    private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
+    @InjectRepository(TenantEntity)
+    private readonly tenantRepository: Repository<TenantEntity>,
+    @InjectRepository(RoleDescriptionEntity)
+    private readonly roleDescriptionRepository: Repository<RoleDescriptionEntity>,
+    @InjectRepository(PermissionDescriptionEntity)
+    private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
+    private readonly authorizationService: AuthorizationService,
   ) {}
 
   /**
@@ -76,26 +99,35 @@ export class AuthService {
    * @param {string} password -User password.
    * @param {string} username -User username.
    * @param {string} email -User email address.
-   * @returns {Promise<Object|null>} -Promise that resolves to either,
-   * a UserEntity Object or a null.
+   * @returns {Promise<object|null>} -Promise that resolves to either,
+   * a UserEntity object or a null.
    */
   async validateUser(
     password: string,
     username?: string,
     email?: string,
-  ): Promise<Object | null> {
-    let params = username
-      ? { username: username, status: 1 }
-      : { email: email, status: 1 };
+  ): Promise<object | null> {
+    // Prioritize email if provided, otherwise use username
+    const params = email
+      ? { email: email, status: 1 }
+      : username
+        ? { username: username, status: 1 }
+        : {};
 
-    let userId = 0;
+    // If neither email nor username is provided, return null
+    if (!email && !username) {
+      return null;
+    }
+
+    const userId = 0;
     const userObject = await this.UserService.findOneBy(userId, params);
 
     if (
       userObject &&
       (await compare_hashed_content(userObject.password, password))
     ) {
-      const { password, ...user } = userObject;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _password, ...user } = userObject;
       return user;
     }
     return null;
@@ -247,5 +279,148 @@ export class AuthService {
     const client = await this.oidcClient.getClient();
     const authorizationUrl = client.authorizationUrl();
     return authorizationUrl;
+  }
+
+  /**
+   * Returns user profile with roles and permissions.
+   *
+   * Version:1.0.0.
+   *
+   * This method retrieves the user's profile including:
+   * - User ID
+   * - Roles from user_roles and tenant_user_roles tables
+   * - Permissions based on assigned roles
+   * - Flag indicating if the user is a tenant user
+   * - Tenant ID if the user is a tenant user
+   *
+   * @param userId - ID of the user.
+   * @param tenantUserId - Optional tenant user ID for tenant-scoped roles.
+   * @returns {Promise<Object>} -Promise that resolves to user profile object.
+   */
+  async getProfile(
+    userId: number,
+    tenantUserId?: number,
+  ): Promise<{
+    userId: number;
+    roles: Array<{ id: number; name: string }>;
+    permissions: string[];
+    isTenantUser: boolean;
+    tenantId?: number;
+  }> {
+    // Get user roles with role names
+    const userRoles = await this.userRoleRepository.find({
+      where: { userId },
+      relations: ['role', 'role.descriptions'],
+    });
+
+    // Get tenant user roles with role names if tenantUserId is provided
+    let tenantUserRoles: TenantUserRoleEntity[] = [];
+    if (tenantUserId) {
+      tenantUserRoles = await this.tenantUserRoleRepository.find({
+        where: { tenantUserId },
+        relations: ['role', 'role.descriptions'],
+      });
+    }
+
+    // Combine all roles and extract unique role information
+    const allRoles = [...userRoles, ...tenantUserRoles];
+    const roleMap = new Map<number, { id: number; name: string }>();
+
+    for (const userRole of allRoles) {
+      const roleId = userRole.roleId;
+      if (!roleMap.has(roleId)) {
+        // Get role name from role descriptions (default to language_id = 1)
+        const roleDescription = await this.roleDescriptionRepository.findOne({
+          where: { roleId, languageId: 1 },
+        });
+
+        roleMap.set(roleId, {
+          id: roleId,
+          name: roleDescription?.name || `Role ${roleId}`,
+        });
+      }
+    }
+
+    const roles = Array.from(roleMap.values());
+
+    // Get permissions using AuthorizationService
+    // We need to access the private method, so we'll use a workaround
+    // or make it public. For now, let's create a query similar to the one in AuthorizationService
+    const permissions = await this.getUserPermissions(userId, tenantUserId);
+
+    // Check if the user is a tenant user and get tenant ID
+    // If tenantUserId is provided, query by tenantUserId to get tenantId
+    // Otherwise, check if there's any tenant_user record for this userId
+    let isTenantUser = false;
+    let tenantId: number | undefined = undefined;
+
+    if (tenantUserId) {
+      console.log('tenantUserId', tenantUserId);
+      // If tenantUserId is provided, query by tenantUserId to get tenantId
+      const tenantUser = await this.tenantUsersRepository.findOne({
+        where: { tenantUserId },
+      });
+      if (tenantUser) {
+        isTenantUser = true;
+        tenantId = tenantUser.tenantId;
+      }
+    } else {
+      // Check if there's any tenant record for this userId (user owns a tenant)
+      const tenant = await this.tenantRepository.findOne({
+        where: { userId },
+      });
+      if (tenant) {
+        isTenantUser = true;
+        tenantId = tenant.tenantId;
+      }
+    }
+
+    return {
+      userId,
+      roles,
+      permissions: Array.from(permissions).sort(),
+      isTenantUser,
+      tenantId,
+    };
+  }
+
+  /**
+   * Gets user permissions by querying the database.
+   * Similar to AuthorizationService.getPermissionSet but as a public method.
+   *
+   * @param userId - ID of the user.
+   * @param tenantUserId - Optional tenant user ID for tenant-scoped permissions.
+   * @returns {Promise<Set<string>>} -Promise that resolves to a Set of permission names.
+   */
+  private async getUserPermissions(
+    userId: number,
+    tenantUserId?: number,
+  ): Promise<Set<string>> {
+    // Query permissions similar to AuthorizationService.basePermissionQuery
+    const qb = this.permissionDescriptionRepository
+      .createQueryBuilder('pd')
+      .select('pd.name', 'name')
+      .distinct(true)
+      .innerJoin(
+        'role_permissions',
+        'rp',
+        'rp.permission_id = pd.permission_id',
+      )
+      .innerJoin('user_roles', 'ur', 'ur.role_id = rp.role_id')
+      .leftJoin('tenant_user_roles', 'tur', 'tur.role_id = rp.role_id')
+      .where('pd.language_id = :languageId', { languageId: 1 })
+      .andWhere(
+        new Brackets((where) => {
+          where.where('ur.user_id = :userId', { userId });
+          if (tenantUserId) {
+            where.orWhere('tur.tenant_user_id = :tenantUserId', {
+              tenantUserId,
+            });
+          }
+        }),
+      );
+
+    const rows = await qb.getRawMany<{ name: string }>();
+    return new Set(rows.map((row) => row.name));
   }
 }

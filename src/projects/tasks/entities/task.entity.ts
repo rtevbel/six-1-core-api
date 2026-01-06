@@ -189,10 +189,23 @@ export class TaskEntity {
   @Column({
     name: 'start_constraint_type',
     type: 'enum',
-    enum: ['ASAP', 'NoEarlierThan', 'On', 'NoLaterThan', 'MustStartOn', 'MustFinishOn'],
+    enum: [
+      'ASAP',
+      'NoEarlierThan',
+      'On',
+      'NoLaterThan',
+      'MustStartOn',
+      'MustFinishOn',
+    ],
     nullable: true,
   })
-  startConstraintType?: 'ASAP' | 'NoEarlierThan' | 'On' | 'NoLaterThan' | 'MustStartOn' | 'MustFinishOn';
+  startConstraintType?:
+    | 'ASAP'
+    | 'NoEarlierThan'
+    | 'On'
+    | 'NoLaterThan'
+    | 'MustStartOn'
+    | 'MustFinishOn';
 
   @Column({
     name: 'start_constraint_utc',
@@ -235,16 +248,18 @@ export class TaskEntity {
 
   @CreateDateColumn({
     name: 'created_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
   })
   createdAt!: Date;
 
   @UpdateDateColumn({
     name: 'updated_at',
-    type: 'timestamp',
-    default: () => 'CURRENT_TIMESTAMP',
-    onUpdate: 'CURRENT_TIMESTAMP',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
 
