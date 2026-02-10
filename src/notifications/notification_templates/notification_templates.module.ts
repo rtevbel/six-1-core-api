@@ -73,5 +73,6 @@ import {
   ],
   controllers: [NotificationTemplatesController],
   providers: [NotificationTemplatesService],
+  exports: [NotificationTemplatesService],
 })
 export class NotificationTemplatesModule {}

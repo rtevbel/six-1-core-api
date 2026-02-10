@@ -4,6 +4,7 @@ import {
   IsNumber,
   IsNotEmpty,
   IsArray,
+  IsObject,
 } from 'class-validator';
 /**
  * Create Event Logs DTO class.
@@ -21,7 +22,7 @@ export class CreateEventLogsDto {
    */
   @IsNumber()
   @IsOptional()
-  eventId!: number;
+  eventId?: number;
 
   /**
    * User ID of the user who triggered the event.
@@ -71,6 +72,18 @@ export class CreateEventLogsDto {
   @IsString()
   @IsOptional()
   externalId?: string;
+
+  /**
+   * JSON payload for the event log.
+   *
+   * - Optional field.
+   * - Must be an object.
+   *
+   * @type {object}
+   */
+  @IsOptional()
+  @IsObject()
+  payload?: object;
 
   /**
    * User ID of the creator.

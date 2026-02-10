@@ -842,4 +842,28 @@ export const EventVars = {
     ],
     optional: ['failureReason'],
   },
+
+  /* ========= TENANT EMAIL VERIFICATION ========= */
+  tenant_email_verification: {
+    required: ['recipientName', 'verificationUrl', 'expiryHours'],
+    optional: ['tenantName'],
+  },
+  tenant_email_verified: {
+    required: ['recipientName', 'loginUrl'],
+    optional: ['tenantName'],
+  },
+
+  /* ========= TENANT USER INVITATIONS ========= */
+  tenant_user_invited: {
+    required: ['tenantName', 'inviterName', 'invitationUrl', 'expiryDays'],
+    optional: ['userRole', 'emailAddress'],
+  },
+  tenant_user_invitation_accepted: {
+    required: ['userName', 'tenantName', 'userRole'],
+    optional: [],
+  },
+  tenant_user_invitation_expired: {
+    required: ['emailAddress', 'tenantName', 'resendUrl'],
+    optional: [],
+  },
 } as const;

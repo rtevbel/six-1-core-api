@@ -31,14 +31,14 @@ export class CreateTenantUserInvitationDto {
   /**
    * User ID.
    *
-   * - Required field.
-   * - Must be a number.
+   * - Optional for brand-new email invites.
+   * - Must be a number when provided.
    *
-   * @type {number}
+   * @type {number | null}
    */
   @IsNumber()
-  @IsNotEmpty()
-  userId!: number;
+  @IsOptional()
+  userId?: number | null;
 
   /**
    * Email of the invited user.

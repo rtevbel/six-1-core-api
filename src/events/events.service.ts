@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEntity } from './entities/event.entity';
@@ -9,6 +9,8 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEnvelope, EntityRef, normalizeEntityRef } from './types';
+import { EventLogsService } from './event_logs/event_logs.service';
+import { CreateEventLogsDto } from './event_logs/dto/create-event_logs.dto';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -21,6 +23,8 @@ export class EventsService {
     @InjectRepository(EventEntity)
     private readonly eventRepository: Repository<EventEntity>,
     private readonly emitter: EventEmitter2,
+    @Inject(forwardRef(() => EventLogsService))
+    private readonly eventLogsService: EventLogsService,
   ) {}
 
   /**
@@ -295,5 +299,65 @@ export class EventsService {
 
     // Emit the event using the EventEmitter2 instance
     this.emitter.emit(eventName, envelope);
+  }
+
+  /**
+   * Emits a domain event and optionally creates event logs for recipients.
+   *
+   * @param eventName - The name of the event to emit.
+   * @param opts - Additional options for the event and log creation.
+   */
+  async emitWithLogs<TData = Record<string, unknown>>(
+    eventName: string,
+    opts: {
+      actorId: number;
+      recipientIds?: number[];
+      entity?: object | EntityRef;
+      data?: TData;
+      correlationId?: string;
+      causationId?: string;
+      externalId?: string;
+      tenantId?: number | string;
+      occurredAt?: Date;
+    },
+  ): Promise<void> {
+    const envelope: EventEnvelope<TData> = {
+      eventName,
+      userId: opts.actorId,
+      createdBy: opts.actorId,
+      entity: normalizeEntityRef(opts.entity),
+      data: opts.data,
+      correlationId: opts.correlationId,
+      causationId: opts.causationId,
+      externalId: opts.externalId,
+      tenantId: opts.tenantId,
+      occurredAt: opts.occurredAt ?? new Date(),
+    };
+
+    await this.emitter.emitAsync(eventName, envelope);
+
+    if (opts.recipientIds && opts.recipientIds.length > 0) {
+      const entityRef = normalizeEntityRef(opts.entity);
+      const entityId =
+        entityRef?.entityId != null && !Number.isNaN(Number(entityRef.entityId))
+          ? Number(entityRef.entityId)
+          : undefined;
+
+      const createEventLogsDto: CreateEventLogsDto = {
+        eventId: undefined,
+        userIds: opts.recipientIds,
+        entityId,
+        entityType: entityRef?.entityType ?? undefined,
+        externalId: opts.externalId ?? undefined,
+        payload: opts.data ? (opts.data as object) : undefined,
+        createdBy: opts.actorId,
+      };
+
+      await this.eventLogsService.createEventLogByEventName(
+        opts.actorId,
+        eventName,
+        createEventLogsDto,
+      );
+    }
   }
 }

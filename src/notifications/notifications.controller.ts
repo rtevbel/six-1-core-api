@@ -6,12 +6,13 @@ import {
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { NotificationsService } from './notifications.service';
+import { NotificationTemplateBindingService } from './services/notification-template-binding.service';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 import { UpdateNotificationDto } from './dto/update-notification.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { NotificationEntity } from './entities/notification.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { BindNotificationTemplateDto } from './dto/bind-notification-template.dto';
 
 import {
   MICROSERVICE_CREATE_NOTIFICATION_PATTERN,
@@ -19,6 +20,7 @@ import {
   MICROSERVICE_FIND_ONE_NOTIFICATION_PATTERN,
   MICROSERVICE_UPDATE_NOTIFICATION_PATTERN,
   MICROSERVICE_REMOVE_NOTIFICATION_PATTERN,
+  MICROSERVICE_BIND_NOTIFICATION_TEMPLATE_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
@@ -26,7 +28,10 @@ import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 
 @Controller('notifications')
 export class NotificationsController {
-  constructor(private readonly notificationsService: NotificationsService) {}
+  constructor(
+    private readonly notificationsService: NotificationsService,
+    private readonly notificationTemplateBindingService: NotificationTemplateBindingService,
+  ) {}
 
   /**
    * Handles the creation of a new notification.
@@ -103,6 +108,26 @@ export class NotificationsController {
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
     return this.notificationsService.remove(userId, id);
+  }
+
+  /**
+   * Binds a template to an event and channel.
+   * @param userId - ID of the user making the request.
+   * @param bindDto - Binding details for event, channel, and template.
+   * @returns Binding metadata.
+   */
+  @MessagePattern(MICROSERVICE_BIND_NOTIFICATION_TEMPLATE_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  bindNotificationTemplate(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') bindDto: BindNotificationTemplateDto,
+  ): Promise<{
+    eventId: number;
+    channelId: number;
+    templateId: number;
+    listenerId: number;
+  }> {
+    return this.notificationTemplateBindingService.bindTemplate(userId, bindDto);
   }
 
   /**

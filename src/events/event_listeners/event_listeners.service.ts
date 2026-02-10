@@ -220,4 +220,21 @@ export class EventListenersService {
       relations: ['channel', 'template'],
     });
   }
+
+  /**
+   * Retrieves a listener by event, channel, and template IDs.
+   * @param eventId - Event ID.
+   * @param channelId - Channel ID.
+   * @param templateId - Template ID.
+   * @returns The EventListenerEntity or null if not found.
+   */
+  async findOneByEventChannelTemplate(
+    eventId: number,
+    channelId: number,
+    templateId: number,
+  ): Promise<EventListenerEntity | null> {
+    return await this.eventListenerRepository.findOne({
+      where: { eventId, channelId, templateId },
+    });
+  }
 }

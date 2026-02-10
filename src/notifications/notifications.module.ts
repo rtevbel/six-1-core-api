@@ -5,6 +5,7 @@ import { NotificationChannelsModule } from './notification_channels/notification
 import { NotificationTemplatesModule } from './notification_templates/notification_templates.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationEntity } from './entities/notification.entity';
+import { NotificationLogsModule } from './notification_logs/notification_logs.module';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../common/functions';
@@ -20,7 +21,21 @@ import {
   MESSAGE_BROKER_URL_KEY,
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../common/constants';
-import { NotificationLogsModule } from './notification_logs/notification_logs.module';
+import { UserNotificationPreferencesModule } from '../users/user-notification-preferences/user-notification-preferences.module';
+import { NotificationTemplateRendererService } from './services/notification-template-renderer.service';
+import { NotificationDispatcherService } from './services/notification-dispatcher.service';
+import { NotificationJobService } from './services/notification-job.service';
+import { NotificationVariableResolverService } from './services/notification-variable-resolver.service';
+import { NotificationTemplateBindingService } from './services/notification-template-binding.service';
+import { NotificationUrlBuilderService } from './services/notification-url-builder.service';
+import { UsersModule } from '../users/users.module';
+import { UserMetaModule } from '../users/user-meta/user-meta.module';
+import {
+  EmailNotificationSender,
+  PushNotificationSender,
+  SmsNotificationSender,
+  SystemNotificationSender,
+} from './services/notification-senders.service';
 
 /**
  * NotificationsModule is responsible for managing notifications.
@@ -80,8 +95,23 @@ import { NotificationLogsModule } from './notification_logs/notification_logs.mo
     NotificationLogsModule,
     EventListenersModule,
     forwardRef(() => EventLogsModule),
+    UserNotificationPreferencesModule,
+    UsersModule,
+    UserMetaModule,
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService],
+  providers: [
+    NotificationsService,
+    NotificationTemplateRendererService,
+    NotificationDispatcherService,
+    NotificationJobService,
+    NotificationVariableResolverService,
+    NotificationTemplateBindingService,
+    NotificationUrlBuilderService,
+    EmailNotificationSender,
+    SmsNotificationSender,
+    PushNotificationSender,
+    SystemNotificationSender,
+  ],
 })
 export class NotificationsModule {}

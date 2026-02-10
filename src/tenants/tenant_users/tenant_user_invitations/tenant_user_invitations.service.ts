@@ -7,6 +7,8 @@ import { UpdateTenantUserInvitationDto } from './dto/update-tenant_user_invitati
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import { EventsService } from '../../../events/events.service';
+import { NotificationUrlBuilderService } from '../../../notifications/services/notification-url-builder.service';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -18,6 +20,8 @@ export class TenantUserInvitationsService {
   constructor(
     @InjectRepository(TenantUserInvitationsEntity)
     private readonly tenantUserInvitationsRepository: Repository<TenantUserInvitationsEntity>,
+    private readonly eventsService: EventsService,
+    private readonly urlBuilder: NotificationUrlBuilderService,
   ) {}
 
   /**
@@ -31,11 +35,24 @@ export class TenantUserInvitationsService {
     createTenantUserInvitationDto: CreateTenantUserInvitationDto,
   ): Promise<TenantUserInvitationsEntity> {
     // Optionally validate userId permissions here
-    return await this.tenantUserInvitationsRepository.save(
+    if (!createTenantUserInvitationDto.userId) {
+      createTenantUserInvitationDto.userId = 0;
+    }
+
+    if (createTenantUserInvitationDto.userId === 0) {
+      createTenantUserInvitationDto.userId = null;
+    }
+
+    const invitation = await this.tenantUserInvitationsRepository.save(
       this.tenantUserInvitationsRepository.create(
         createTenantUserInvitationDto,
       ),
     );
+
+    // Fire tenant_user_invited event to drive notifications (email/SMS/push)
+    await this.emitTenantUserInvitedEvent(invitation);
+
+    return invitation;
   }
 
   /**
@@ -165,10 +182,27 @@ export class TenantUserInvitationsService {
       );
     }
 
-    return await this.tenantUserInvitationsRepository.update(
+    const previousStatus = invitation.status;
+
+    const result = await this.tenantUserInvitationsRepository.update(
       id,
       updateTenantUserInvitationDto,
     );
+
+    // If status transitioned to accepted, emit accepted event.
+    if (
+      updateTenantUserInvitationDto.status === 'accepted' &&
+      previousStatus !== 'accepted'
+    ) {
+      const updated = await this.tenantUserInvitationsRepository.findOne({
+        where: { invitationId: id, tenantId },
+      });
+      if (updated) {
+        await this.emitTenantUserInvitationAcceptedEvent(updated);
+      }
+    }
+
+    return result;
   }
 
   /**
@@ -201,6 +235,107 @@ export class TenantUserInvitationsService {
       invitationId: id,
       tenantId,
     });
+  }
+
+  /**
+   * Emits tenant_user_invited event for a newly created invitation.
+   */
+  private async emitTenantUserInvitedEvent(
+    invitation: TenantUserInvitationsEntity,
+  ): Promise<void> {
+    const withRelations =
+      await this.tenantUserInvitationsRepository.findOne({
+        where: { invitationId: invitation.invitationId },
+        relations: ['tenant', 'role', 'invitedByUser', 'invitedByUser.user'],
+      });
+    if (!withRelations) return;
+
+    const tenantName = withRelations.tenant?.name ?? 'Your tenant';
+    const inviterUser = withRelations.invitedByUser?.user;
+    const inviterName =
+      inviterUser?.displayName ||
+      [inviterUser?.firstName, inviterUser?.lastName].filter(Boolean).join(' ') ||
+      inviterUser?.email ||
+      'Someone';
+    const userRole =
+      (withRelations.role as any)?.descriptions?.[0]?.name ??
+      (withRelations.role as any)?.name ??
+      `Role #${withRelations.roleId}`;
+
+    const invitationUrl =
+      this.urlBuilder.buildTenantUserInvitationUrl(withRelations.token);
+
+    let expiryDays = 0;
+    if (withRelations.expiresAt && withRelations.invitedAt) {
+      const ms =
+        withRelations.expiresAt.getTime() - withRelations.invitedAt.getTime();
+      expiryDays = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
+    }
+
+    await this.eventsService.emitWithLogs('tenant_user_invited', {
+      actorId: withRelations.invitedBy,
+      recipientIds:
+        withRelations.userId && withRelations.userId > 0
+          ? [withRelations.userId]
+          : [],
+      entity: {
+        entityId: withRelations.invitationId,
+        entityType: 'tenant_user_invitation',
+      },
+      data: {
+        tenantName,
+        inviterName,
+        userRole,
+        invitationUrl,
+        expiryDays,
+        emailAddress: withRelations.email,
+      },
+    });
+  }
+
+  /**
+   * Emits tenant_user_invitation_accepted event when an invite is accepted.
+   */
+  private async emitTenantUserInvitationAcceptedEvent(
+    invitation: TenantUserInvitationsEntity,
+  ): Promise<void> {
+    const withRelations =
+      await this.tenantUserInvitationsRepository.findOne({
+        where: { invitationId: invitation.invitationId },
+        relations: ['tenant', 'role', 'user'],
+      });
+    if (!withRelations) return;
+
+    const tenantName = withRelations.tenant?.name ?? 'Your tenant';
+    const user =
+      (withRelations as any).user ??
+      null;
+    const userName =
+      user?.displayName ||
+      [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
+      user?.email ||
+      'User';
+    const userRole =
+      (withRelations.role as any)?.descriptions?.[0]?.name ??
+      (withRelations.role as any)?.name ??
+      `Role #${withRelations.roleId}`;
+
+    await this.eventsService.emitWithLogs(
+      'tenant_user_invitation_accepted',
+      {
+        actorId: withRelations.userId ?? undefined,
+        recipientIds: [withRelations.invitedBy],
+        entity: {
+          entityId: withRelations.invitationId,
+          entityType: 'tenant_user_invitation',
+        },
+        data: {
+          userName,
+          tenantName,
+          userRole,
+        },
+      },
+    );
   }
 
   /**

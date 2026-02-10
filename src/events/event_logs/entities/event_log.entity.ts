@@ -61,6 +61,14 @@ export class EventLogEntity {
   entityType?: string;
 
   @Column({
+    name: 'payload',
+    type: 'json',
+    nullable: true,
+    comment: 'Store event payload',
+  })
+  payload?: Record<string, any> | null;
+
+  @Column({
     name: 'external_id',
     type: 'varchar',
     length: 255,

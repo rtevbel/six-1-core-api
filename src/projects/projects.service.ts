@@ -565,13 +565,12 @@ export class ProjectsService {
     userId: number,
     createDto: ProjectEntity,
   ): Promise<void> {
-    const eventPayload = {
-      userId: userId,
+    await this.events.emitWithLogs('six1-event.project_created', {
+      actorId: userId,
+      recipientIds: [userId],
       entity: createDto,
       data: { projectId: createDto.projectId, name: createDto.name },
-      createdBy: userId,
-    };
-    await this.events.emitAsync('six1-event.project_created', eventPayload);
+    });
   }
 
   /**

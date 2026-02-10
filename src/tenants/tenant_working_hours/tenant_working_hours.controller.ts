@@ -6,6 +6,7 @@ import { UpdateTenantWorkingHoursDto } from './dto/update-tenant_working_hour.dt
 import { TenantWorkingHoursEntity } from './entities/tenant_working_hour.entity';
 import { UpdateResult, DeleteResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   MICROSERVICE_CREATE_TENANT_WORKING_HOURS_PATTERN,
@@ -46,13 +47,13 @@ export class TenantWorkingHoursController {
    * Handle fetching all working hours for a tenant.
    * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
-   * @returns Array of TenantWorkingHoursEntity.
+   * @returns Object containing records and pagination details.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_TENANT_WORKING_HOURS_PATTERN)
   async findAllWorkingHours(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('tenantId', ParseIntPipe) tenantId: number,
-  ): Promise<TenantWorkingHoursEntity[]> {
+  ): Promise<FindAllResultInterface> {
     return await this.tenantWorkingHoursService.findAllByTenant(
       userId,
       tenantId,

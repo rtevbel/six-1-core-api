@@ -95,6 +95,29 @@ export class NotificationChannelsService {
   }
 
   /**
+   * Retrieves a single notification channel by name.
+   * @param name - Name of the channel to retrieve.
+   * @returns The NotificationChannelEntity matching the name.
+   * @throws RpcException if no record is found.
+   */
+  async findOneByName(name: string): Promise<NotificationChannelEntity> {
+    const channel = await this.notificationChannelRepository.findOne({
+      where: { name },
+    });
+
+    if (!channel) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          NotificationChannelEntity.name,
+        ),
+      );
+    }
+
+    return channel;
+  }
+
+  /**
    * Updates an existing notification channel record.
    * @param userId - ID of the user updating the record.
    * @param id - ID of the channel to update.

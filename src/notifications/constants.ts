@@ -9,5 +9,7 @@ export const MICROSERVICE_UPDATE_NOTIFICATION_PATTERN =
   'v0.1_update_notification';
 export const MICROSERVICE_REMOVE_NOTIFICATION_PATTERN =
   'v0.1_remove_notification';
+export const MICROSERVICE_BIND_NOTIFICATION_TEMPLATE_PATTERN =
+  'v0.1_bind_notification_template';
 export const MESSAGE_BROKER_NOTIFICATION_SERVICE_CLIENT_TOKEN =
   'notification_service_token';

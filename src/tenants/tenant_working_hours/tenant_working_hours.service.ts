@@ -5,6 +5,7 @@ import { TenantWorkingHoursEntity } from './entities/tenant_working_hour.entity'
 import { CreateTenantWorkingHoursDto } from './dto/create-tenant_working_hour.dto';
 import { UpdateTenantWorkingHoursDto } from './dto/update-tenant_working_hour.dto';
 import { RpcException } from '@nestjs/microservices';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -42,12 +43,12 @@ export class TenantWorkingHoursService {
    * Find all working hours for a specific tenant.
    * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant associated with the working hours.
-   * @returns Array of TenantWorkingHoursEntity.
+   * @returns Object containing records and pagination details.
    */
   async findAllByTenant(
     userId: number,
     tenantId: number,
-  ): Promise<TenantWorkingHoursEntity[]> {
+  ): Promise<FindAllResultInterface> {
     const workingHours = await this.tenantWorkingHoursRepository.find({
       where: { tenantId },
     });
@@ -61,7 +62,14 @@ export class TenantWorkingHoursService {
       );
     }
 
-    return workingHours;
+    return {
+      tenantWorkingHoursRecords: workingHours,
+      pagination: {
+        total: workingHours.length,
+        page: 1,
+        limit: workingHours.length,
+      },
+    };
   }
 
   /**

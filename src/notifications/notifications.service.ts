@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import {
+  Repository,
+  Like,
+  UpdateResult,
+  DeleteResult,
+  LessThanOrEqual,
+  IsNull,
+} from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationEntity } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -246,5 +253,41 @@ export class NotificationsService {
         }
       }
     }
+  }
+
+  /**
+   * Retrieves pending notifications that are ready to be sent.
+   * @param limit - Optional max records to return.
+   * @returns An array of pending NotificationEntity records.
+   */
+  async getPendingNotifications(limit = 50): Promise<NotificationEntity[]> {
+    const now = new Date();
+
+    return await this.notificationRepository.find({
+      where: [
+        { status: 'pending', scheduledAt: IsNull() },
+        { status: 'pending', scheduledAt: LessThanOrEqual(now) },
+      ],
+      order: { createdAt: 'ASC' },
+      take: Math.min(limit, 200),
+    });
+  }
+
+  /**
+   * Updates notification status and sent time.
+   * @param notificationId - Notification ID to update.
+   * @param status - New status.
+   * @param sentAt - Optional sent timestamp.
+   * @returns The result of the update operation.
+   */
+  async updateStatus(
+    notificationId: number,
+    status: 'pending' | 'sent' | 'failed',
+    sentAt: Date | null,
+  ): Promise<UpdateResult> {
+    return await this.notificationRepository.update(notificationId, {
+      status,
+      sentAt,
+    });
   }
 }

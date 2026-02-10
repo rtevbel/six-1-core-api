@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventLogEntity } from './entities/event_log.entity';
@@ -21,6 +21,7 @@ export class EventLogsService {
   constructor(
     @InjectRepository(EventLogEntity)
     private readonly eventLogRepository: Repository<EventLogEntity>,
+    @Inject(forwardRef(() => EventsService))
     private readonly eventsService: EventsService,
   ) {}
 
@@ -232,6 +233,7 @@ export class EventLogsService {
         entityId: createEventLogsDto.entityId || null,
         entityType: createEventLogsDto.entityType || null,
         externalId: createEventLogsDto.externalId || null,
+        payload: createEventLogsDto.payload || null,
         createdBy: userId || 0,
       });
 

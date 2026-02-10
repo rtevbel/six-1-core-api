@@ -1,6 +1,7 @@
 services:
     six1-core-api:
         build:
+         platform: linux/amd64
          context: ..
          dockerfile: docker-files/Dockerfile   
         image: alishoaib3332/six1-core-api:prod

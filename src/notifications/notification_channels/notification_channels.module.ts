@@ -73,5 +73,7 @@ import {
   ],
   controllers: [NotificationChannelsController],
   providers: [NotificationChannelsService],
+  exports: [NotificationChannelsService],
 })
+
 export class NotificationChannelsModule {}

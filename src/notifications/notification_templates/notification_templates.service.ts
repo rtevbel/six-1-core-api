@@ -140,6 +140,21 @@ export class NotificationTemplatesService {
   }
 
   /**
+   * Retrieves a notification template by name and channel ID.
+   * @param name - Template name.
+   * @param channelId - Channel ID.
+   * @returns The NotificationTemplateEntity or null if not found.
+   */
+  async findOneByNameAndChannel(
+    name: string,
+    channelId: number,
+  ): Promise<NotificationTemplateEntity | null> {
+    return await this.notificationTemplateRepository.findOne({
+      where: { name, channelId },
+    });
+  }
+
+  /**
    * Updates an existing notification template record.
    * @param userId - ID of the user updating the record.
    * @param id - ID of the template to update.

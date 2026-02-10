@@ -39,10 +39,10 @@ export class TenantUserInvitationsEntity {
     name: 'user_id',
     type: 'bigint',
     unsigned: true,
-    nullable: false,
+    nullable: true,
     comment: 'Invited user ID',
   })
-  userId!: number;
+  userId!: number | null;
 
   @Column({
     name: 'email',

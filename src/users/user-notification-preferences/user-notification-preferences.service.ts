@@ -145,4 +145,22 @@ export class UserNotificationPreferenceService {
       userId: user_id,
     });
   }
+
+  /**
+   * Checks whether a user has enabled a specific channel.
+   * @param userId - ID of the user to check.
+   * @param channelId - ID of the channel.
+   * @returns True if enabled, false otherwise.
+   */
+  async isChannelEnabled(userId: number, channelId: number): Promise<boolean> {
+    const preference = await this.preferenceRepository.findOne({
+      where: { userId, channelId },
+    });
+
+    if (!preference) {
+      return true;
+    }
+
+    return Boolean(preference.isEnabled);
+  }
 }

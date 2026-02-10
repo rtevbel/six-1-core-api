@@ -16,6 +16,7 @@ import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 import { RequirePermissions } from '../authorization/authorization.decorator';
+import { TenantEmailVerificationService } from './services/tenant-email-verification.service';
 
 import {
   MICROSERVICE_CREATE_USER_PATTERN,
@@ -23,12 +24,17 @@ import {
   MICROSERVICE_FIND_ONE_USER_PATTERN,
   MICROSERVICE_UPDATE_USER_PATTERN,
   MICROSERVICE_REMOVE_USER_PATTERN,
+  MICROSERVICE_REQUEST_TENANT_EMAIL_VERIFICATION_PATTERN,
+  MICROSERVICE_VERIFY_TENANT_EMAIL_BY_TOKEN_PATTERN,
 } from './constants';
 
 @Controller('users')
 @UseFilters(AppRpcExceptionsFilter)
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly tenantEmailVerificationService: TenantEmailVerificationService,
+  ) {}
 
   /**
    * Handles the creation of a new user.
@@ -104,5 +110,39 @@ export class UserController {
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
     return this.userService.remove(userId, id);
+  }
+
+  /**
+   * Requests a tenant email verification notification for a user.
+   * Intended to be called after onboarding or when resending verification.
+   */
+  @MessagePattern(MICROSERVICE_REQUEST_TENANT_EMAIL_VERIFICATION_PATTERN)
+  @RequirePermissions('users.update')
+  @UsePipes(AppRpcValidationPipe)
+  requestTenantEmailVerification(
+    @Payload('data')
+    payload: {
+      userId: number;
+      tenantName?: string | null;
+    },
+  ) {
+    return this.tenantEmailVerificationService.requestVerification({
+      userId: payload.userId,
+      tenantName: payload.tenantName,
+    });
+  }
+
+  /**
+   * Verifies tenant email using a token and emits tenant_email_verified event.
+   * This is consumed by the API gateway /auth/verify-email endpoint.
+   */
+  @MessagePattern(MICROSERVICE_VERIFY_TENANT_EMAIL_BY_TOKEN_PATTERN)
+  verifyTenantEmailByToken(
+    @Payload('data')
+    payload: {
+      token: string;
+    },
+  ) {
+    return this.tenantEmailVerificationService.verifyByToken(payload.token);
   }
 }

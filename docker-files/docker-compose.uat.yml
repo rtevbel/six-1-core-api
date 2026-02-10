@@ -1,0 +1,74 @@
+services:
+    six1-core-api:
+        platform: linux/amd64
+        build:
+         context: ../
+         dockerfile: docker-files/Dockerfile.uat   
+        env_file:
+          - ../.env.uat  
+        image: alishoaib3332/six1-core-api:uat
+        container_name: six1-core-api-uat
+        restart: unless-stopped
+        ports:
+          - "50004:3000"
+        environment:
+          - NODE_ENV=${NODE_ENV}
+        depends_on:
+          - mysql
+          - redis-six1-core-api-uat
+        networks:
+          - six1-microservices-network
+
+    redis-six1-core-api-uat:
+        image: redis:latest
+        container_name: redis-core-api-uat
+        restart: unless-stopped
+        command:
+          ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+        ports:
+          - "6382:6379"
+        volumes:
+          - redis_six1_core_api_uat_data:/data
+        networks:
+          - six1-microservices-network         
+
+    phpmyadmin:
+           image: phpmyadmin/phpmyadmin:latest
+           container_name: six1-phpmyadmin-uat
+           environment:
+                PMA_HOST: mysql
+                PMA_PORT: 3306
+                PMA_ARBITRARY: 1
+           ports:
+              - "8088:80"
+           depends_on:
+              - mysql
+           networks:
+             - six1-microservices-network          
+
+    mysql:
+       image: mysql:8.0 
+       container_name: six1-core-api-uat-mysql
+       restart: always
+       environment:
+         MYSQL_ROOT_PASSWORD: ${SIX1_CORE_API_MYSQL_ROOT_PASSWORD}
+         MYSQL_DATABASE: ${SIX1_CORE_API_DB_DATABASE} 
+         MYSQL_USER: ${SIX1_CORE_API_DB_USERNAME}
+         MYSQL_PASSWORD: ${SIX1_CORE_API_DB_PASSWORD} 
+       ports:
+        - "3307:3306"
+       volumes:
+        - mysql-data:/var/lib/mysql
+        - ../db:/docker-entrypoint-initdb.d/
+       networks:
+        - six1-microservices-network  
+     
+networks:
+  six1-microservices-network:
+     external: true
+    
+volumes:
+   mysql-data:  
+   redis_six1_core_api_uat_data:
+  
+              

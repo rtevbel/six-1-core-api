@@ -73,5 +73,6 @@ import {
   ],
   controllers: [NotificationLogsController],
   providers: [NotificationLogsService],
+  exports: [NotificationLogsService],
 })
 export class NotificationLogsModule {}

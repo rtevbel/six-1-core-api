@@ -44,10 +44,10 @@ export class UserService {
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
-
+   
     // Fetch users and count total records
     const [users, total] = await this.userRepository.findAndCount(findQuery);
-
+    
     // Throw exception if no records are found
     if (users.length === 0) {
       throw new RpcException(
@@ -77,9 +77,9 @@ export class UserService {
       query.where = [
         { email: Like(`%${filtersDto.search}%`) },
         { username: Like(`%${filtersDto.search}%`) },
-        { first_name: Like(`%${filtersDto.search}%`) },
-        { last_name: Like(`%${filtersDto.search}%`) },
-        { activation_key: Like(`%${filtersDto.search}%`) },
+        { firstName: Like(`%${filtersDto.search}%`) },
+        { lastName: Like(`%${filtersDto.search}%`) },
+        { activationKey: Like(`%${filtersDto.search}%`) },
       ];
     }
 
