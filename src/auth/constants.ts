@@ -9,6 +9,7 @@ export const MESSAGE_BROKER_AUTH_TOKEN = 'auth_service_token';
 
 //Error message text
 export const INVALID_CREDENTIALS_ERROR_MESSAGE = 'Invalid credentials!';
+export const EMAIL_NOT_VERIFIED_ERROR_MESSAGE = 'Email not verified!';
 export const EXPIRED_REFRESH_TOKEN_ERROR_MESSAGE = 'refresh token is expired!';
 export const REDIS_USER_REFRESH_TOKEN_IDENTIFIER = 'refresh_token_{user_id}';
 export const ENVIRONMENT_VARIABLE_NOT_FOUND_ERROR_MESSAGE =

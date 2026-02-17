@@ -6,6 +6,7 @@ import { AuthService } from '../auth.service';
 import {
   INVALID_CREDENTIALS_ERROR_MESSAGE,
   CUSTOM_STRATEGY_IDENTIFIER,
+  EMAIL_NOT_VERIFIED_ERROR_MESSAGE,
 } from '../constants';
 
 /**
@@ -71,6 +72,11 @@ export class CustomStrategy extends PassportStrategy(
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_ERROR_MESSAGE);
     }
+
+    if (user.activationKey) {
+      throw new UnauthorizedException(EMAIL_NOT_VERIFIED_ERROR_MESSAGE);
+    }
+    
     return user;
   }
 

@@ -113,5 +113,6 @@ import {
     PushNotificationSender,
     SystemNotificationSender,
   ],
+  exports: [NotificationUrlBuilderService],
 })
 export class NotificationsModule {}

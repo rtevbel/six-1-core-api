@@ -235,6 +235,7 @@ export class EventLogsService {
         externalId: createEventLogsDto.externalId || null,
         payload: createEventLogsDto.payload || null,
         createdBy: userId || 0,
+        status: 0, // 0 = active, 1 = processed
       });
 
       // Create and save the event log record

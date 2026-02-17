@@ -323,7 +323,7 @@ export class TenantUserInvitationsService {
     await this.eventsService.emitWithLogs(
       'tenant_user_invitation_accepted',
       {
-        actorId: withRelations.userId ?? undefined,
+        actorId: withRelations.userId || withRelations.invitedBy,
         recipientIds: [withRelations.invitedBy],
         entity: {
           entityId: withRelations.invitationId,

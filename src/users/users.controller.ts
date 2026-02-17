@@ -28,6 +28,8 @@ import {
   MICROSERVICE_VERIFY_TENANT_EMAIL_BY_TOKEN_PATTERN,
 } from './constants';
 
+
+
 @Controller('users')
 @UseFilters(AppRpcExceptionsFilter)
 export class UserController {
@@ -47,6 +49,7 @@ export class UserController {
   createUser(
     @Payload('data') createUserDto: CreateUserDto,
   ): Promise<UserEntity> {
+    console.log(createUserDto,'createUserDtocreateUserDtocreateUserDto');
     return this.userService.create(createUserDto);
   }
 

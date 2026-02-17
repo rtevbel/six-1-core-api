@@ -166,7 +166,9 @@ export class SmsNotificationSender {
         'phone_number';
 
       let toNumber: string | null = null;
-      try {
+
+      // TODO: Uncomment this when the user meta service is implemented
+      /*try {
         toNumber = await this.userMetaService.findMetaValueByUserIdAndMetaKey(
           notification.userId,
           notification.userId,
@@ -177,7 +179,9 @@ export class SmsNotificationSender {
           status: 'failed',
           response: `User phone number missing for meta key "${phoneMetaKey}".`,
         };
-      }
+      }*/
+      // TODO: Uncomment this when the user meta service is implemented
+        toNumber = '+34610981912';
 
       if (!toNumber) {
         return { status: 'failed', response: 'User phone number missing.' };

@@ -54,7 +54,7 @@ export class TenantEmailVerificationService {
     // Generate an activation key if missing
     if (!user.activationKey) {
       user.activationKey = this.generateToken();
-      await this.userRepo.save(user);
+      await this.userRepo.update(user.userId, { activationKey: user.activationKey });
     }
 
     const verificationUrl = this.urlBuilder.buildEmailVerificationUrl(
@@ -108,7 +108,7 @@ export class TenantEmailVerificationService {
     if (!user.status) {
       user.status = 1;
     }
-    await this.userRepo.save(user);
+    await this.userRepo.update(user.userId, { activationKey: null , status: 1 });
 
     const loginUrl = this.urlBuilder.buildLoginUrl();
 

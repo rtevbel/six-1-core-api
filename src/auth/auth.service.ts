@@ -30,7 +30,7 @@ import { TenantEntity } from '../tenants/entities/tenant.entity';
 import { RoleDescriptionEntity } from '../roles/entities/role-description.entity';
 import { PermissionDescriptionEntity } from '../permissions/entities/permission_description.entity';
 import { AuthorizationService } from '../authorization/authorization.service';
-
+import { UserEntity } from '../users/entities/user.entity';
 /**
  * Auth service class.
  *
@@ -93,20 +93,20 @@ export class AuthService {
    *
    * Version:1.0.0.
    *
-   * This service method communicates with users,
+   * This service method communicates with users
    * service to validate user.
    *
    * @param {string} password -User password.
    * @param {string} username -User username.
    * @param {string} email -User email address.
-   * @returns {Promise<object|null>} -Promise that resolves to either,
-   * a UserEntity object or a null.
+   * @returns {Promise<Partial<UserEntity>|null>} -Promise that resolves to either,
+   * a partial UserEntity object (without password) or null.
    */
   async validateUser(
     password: string,
     username?: string,
     email?: string,
-  ): Promise<object | null> {
+  ): Promise<Partial<UserEntity> | null> {
     // Prioritize email if provided, otherwise use username
     const params = email
       ? { email: email, status: 1 }
@@ -121,7 +121,7 @@ export class AuthService {
 
     const userId = 0;
     const userObject = await this.UserService.findOneBy(userId, params);
-
+   
     if (
       userObject &&
       (await compare_hashed_content(userObject.password, password))
@@ -166,6 +166,7 @@ export class AuthService {
    */
   async login(user: any): Promise<UserJWTTokenResponseInterface> {
     const payload = { username: user.username, userId: user.userId };
+
     const response = {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {

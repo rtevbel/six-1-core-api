@@ -112,7 +112,7 @@ export class UserEntity {
     length: 255,
     nullable: true,
   })
-  activationKey!: string;
+  activationKey!: string | null;
 
   @CreateDateColumn({
     name: 'created_at',
@@ -303,7 +303,7 @@ export class UserEntity {
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword(): Promise<void> {
-    if (this.password) {
+    if (this.password){
       this.password = await hash_content(this.password);
     }
   }

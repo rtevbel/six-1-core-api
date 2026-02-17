@@ -15,6 +15,7 @@ import {
   SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
 } from '../../../common/constants';
 import { MESSAGE_BROKER_TENANT_USER_INVITATION_SERVICE_CLIENT_TOKEN } from './constants';
+import { NotificationsModule } from '../../../notifications/notifications.module';
 
 /**
  * TenantUserInvitationsModule is responsible for managing tenant user invitations.
@@ -66,6 +67,7 @@ import { MESSAGE_BROKER_TENANT_USER_INVITATION_SERVICE_CLIENT_TOKEN } from './co
         inject: [ConfigService],
       },
     ]),
+    NotificationsModule,
   ],
   controllers: [TenantUserInvitationsController],
   providers: [TenantUserInvitationsService],

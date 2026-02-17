@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { ensureDefinedConfigParam } from '../common/functions';
 import { MESSAGE_BROKER_USER_SERVICE_CLIENT_TOKEN } from './constants';
 import { TenantEmailVerificationService } from './services/tenant-email-verification.service';
+import { NotificationUrlBuilderService } from '../notifications/services/notification-url-builder.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from './entities/user.entity';
 import { ClientsModule, Transport } from '@nestjs/microservices';
@@ -85,7 +86,7 @@ import {
   // Specifies the controllers that handle incoming requests.
   controllers: [UserController],
   // Specifies the providers that contain the business logic.
-  providers: [UserService, TenantEmailVerificationService],
+  providers: [UserService, TenantEmailVerificationService, NotificationUrlBuilderService],
   exports: [UserService, TenantEmailVerificationService],
 })
 export class UsersModule {}
