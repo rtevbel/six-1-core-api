@@ -13,6 +13,11 @@ services:
           - "50004:3000"
         environment:
           - NODE_ENV=${NODE_ENV}
+          - SIX1_CORE_API_DB_HOST=mysql
+          - SIX1_CORE_API_DB_PORT=3306
+          - SIX1_CORE_API_DB_USERNAME=${SIX1_CORE_API_DB_USERNAME}
+          - SIX1_CORE_API_DB_PASSWORD=${SIX1_CORE_API_DB_PASSWORD}
+          - SIX1_CORE_API_DB_DATABASE=${SIX1_CORE_API_DB_DATABASE}
         depends_on:
           - mysql
           - redis-six1-core-api-uat

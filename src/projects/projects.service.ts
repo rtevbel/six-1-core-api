@@ -18,6 +18,7 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventsService } from '../events/events.service';
 import { ProcessInstantiationService } from '../automation/process-instantiation.service';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
+import { ConfigLifecycleService } from '../config_objects/config_lifecycle.service';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -34,6 +35,7 @@ export class ProjectsService {
     private readonly ds: DataSource,
     private readonly processes: ProcessInstantiationService,
     private readonly orchestrator: StepOrchestratorService,
+    private readonly configLifecycleService: ConfigLifecycleService,
   ) {}
 
   /**
@@ -389,6 +391,13 @@ export class ProjectsService {
     if (!project) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', ProjectEntity.name),
+      );
+    }
+
+    if (typeof updateProjectDto.status !== 'undefined') {
+      await this.configLifecycleService.validateProjectStatusTransition(
+        project,
+        updateProjectDto.status,
       );
     }
 

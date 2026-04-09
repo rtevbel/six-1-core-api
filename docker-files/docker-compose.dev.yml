@@ -10,9 +10,15 @@ services:
         volumes:
            - ..:/src/local/app/
            - /src/local/app/node_modules
-        command: npm run start:dev
+        command: >
+          sh -c "npm run migration:run && npm run start:dev"
         environment:
           - NODE_ENV=${NODE_ENV}
+          - SIX1_CORE_API_DB_HOST=mysql
+          - SIX1_CORE_API_DB_PORT=3306
+          - SIX1_CORE_API_DB_USERNAME=${SIX1_CORE_API_DB_USERNAME}
+          - SIX1_CORE_API_DB_PASSWORD=${SIX1_CORE_API_DB_PASSWORD}
+          - SIX1_CORE_API_DB_DATABASE=${SIX1_CORE_API_DB_DATABASE}
         depends_on:
           - mysql
           - redis-six1-core-api-dev

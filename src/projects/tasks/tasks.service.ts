@@ -9,6 +9,7 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { ProcessTemplateStepsService } from '../../process_templates/process_template_steps/process_template_steps.service';
 import { ProjectTaskStatusesService } from '../project_task_statuses/project_task_statuses.service';
+import { ConfigLifecycleService } from '../../config_objects/config_lifecycle.service';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -22,6 +23,7 @@ export class TasksService {
     private readonly taskRepository: Repository<TaskEntity>,
     private readonly processTemplateStepsService: ProcessTemplateStepsService,
     private readonly projectTaskStatusesService: ProjectTaskStatusesService,
+    private readonly configLifecycleService: ConfigLifecycleService,
   ) {}
 
   /**
@@ -124,6 +126,13 @@ export class TasksService {
     if (!task) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskEntity.name),
+      );
+    }
+
+    if (typeof updateTaskDto.taskStatusId !== 'undefined') {
+      await this.configLifecycleService.validateTaskStatusTransition(
+        task,
+        updateTaskDto.taskStatusId,
       );
     }
 

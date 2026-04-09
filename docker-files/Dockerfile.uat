@@ -50,5 +50,5 @@ RUN chown -R six1capiuatu202507:six1capiuatg202507 /src/local/app /home/six1capi
 # Switch to the non-root user
 USER six1capiuatu202507
 
-# Start the application
-CMD ["npm", "run", "start:prod"]
+# Start the application (run DB migrations first)
+CMD ["sh", "-c", "npm run migration:run:dist && npm run start:prod"]

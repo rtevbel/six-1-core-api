@@ -163,7 +163,11 @@ export class R2Provider implements IStorageProvider {
         MaxKeys: maxKeys,
       }),
     );
-    return { keys: (res.Contents ?? []).map((o) => o.Key!).filter(Boolean) };
+    return {
+      keys: (res.Contents ?? [])
+        .map((o: { Key?: string | undefined }) => o.Key!)
+        .filter(Boolean),
+    };
   }
 
   /**

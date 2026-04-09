@@ -35,6 +35,7 @@ import { TaskCommentsEntity } from '../../../projects/tasks/comments/entities/co
 import { TaskAttachmentsEntity } from '../../../projects/tasks/attachments/entities/attachment.entity';
 import { TaskMentionsEntity } from '../../../projects/tasks/mentions/entities/mention.entity';
 import { ResourceAssignmentShiftEntity } from '../../../scheduler/entities/resource_assignment_shifts.entity';
+import { ConfigObjectFieldEntity } from '../../../config_objects/entities/config_object_field.entity';
 
 /**
  * Entity class for `tenant_users` table.
@@ -576,4 +577,24 @@ export class TenantUsersEntity {
     cascade: true,
   })
   resourceAssignmentShifts!: ResourceAssignmentShiftEntity[];
+
+  /**
+   * One-to-many relationship to ConfigObjectFieldEntity for createdBy.
+   * A tenant user can create multiple config object fields.
+   */
+  @OneToMany(
+    () => ConfigObjectFieldEntity,
+    (configField) => configField.createdByUser,
+  )
+  createdConfigObjectFields!: ConfigObjectFieldEntity[];
+
+  /**
+   * One-to-many relationship to ConfigObjectFieldEntity for updatedBy.
+   * A tenant user can update multiple config object fields.
+   */
+  @OneToMany(
+    () => ConfigObjectFieldEntity,
+    (configField) => configField.updatedByUser,
+  )
+  updatedConfigObjectFields!: ConfigObjectFieldEntity[];
 }

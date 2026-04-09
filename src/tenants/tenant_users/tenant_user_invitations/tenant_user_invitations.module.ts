@@ -3,18 +3,6 @@ import { TenantUserInvitationsService } from './tenant_user_invitations.service'
 import { TenantUserInvitationsController } from './tenant_user_invitations.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUserInvitationsEntity } from './entities/tenant_user_invitation.entity';
-import { ConfigService } from '@nestjs/config';
-import { ensureDefinedConfigParam } from '../../../common/functions';
-import { ClientsModule, Transport } from '@nestjs/microservices';
-import {
-  MESSAGE_BROKER_USERNAME_KEY,
-  MESSAGE_BROKER_HOST_KEY,
-  MESSAGE_BROKER_PASSWORD_KEY,
-  MESSAGE_BROKER_PORT_KEY,
-  MESSAGE_BROKER_URL_KEY,
-  SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
-} from '../../../common/constants';
-import { MESSAGE_BROKER_TENANT_USER_INVITATION_SERVICE_CLIENT_TOKEN } from './constants';
 import { NotificationsModule } from '../../../notifications/notifications.module';
 
 /**
@@ -27,46 +15,6 @@ import { NotificationsModule } from '../../../notifications/notifications.module
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserInvitationsEntity]),
-    ClientsModule.registerAsync([
-      {
-        name: MESSAGE_BROKER_TENANT_USER_INVITATION_SERVICE_CLIENT_TOKEN,
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [
-              ensureDefinedConfigParam(
-                configService.get<string>(MESSAGE_BROKER_URL_KEY),
-                MESSAGE_BROKER_URL_KEY,
-              ) +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_USERNAME_KEY),
-                  MESSAGE_BROKER_USERNAME_KEY,
-                ) +
-                ':' +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_PASSWORD_KEY),
-                  MESSAGE_BROKER_PASSWORD_KEY,
-                ) +
-                '@' +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_HOST_KEY),
-                  MESSAGE_BROKER_HOST_KEY,
-                ) +
-                ':' +
-                ensureDefinedConfigParam(
-                  configService.get<number>(MESSAGE_BROKER_PORT_KEY),
-                  MESSAGE_BROKER_PORT_KEY,
-                ),
-            ],
-            queue: configService.get(SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY),
-            queueOptions: {
-              durable: false,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
     NotificationsModule,
   ],
   controllers: [TenantUserInvitationsController],

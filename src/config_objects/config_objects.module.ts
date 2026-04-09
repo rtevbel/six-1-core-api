@@ -1,0 +1,72 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
+import { ConfigObjectEntity } from './entities/config_object.entity';
+import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
+import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
+import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
+import { ProjectEntity } from '../projects/entities/project.entity';
+import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
+import { TaskEntity } from '../projects/tasks/entities/task.entity';
+import { TaskMetaEntity } from '../projects/tasks/entities/task_meta.entity';
+import { CustomerEntity } from '../customers/entities/customer.entity';
+import { CustomerMetaEntity } from '../customers/entities/customer_meta.entity';
+import { CustomerContactInfoEntity } from '../customers/customer_contact_info/entities/customer_contact_info.entity';
+import { CustomerContactInfoMetaEntity } from '../customers/customer_contact_info/entities/customer_contact_info_meta.entity';
+import { ResourceEntity } from '../scheduler/entities/resource.entity';
+import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
+import { ProjectStepStatusMappingEntity } from '../projects/entities/project_step_status_mappings.entity';
+import { ConfigObjectsService } from './config_objects.service';
+import { ConfigLifecycleService } from './config_lifecycle.service';
+import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
+import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
+import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
+import { ConfigObjectViewEntity } from './entities/config_object_view.entity';
+import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel.entity';
+import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
+import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
+import { ConfigObjectsController } from './config_objects.controller';
+
+/**
+ * ConfigObjectsModule wires together the configurable object metadata layer.
+ *
+ * @description
+ * - Registers TypeORM entities for config metadata, audit logs and meta tables.
+ * - Exposes the {@link ConfigObjectsService} used by other modules to resolve
+ *   schemas and merge core entities with dynamic fields.
+ *
+ * @version 0.0.1
+ */
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([
+      ConfigTemplateSetEntity,
+      ConfigObjectEntity,
+      ConfigObjectFieldEntity,
+      ConfigObjectFieldRuleEntity,
+      ConfigAuditLogEntity,
+      ConfigObjectLifecycleEntity,
+      ConfigObjectLifecycleTransitionEntity,
+      ConfigObjectRelationshipEntity,
+      ConfigObjectViewEntity,
+      ConfigObjectViewPanelEntity,
+      ConfigCustomObjectInstanceEntity,
+      ConfigObjectStatusMappingEntity,
+      ProjectEntity,
+      ProjectMetaEntity,
+      TaskEntity,
+      TaskMetaEntity,
+      CustomerEntity,
+      CustomerMetaEntity,
+      CustomerContactInfoEntity,
+      CustomerContactInfoMetaEntity,
+      ResourceEntity,
+      ResourceMetaEntity,
+      ProjectStepStatusMappingEntity,
+    ]),
+  ],
+  controllers: [ConfigObjectsController],
+  providers: [ConfigObjectsService, ConfigLifecycleService],
+  exports: [ConfigObjectsService, ConfigLifecycleService],
+})
+export class ConfigObjectsModule {}

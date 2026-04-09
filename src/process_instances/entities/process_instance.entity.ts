@@ -37,6 +37,24 @@ export class ProcessInstanceEntity {
   processTemplateId!: number;
 
   @Column({
+    name: 'parent_instance_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Parent process instance for chaining',
+  })
+  parentInstanceId!: number | null;
+
+  @Column({
+    name: 'parent_step_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Parent process step that spawned this instance',
+  })
+  parentStepId!: number | null;
+
+  @Column({
     name: 'tenant_id',
     type: 'bigint',
     unsigned: true,
@@ -51,6 +69,15 @@ export class ProcessInstanceEntity {
     default: 'active',
   })
   status!: 'draft' | 'active' | 'completed' | 'canceled';
+
+  @Column({
+    name: 'on_child_failure',
+    type: 'enum',
+    enum: ['ignore', 'pause_parent', 'fail_parent'],
+    default: 'pause_parent',
+    comment: 'Determines how parent behaves when a child instance fails',
+  })
+  onChildFailure!: 'ignore' | 'pause_parent' | 'fail_parent';
 
   @Column({
     name: 'created_by',
@@ -89,6 +116,14 @@ export class ProcessInstanceEntity {
   })
   correlationId!: string | null;
 
+  @Column({
+    name: 'context',
+    type: 'json',
+    nullable: true,
+    comment: 'Shared JSON context for this instance and its steps/children',
+  })
+  context!: Record<string, unknown> | null;
+
   /**
    * Relationship to ProcessTemplateEntity.
    * A process instance is based on one process template.
@@ -120,6 +155,41 @@ export class ProcessInstanceEntity {
   @ManyToOne(() => TenantUsersEntity, (user) => user.createdProcessInstances)
   @JoinColumn({ name: 'created_by' })
   createdByUser!: TenantUsersEntity;
+
+  /**
+   * Self-referential relationship for parent process instance.
+   */
+  @ManyToOne(
+    () => ProcessInstanceEntity,
+    (parentInstance) => parentInstance.childInstances,
+    {
+      onDelete: 'SET NULL',
+    },
+  )
+  @JoinColumn({ name: 'parent_instance_id' })
+  parentInstance!: ProcessInstanceEntity | null;
+
+  /**
+   * Reverse relationship to child process instances.
+   */
+  @OneToMany(
+    () => ProcessInstanceEntity,
+    (childInstance) => childInstance.parentInstance,
+  )
+  childInstances!: ProcessInstanceEntity[];
+
+  /**
+   * Relationship to the parent step that spawned this process instance.
+   */
+  @ManyToOne(
+    () => ProcessInstanceStepEntity,
+    (step) => step.childInstances,
+    {
+      onDelete: 'SET NULL',
+    },
+  )
+  @JoinColumn({ name: 'parent_step_id' })
+  parentStep!: ProcessInstanceStepEntity | null;
 
   /**
    * Reverse relationship to ProcessInstanceStepEntity.

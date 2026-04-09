@@ -1,5 +1,5 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
-import { Worker, Processor } from 'bullmq';
+import { Worker, Processor, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { StepOrchestratorService } from './step-orchestrator.service';
 
@@ -18,7 +18,7 @@ export class AutomationQueueWorker implements OnModuleDestroy {
 
     const queueName = process.env.AUTOMATION_QUEUE ?? 'automation';
 
-    const processor: Processor = async (job) => {
+    const processor: Processor = async (job: Job) => {
       if (job.name === 'time-trigger') {
         const ctx = job.data?.context;
         const stepId = ctx?.step?.id;
@@ -41,7 +41,7 @@ export class AutomationQueueWorker implements OnModuleDestroy {
       concurrency: +(process.env.AUTOMATION_WORKER_CONCURRENCY ?? 10),
     });
 
-    this.worker.on('error', (err) =>
+    this.worker.on('error', (err: Error) =>
       console.error('[BullMQ][worker][error]', err),
     );
   }

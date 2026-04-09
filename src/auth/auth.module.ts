@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PassportModule } from '@nestjs/passport';
-import { Transport, ClientsModule } from '@nestjs/microservices';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -23,7 +22,6 @@ import { TenantEntity } from '../tenants/entities/tenant.entity';
 import { RoleDescriptionEntity } from '../roles/entities/role-description.entity';
 import { PermissionDescriptionEntity } from '../permissions/entities/permission_description.entity';
 import {
-  MESSAGE_BROKER_AUTH_TOKEN,
   REDIS_CLIENT_TYPE,
   REDIS_DATABASE_HOST_KEY,
   REDIS_DATABASE_PASSWORD_KEY,
@@ -32,16 +30,6 @@ import {
   JWT_EXPIRATION_TIME_KEY,
   JWT_SECRET_KEY,
 } from './constants';
-
-import {
-  DEFAULT_ENVIRONMENT_FILE_NAME,
-  MESSAGE_BROKER_HOST_KEY,
-  MESSAGE_BROKER_PASSWORD_KEY,
-  MESSAGE_BROKER_PORT_KEY,
-  MESSAGE_BROKER_URL_KEY,
-  MESSAGE_BROKER_USERNAME_KEY,
-  SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
-} from '../common/constants';
 
 /**
  * AuthModule is responsible for authentication and authorization.
@@ -108,50 +96,6 @@ import {
       }),
       inject: [ConfigService],
     }),
-    // Configures the message broker client for microservices.
-    ClientsModule.registerAsync([
-      {
-        name: MESSAGE_BROKER_AUTH_TOKEN,
-        useFactory: async (configService: ConfigService) => ({
-          transport: Transport.RMQ,
-          options: {
-            urls: [
-              ensureDefinedConfigParam(
-                configService.get<string>(MESSAGE_BROKER_URL_KEY),
-                MESSAGE_BROKER_URL_KEY,
-              ) +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_USERNAME_KEY),
-                  MESSAGE_BROKER_USERNAME_KEY,
-                ) +
-                ':' +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_PASSWORD_KEY),
-                  MESSAGE_BROKER_PASSWORD_KEY,
-                ) +
-                '@' +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_HOST_KEY),
-                  MESSAGE_BROKER_HOST_KEY,
-                ) +
-                ':' +
-                ensureDefinedConfigParam(
-                  configService.get<string>(MESSAGE_BROKER_PORT_KEY),
-                  MESSAGE_BROKER_PORT_KEY,
-                ),
-            ],
-            queue: ensureDefinedConfigParam(
-              configService.get<string>(SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY),
-              SERVICE_MESSAGE_BROKER_QUEUE_NAME_KEY,
-            ),
-            queueOptions: {
-              durable: false,
-            },
-          },
-        }),
-        inject: [ConfigService],
-      },
-    ]),
     UsersModule,
   ],
 

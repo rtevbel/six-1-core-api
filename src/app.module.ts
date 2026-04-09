@@ -49,6 +49,7 @@ import { SchedulerModule } from './scheduler/scheduler.module';
 import { SharingModule } from './sharing/sharing.module';
 import { CustomersModule } from './customers/customers.module';
 import { AuthorizationModule } from './authorization/authorization.module';
+import { ConfigObjectsModule } from './config_objects/config_objects.module';
 
 /**
  * Root module of the application.
@@ -147,6 +148,7 @@ import { AuthorizationModule } from './authorization/authorization.module';
     CustomersModule,
     AuthorizationModule,
     SharingModule,
+    ConfigObjectsModule,
     /**
      * Importing feature modules that handle users, roles, and permissions.
      */

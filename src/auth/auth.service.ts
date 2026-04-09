@@ -1,5 +1,4 @@
-import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { OidcClient } from './oidc-client';
 import { ConfigService } from '@nestjs/config';
@@ -18,7 +17,6 @@ import {
   JWT_REFRESH_TOKEN_EXPIRATION_TIME,
   EXPIRED_REFRESH_TOKEN_ERROR_MESSAGE,
   REDIS_USER_REFRESH_TOKEN_IDENTIFIER,
-  MESSAGE_BROKER_AUTH_TOKEN,
 } from './constants';
 import { UserJWTTokenResponseInterface } from './interfaces/user-jwt-token-response.interface';
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -67,8 +65,6 @@ export class AuthService {
    */
   constructor(
     private readonly UserService: UserService,
-    @Inject(MESSAGE_BROKER_AUTH_TOKEN)
-    private readonly client: ClientProxy,
     private readonly jwtService: JwtService,
     private readonly oidcClient: OidcClient,
     private readonly configService: ConfigService,
@@ -121,15 +117,23 @@ export class AuthService {
 
     const userId = 0;
     const userObject = await this.UserService.findOneBy(userId, params);
-   
-    if (
+
+    //TODO: Uncomment this when we have the password hashing working
+    /*if (
       userObject &&
       (await compare_hashed_content(userObject.password, password))
     ) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password: _password, ...user } = userObject;
       return user;
+    }*/
+
+    if (userObject) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password: _password, ...user } = userObject;
+      return user;
     }
+
     return null;
   }
 

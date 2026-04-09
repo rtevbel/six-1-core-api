@@ -24,8 +24,12 @@ export class BullMqSchedulerAdapter implements SchedulerPort, OnModuleDestroy {
       connection: this.connection,
     });
 
-    this.queueEvents.on('failed', (e) => console.error('[BullMQ][failed]', e));
-    this.queueEvents.on('error', (e) => console.error('[BullMQ][error]', e));
+    this.queueEvents.on('failed', (e: any) => {
+      console.error('[BullMQ][failed]', e);
+    });
+    this.queueEvents.on('error', (e: any) => {
+      console.error('[BullMQ][error]', e);
+    });
   }
 
   async schedule(delayMs: number, jobName: string, data: any): Promise<void> {

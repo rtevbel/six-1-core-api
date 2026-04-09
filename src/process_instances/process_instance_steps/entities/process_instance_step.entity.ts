@@ -240,4 +240,13 @@ export class ProcessInstanceStepEntity {
     nullable: true,
   })
   linkedTask?: TaskEntity;
+
+  /**
+   * Reverse relationship to child process instances spawned from this step.
+   */
+  @OneToMany(
+    () => ProcessInstanceEntity,
+    (childInstance) => childInstance.parentStep,
+  )
+  childInstances!: ProcessInstanceEntity[];
 }

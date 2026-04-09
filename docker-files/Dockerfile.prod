@@ -43,4 +43,4 @@ USER $APP_USER
 # EXPOSE 3000
 
 # Start (uses your package.json "start:prod": "node dist/main.js")
-CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "npm run migration:run:dist && npm run start:prod"]
