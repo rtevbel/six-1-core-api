@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
 import {
@@ -236,6 +236,90 @@ export class ConfigObjectsService {
       return { ...(payload as Record<string, unknown>) };
     }
     return {};
+  }
+
+  private extractConfiguredFieldKeysFromViewConfig(
+    configJson: Record<string, unknown> | null | undefined,
+  ): string[] {
+    if (!configJson || typeof configJson !== 'object') {
+      return [];
+    }
+
+    const discovered = new Set<string>();
+
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          visit(item);
+        }
+        return;
+      }
+
+      if (!node || typeof node !== 'object') {
+        return;
+      }
+
+      const obj = node as Record<string, unknown>;
+
+      const directFieldKey = obj.fieldKey;
+      if (typeof directFieldKey === 'string' && directFieldKey.trim().length > 0) {
+        discovered.add(directFieldKey.trim());
+      }
+
+      for (const key of ['columns', 'fields', 'fieldOrder', 'fieldKeys']) {
+        const value = obj[key];
+        if (Array.isArray(value)) {
+          for (const item of value) {
+            if (typeof item === 'string' && item.trim().length > 0) {
+              discovered.add(item.trim());
+            } else {
+              visit(item);
+            }
+          }
+        }
+      }
+
+      for (const value of Object.values(obj)) {
+        if (value && typeof value === 'object') {
+          visit(value);
+        }
+      }
+    };
+
+    visit(configJson);
+    return Array.from(discovered.values());
+  }
+
+  private async assertScopedViewConfigFieldKeysExist(params: {
+    tenantId: number | null;
+    entityKey: string;
+    configJson: Record<string, unknown> | null;
+  }): Promise<void> {
+    const { tenantId, entityKey, configJson } = params;
+    if (!configJson) {
+      return;
+    }
+
+    const schema = await this.getObjectSchema(tenantId, entityKey);
+    if (!schema) {
+      throw new RpcException('Unable to resolve schema for scoped view validation.');
+    }
+
+    const availableFieldKeys = new Set(
+      schema.fields.map((view) => view.field.fieldKey),
+    );
+
+    const configuredFieldKeys =
+      this.extractConfiguredFieldKeysFromViewConfig(configJson);
+    const invalidFieldKeys = configuredFieldKeys.filter(
+      (fieldKey) => !availableFieldKeys.has(fieldKey),
+    );
+
+    if (invalidFieldKeys.length > 0) {
+      throw new RpcException(
+        `Scoped view config contains unknown field keys: ${invalidFieldKeys.join(', ')}`,
+      );
+    }
   }
 
   /**
@@ -3156,6 +3240,490 @@ export class ConfigObjectsService {
       oldValue,
       null,
     );
+  }
+
+  private async resolveConfigObjectForEntityScope(params: {
+    entityKey: string;
+    effectiveTenantId: number | null;
+  }): Promise<ConfigObjectEntity> {
+    const { entityKey, effectiveTenantId } = params;
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: {
+        objectType: entityKey,
+      },
+    });
+
+    if (!configObject) {
+      throw new RpcException(`Config object not found for entityKey "${entityKey}".`);
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+
+    if (!templateSet) {
+      throw new RpcException(
+        'Config object does not belong to the specified tenant.',
+      );
+    }
+
+    return configObject;
+  }
+
+  private async deactivateViewsInScope(params: {
+    configObjectId: number;
+    viewType: 'list' | 'board' | 'detail';
+    tenantId: number | null;
+    exceptConfigObjectViewId?: number;
+  }): Promise<void> {
+    const { configObjectId, viewType, tenantId, exceptConfigObjectViewId } = params;
+
+    const qb = this.viewRepository
+      .createQueryBuilder()
+      .update(ConfigObjectViewEntity)
+      .set({ isActive: false })
+      .where('config_object_id = :configObjectId', { configObjectId })
+      .andWhere('view_type = :viewType', { viewType });
+
+    if (tenantId === null) {
+      qb.andWhere('tenant_id IS NULL');
+    } else {
+      qb.andWhere('tenant_id = :tenantId', { tenantId });
+    }
+
+    if (typeof exceptConfigObjectViewId === 'number') {
+      qb.andWhere('config_object_view_id != :exceptConfigObjectViewId', {
+        exceptConfigObjectViewId,
+      });
+    }
+
+    await qb.execute();
+  }
+
+  /**
+   * Returns the active scoped view config. Tenant scope falls back to global.
+   */
+  async getActiveScopedConfigView(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    viewType: 'list' | 'board' | 'detail';
+  }): Promise<ConfigObjectViewEntity | null> {
+    const { tenantId, entityKey, viewType } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const configObject = await this.resolveConfigObjectForEntityScope({
+      entityKey,
+      effectiveTenantId,
+    });
+
+    if (effectiveTenantId !== null) {
+      const tenantScoped = await this.viewRepository.findOne({
+        where: {
+          configObjectId: configObject.configObjectId,
+          viewType,
+          tenantId: effectiveTenantId,
+          isActive: true,
+        },
+        order: { configObjectViewId: 'DESC' },
+      });
+
+      if (tenantScoped) {
+        return tenantScoped;
+      }
+    }
+
+    return this.viewRepository.findOne({
+      where: {
+        configObjectId: configObject.configObjectId,
+        viewType,
+        tenantId: IsNull(),
+        isActive: true,
+      },
+      order: { configObjectViewId: 'DESC' },
+    });
+  }
+
+  /**
+   * Lists active scoped view configs for an entity.
+   * Tenant scope takes precedence over global scope per view type.
+   */
+  async listActiveScopedConfigViews(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+  }): Promise<ConfigObjectViewEntity[]> {
+    const { tenantId, entityKey } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const configObject = await this.resolveConfigObjectForEntityScope({
+      entityKey,
+      effectiveTenantId,
+    });
+
+    if (effectiveTenantId === null) {
+      return this.viewRepository.find({
+        where: {
+          configObjectId: configObject.configObjectId,
+          tenantId: IsNull(),
+          isActive: true,
+        },
+        order: {
+          viewType: 'ASC',
+          configObjectViewId: 'DESC',
+        },
+      });
+    }
+
+    const scopedRows = await this.viewRepository
+      .createQueryBuilder('view')
+      .where('view.config_object_id = :configObjectId', {
+        configObjectId: configObject.configObjectId,
+      })
+      .andWhere('view.is_active = 1')
+      .andWhere('(view.tenant_id = :tenantId OR view.tenant_id IS NULL)', {
+        tenantId: effectiveTenantId,
+      })
+      .orderBy('view.view_type', 'ASC')
+      .addOrderBy('view.tenant_id IS NULL', 'ASC')
+      .addOrderBy('view.config_object_view_id', 'DESC')
+      .getMany();
+
+    const byViewType = new Map<string, ConfigObjectViewEntity>();
+    for (const row of scopedRows) {
+      if (!byViewType.has(row.viewType)) {
+        byViewType.set(row.viewType, row);
+      }
+    }
+
+    return Array.from(byViewType.values()).sort((a, b) =>
+      a.viewType.localeCompare(b.viewType),
+    );
+  }
+
+  /**
+   * Creates or updates a scoped view config record by entityKey + scope.
+   */
+  async upsertScopedConfigView(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    viewType: 'list' | 'board' | 'detail';
+    updatedBy: number;
+    configObjectViewId?: number;
+    viewKey?: string;
+    name?: string;
+    description?: string | null;
+    roleKey?: string | null;
+    isDefault?: boolean;
+    isActive?: boolean;
+    configJson?: Record<string, unknown> | null;
+  }): Promise<ConfigObjectViewEntity> {
+    const {
+      tenantId,
+      entityKey,
+      viewType,
+      updatedBy,
+      configObjectViewId,
+      viewKey,
+      name,
+      description,
+      roleKey,
+      isDefault,
+      isActive,
+      configJson,
+    } = params;
+
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const configObject = await this.resolveConfigObjectForEntityScope({
+      entityKey,
+      effectiveTenantId,
+    });
+
+    const lookupWhere =
+      effectiveTenantId === null
+        ? {
+            configObjectId: configObject.configObjectId,
+            viewType,
+            tenantId: IsNull(),
+          }
+        : {
+            configObjectId: configObject.configObjectId,
+            viewType,
+            tenantId: effectiveTenantId,
+          };
+
+    const existing = configObjectViewId
+      ? await this.viewRepository.findOne({
+          where: {
+            configObjectViewId,
+            configObjectId: configObject.configObjectId,
+          },
+        })
+      : await this.viewRepository.findOne({
+          where: lookupWhere,
+          order: { configObjectViewId: 'DESC' },
+        });
+
+    const shouldActivate = typeof isActive === 'boolean' ? isActive : true;
+    const viewKeyValue =
+      typeof viewKey === 'string' && viewKey.trim().length > 0
+        ? viewKey.trim()
+        : `${entityKey}_${viewType}_${effectiveTenantId ?? 'global'}`;
+    const viewNameValue =
+      typeof name === 'string' && name.trim().length > 0
+        ? name.trim()
+        : `${entityKey} ${viewType} view`;
+
+    if (existing) {
+      const nextConfigJson =
+        typeof configJson === 'undefined' ? existing.configJson : configJson;
+      await this.assertScopedViewConfigFieldKeysExist({
+        tenantId: effectiveTenantId,
+        entityKey,
+        configJson: nextConfigJson,
+      });
+
+      const oldValue = {
+        viewKey: existing.viewKey,
+        name: existing.name,
+        description: existing.description ?? null,
+        roleKey: existing.roleKey ?? null,
+        isDefault: existing.isDefault,
+        isActive: existing.isActive,
+        configJson: existing.configJson ?? null,
+      };
+
+      existing.viewType = viewType;
+      existing.viewKey = viewKeyValue;
+      existing.name = viewNameValue;
+      existing.description =
+        typeof description === 'undefined' ? existing.description : description;
+      existing.roleKey = typeof roleKey === 'undefined' ? existing.roleKey : roleKey;
+      existing.isDefault =
+        typeof isDefault === 'boolean' ? isDefault : existing.isDefault;
+      existing.isActive = shouldActivate;
+      existing.configJson = nextConfigJson;
+      existing.updatedBy = updatedBy;
+
+      if (existing.isActive) {
+        await this.deactivateViewsInScope({
+          configObjectId: configObject.configObjectId,
+          viewType,
+          tenantId: effectiveTenantId,
+          exceptConfigObjectViewId: existing.configObjectViewId,
+        });
+      }
+
+      const saved = await this.viewRepository.save(existing);
+
+      await this.logConfigChange(
+        effectiveTenantId,
+        'view',
+        saved.configObjectViewId,
+        'update',
+        updatedBy,
+        oldValue,
+        {
+          viewKey: saved.viewKey,
+          name: saved.name,
+          description: saved.description ?? null,
+          roleKey: saved.roleKey ?? null,
+          isDefault: saved.isDefault,
+          isActive: saved.isActive,
+          configJson: saved.configJson ?? null,
+        },
+      );
+
+      return saved;
+    }
+
+    await this.assertScopedViewConfigFieldKeysExist({
+      tenantId: effectiveTenantId,
+      entityKey,
+      configJson: typeof configJson === 'undefined' ? null : configJson,
+    });
+
+    if (shouldActivate) {
+      await this.deactivateViewsInScope({
+        configObjectId: configObject.configObjectId,
+        viewType,
+        tenantId: effectiveTenantId,
+      });
+    }
+
+    const created = this.viewRepository.create({
+      configObjectId: configObject.configObjectId,
+      viewType,
+      viewKey: viewKeyValue,
+      name: viewNameValue,
+      description: typeof description === 'undefined' ? null : description,
+      roleKey: typeof roleKey === 'undefined' ? null : roleKey,
+      isDefault: typeof isDefault === 'boolean' ? isDefault : false,
+      isActive: shouldActivate,
+      tenantId: effectiveTenantId,
+      configJson: typeof configJson === 'undefined' ? null : configJson,
+      createdBy: updatedBy,
+      updatedBy,
+    });
+
+    const saved = await this.viewRepository.save(created);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'view',
+      saved.configObjectViewId,
+      'create',
+      updatedBy,
+      null,
+      {
+        viewKey: saved.viewKey,
+        name: saved.name,
+        description: saved.description ?? null,
+        roleKey: saved.roleKey ?? null,
+        isDefault: saved.isDefault,
+        isActive: saved.isActive,
+        configJson: saved.configJson ?? null,
+      },
+    );
+
+    return saved;
+  }
+
+  /**
+   * Marks one scoped view as active and deactivates others in the same scope.
+   */
+  async activateScopedConfigView(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    viewType: 'list' | 'board' | 'detail';
+    configObjectViewId: number;
+    updatedBy: number;
+  }): Promise<ConfigObjectViewEntity> {
+    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const configObject = await this.resolveConfigObjectForEntityScope({
+      entityKey,
+      effectiveTenantId,
+    });
+
+    const target = await this.viewRepository.findOne({
+      where: {
+        configObjectViewId,
+        configObjectId: configObject.configObjectId,
+        viewType,
+      },
+    });
+
+    if (!target) {
+      throw new RpcException('Scoped config view not found for activation.');
+    }
+
+    const targetTenant = target.tenantId ?? null;
+    if (targetTenant !== effectiveTenantId) {
+      throw new RpcException(
+        'Scoped config view does not match the requested tenant scope.',
+      );
+    }
+
+    await this.deactivateViewsInScope({
+      configObjectId: configObject.configObjectId,
+      viewType,
+      tenantId: effectiveTenantId,
+      exceptConfigObjectViewId: target.configObjectViewId,
+    });
+
+    target.isActive = true;
+    target.updatedBy = updatedBy;
+    const saved = await this.viewRepository.save(target);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'view',
+      saved.configObjectViewId,
+      'update',
+      updatedBy,
+      { isActive: false },
+      { isActive: true },
+    );
+
+    return saved;
+  }
+
+  /**
+   * Deactivates a scoped view (or all views in scope when id is omitted).
+   */
+  async deactivateScopedConfigView(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    viewType: 'list' | 'board' | 'detail';
+    configObjectViewId?: number;
+    updatedBy: number;
+  }): Promise<{ deactivated: number }> {
+    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const configObject = await this.resolveConfigObjectForEntityScope({
+      entityKey,
+      effectiveTenantId,
+    });
+
+    if (typeof configObjectViewId === 'number') {
+      const target = await this.viewRepository.findOne({
+        where: {
+          configObjectViewId,
+          configObjectId: configObject.configObjectId,
+          viewType,
+        },
+      });
+
+      if (!target) {
+        return { deactivated: 0 };
+      }
+
+      const targetTenant = target.tenantId ?? null;
+      if (targetTenant !== effectiveTenantId) {
+        throw new RpcException(
+          'Scoped config view does not match the requested tenant scope.',
+        );
+      }
+
+      target.isActive = false;
+      target.updatedBy = updatedBy;
+      await this.viewRepository.save(target);
+
+      await this.logConfigChange(
+        effectiveTenantId,
+        'view',
+        target.configObjectViewId,
+        'update',
+        updatedBy,
+        { isActive: true },
+        { isActive: false },
+      );
+
+      return { deactivated: 1 };
+    }
+
+    const qb = this.viewRepository
+      .createQueryBuilder()
+      .update(ConfigObjectViewEntity)
+      .set({ isActive: false, updatedBy })
+      .where('config_object_id = :configObjectId', {
+        configObjectId: configObject.configObjectId,
+      })
+      .andWhere('view_type = :viewType', { viewType });
+
+    if (effectiveTenantId === null) {
+      qb.andWhere('tenant_id IS NULL');
+    } else {
+      qb.andWhere('tenant_id = :tenantId', { tenantId: effectiveTenantId });
+    }
+
+    const result = await qb.execute();
+    return { deactivated: result.affected ?? 0 };
   }
 
   /**

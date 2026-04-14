@@ -6,10 +6,16 @@ import { PermissionEntity } from '../entities/permission.entity';
  * Represents the structure of the response containing roles and pagination details.
  */
 export interface FindAllResultInterface {
-  /**
-   * Array of PermissionEntity objects representing the roles.
-   */
-  permissions: PermissionEntity[];
+  /** Standardized paginated payload. */
+  items: PermissionEntity[];
+
+  /** Backward-compatible alias of `items`. */
+  permissions?: PermissionEntity[];
+
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 
   /**
    * Pagination details for the result set.
@@ -29,5 +35,8 @@ export interface FindAllResultInterface {
      * Number of records per page.
      */
     limit: number;
+
+    /** Total available pages for the query. */
+    totalPages: number;
   };
 }

@@ -202,6 +202,23 @@ export const MICROSERVICE_DELETE_CONFIG_VIEW_PATTERN =
   'v0.1_delete_config_view';
 
 /**
+ * Message patterns for runtime view-config composition:
+ * - get/list active view config by entityKey + scope
+ * - upsert scoped config record
+ * - activate/deactivate by scope
+ */
+export const MICROSERVICE_GET_ACTIVE_CONFIG_VIEW_PATTERN =
+  'v0.1_get_active_config_view';
+export const MICROSERVICE_LIST_ACTIVE_CONFIG_VIEWS_PATTERN =
+  'v0.1_list_active_config_views';
+export const MICROSERVICE_UPSERT_CONFIG_VIEW_SCOPE_PATTERN =
+  'v0.1_upsert_config_view_scope';
+export const MICROSERVICE_ACTIVATE_CONFIG_VIEW_SCOPE_PATTERN =
+  'v0.1_activate_config_view_scope';
+export const MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN =
+  'v0.1_deactivate_config_view_scope';
+
+/**
  * Message pattern used to list panels for a given view.
  */
 export const MICROSERVICE_LIST_CONFIG_VIEW_PANELS_PATTERN =

@@ -45,9 +45,16 @@ export class CustomersService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
+
     return {
+      items: customers,
       customers,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -135,11 +142,13 @@ export class CustomersService {
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
-  ): { total: number; page: number; limit: number } {
+  ): { total: number; page: number; limit: number; totalPages: number } {
+    const limit = filtersDto.limit || 10;
     return {
       total,
       page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 }

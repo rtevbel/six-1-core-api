@@ -6,10 +6,16 @@ import { RoleEntity } from '../entities/role.entity';
  * Represents the structure of the response containing roles and pagination details.
  */
 export interface FindAllResultInterface {
-  /**
-   * Array of RoleEntity objects representing the roles.
-   */
-  roles: RoleEntity[];
+  /** Standardized paginated payload. */
+  items: RoleEntity[];
+
+  /** Backward-compatible alias of `items`. */
+  roles?: RoleEntity[];
+
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
 
   /**
    * Pagination details for the result set.
@@ -29,5 +35,8 @@ export interface FindAllResultInterface {
      * Number of records per page.
      */
     limit: number;
+
+    /** Total available pages for the query. */
+    totalPages: number;
   };
 }

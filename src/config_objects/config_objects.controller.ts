@@ -24,6 +24,11 @@ import {
   MICROSERVICE_LIST_CONFIG_VIEWS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_FIELD_PATTERN,
   MICROSERVICE_CREATE_CONFIG_VIEW_PATTERN,
+  MICROSERVICE_GET_ACTIVE_CONFIG_VIEW_PATTERN,
+  MICROSERVICE_LIST_ACTIVE_CONFIG_VIEWS_PATTERN,
+  MICROSERVICE_UPSERT_CONFIG_VIEW_SCOPE_PATTERN,
+  MICROSERVICE_ACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
+  MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_FIELD_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_DELETE_CONFIG_FIELD_PATTERN,
@@ -110,6 +115,13 @@ import {
   ListConfigViewPanelsDto,
   UpdateConfigViewPanelDto,
 } from './dto/config-view-panel.dto';
+import {
+  ActivateScopedConfigViewDto,
+  DeactivateScopedConfigViewDto,
+  GetActiveScopedConfigViewDto,
+  ListActiveScopedConfigViewsDto,
+  UpsertScopedConfigViewDto,
+} from './dto/scoped-config-view.dto';
 import { GetRelatedObjectsDto } from './dto/get-related-objects.dto';
 import {
   InstanceLifecycleStateDto,
@@ -926,6 +938,102 @@ export class ConfigObjectsController {
       tenantId: dto.tenantId ?? null,
       configObjectViewId: dto.configObjectViewId,
       deletedBy: dto.deletedBy,
+    });
+  }
+
+  /**
+   * Returns the active scoped view config for an entity and view type.
+   * Tenant scope falls back to global scope when no tenant override exists.
+   */
+  @MessagePattern(MICROSERVICE_GET_ACTIVE_CONFIG_VIEW_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async getActiveScopedConfigView(
+    @Payload('data') dto: GetActiveScopedConfigViewDto,
+  ): Promise<ConfigObjectViewEntity | null> {
+    return this.configObjectsService.getActiveScopedConfigView({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      viewType: dto.viewType,
+    });
+  }
+
+  /**
+   * Lists active scoped view configs for an entityKey.
+   * When tenant scope is provided, tenant records win over global by view type.
+   */
+  @MessagePattern(MICROSERVICE_LIST_ACTIVE_CONFIG_VIEWS_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async listActiveScopedConfigViews(
+    @Payload('data') dto: ListActiveScopedConfigViewsDto,
+  ): Promise<ConfigObjectViewEntity[]> {
+    return this.configObjectsService.listActiveScopedConfigViews({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+    });
+  }
+
+  /**
+   * Upserts scoped view config by entityKey + tenant + viewType.
+   */
+  @MessagePattern(MICROSERVICE_UPSERT_CONFIG_VIEW_SCOPE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async upsertScopedConfigView(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: UpsertScopedConfigViewDto,
+  ): Promise<ConfigObjectViewEntity> {
+    return this.configObjectsService.upsertScopedConfigView({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      viewType: dto.viewType,
+      updatedBy: dto.updatedBy,
+      configObjectViewId: dto.configObjectViewId,
+      viewKey: dto.viewKey,
+      name: dto.name,
+      description: dto.description,
+      roleKey: dto.roleKey,
+      isDefault: dto.isDefault,
+      isActive: dto.isActive,
+      configJson:
+        typeof dto.configJson === 'undefined' ? undefined : dto.configJson,
+    });
+  }
+
+  /**
+   * Activates one view in the requested scope and deactivates siblings.
+   */
+  @MessagePattern(MICROSERVICE_ACTIVATE_CONFIG_VIEW_SCOPE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async activateScopedConfigView(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ActivateScopedConfigViewDto,
+  ): Promise<ConfigObjectViewEntity> {
+    return this.configObjectsService.activateScopedConfigView({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      viewType: dto.viewType,
+      configObjectViewId: dto.configObjectViewId,
+      updatedBy: dto.updatedBy,
+    });
+  }
+
+  /**
+   * Deactivates one scoped view, or all views in scope when id is omitted.
+   */
+  @MessagePattern(MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async deactivateScopedConfigView(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: DeactivateScopedConfigViewDto,
+  ): Promise<{ deactivated: number }> {
+    return this.configObjectsService.deactivateScopedConfigView({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      viewType: dto.viewType,
+      configObjectViewId: dto.configObjectViewId,
+      updatedBy: dto.updatedBy,
     });
   }
 

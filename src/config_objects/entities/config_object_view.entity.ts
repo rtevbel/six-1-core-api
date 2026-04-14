@@ -1,10 +1,12 @@
 import {
   Column,
+  CreateDateColumn,
   Entity,
   JoinColumn,
   ManyToOne,
   OneToMany,
   PrimaryGeneratedColumn,
+  UpdateDateColumn,
 } from 'typeorm';
 import { ConfigObjectEntity } from './config_object.entity';
 import { ConfigObjectViewPanelEntity } from './config_object_view_panel.entity';
@@ -72,12 +74,68 @@ export class ConfigObjectViewEntity {
   roleKey!: string | null;
 
   @Column({
+    name: 'tenant_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+  })
+  tenantId!: number | null;
+
+  @Column({
     name: 'is_default',
     type: 'tinyint',
     unsigned: true,
     default: 0,
   })
   isDefault!: boolean;
+
+  @Column({
+    name: 'is_active',
+    type: 'tinyint',
+    unsigned: true,
+    default: 1,
+  })
+  isActive!: boolean;
+
+  @Column({
+    name: 'config_json',
+    type: 'json',
+    nullable: true,
+  })
+  configJson!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'created_by',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+  })
+  createdBy!: number | null;
+
+  @Column({
+    name: 'updated_by',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+  })
+  updatedBy!: number | null;
+
+  @CreateDateColumn({
+    name: 'created_at',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+  })
+  createdAt!: Date;
+
+  @UpdateDateColumn({
+    name: 'updated_at',
+    type: 'datetime',
+    precision: 6,
+    default: () => 'CURRENT_TIMESTAMP(6)',
+    onUpdate: 'CURRENT_TIMESTAMP(6)',
+  })
+  updatedAt!: Date;
 
   @ManyToOne(
     () => ConfigObjectEntity,
