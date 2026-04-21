@@ -23,6 +23,7 @@ import { CustomerContactInfoMetaEntity } from '../customers/customer_contact_inf
 import { ResourceEntity } from '../scheduler/entities/resource.entity';
 import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
+import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 
 describe('ConfigObjectsService', () => {
   let service: ConfigObjectsService;
@@ -119,6 +120,10 @@ describe('ConfigObjectsService', () => {
         },
         {
           provide: getRepositoryToken(ConfigCustomObjectInstanceEntity),
+          useClass: Repository,
+        },
+        {
+          provide: getRepositoryToken(ConfigObjectStatusMappingEntity),
           useClass: Repository,
         },
         {
@@ -225,6 +230,13 @@ describe('ConfigObjectsService', () => {
     expect(schema?.mergedFieldOrder.some((e) => e.source === 'custom')).toBe(
       true,
     );
+    // Keep v0.1_get_config_schema baseline stable and avoid leaking runtime-manifest keys.
+    expect(schema).toHaveProperty('configObject');
+    expect(schema).toHaveProperty('fields');
+    expect(schema).not.toHaveProperty('list');
+    expect(schema).not.toHaveProperty('detail');
+    expect(schema).not.toHaveProperty('form');
+    expect(schema).not.toHaveProperty('fieldRegistry');
   });
 
   it('getObjectSchema should include system_entity runner hints for system_table', async () => {
@@ -542,6 +554,178 @@ describe('ConfigObjectsService', () => {
     });
 
     expect(fields).toEqual([]);
+  });
+
+  it('getActiveScopedConfigView should fallback to global active view when tenant-scoped view does not exist', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 100,
+      configTemplateSetId: 10,
+      objectType: 'project',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    const findOneSpy = jest
+      .spyOn(viewRepo, 'findOne')
+      .mockResolvedValueOnce(null as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 200,
+        tenantId: null,
+        viewType: 'list',
+        isActive: true,
+      } as any);
+
+    const result = await service.getActiveScopedConfigView({
+      tenantId: 1,
+      entityKey: 'project',
+      viewType: 'list',
+    });
+
+    expect(result?.configObjectViewId).toBe(200);
+    expect(findOneSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('listActiveScopedConfigViews should return global active views when tenant scope is omitted', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 101,
+      configTemplateSetId: 10,
+      objectType: 'project',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'find').mockResolvedValueOnce([
+      {
+        configObjectViewId: 201,
+        viewType: 'detail',
+        tenantId: null,
+        isActive: true,
+      } as any,
+    ]);
+
+    const result = await service.listActiveScopedConfigViews({
+      tenantId: undefined,
+      entityKey: 'project',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].configObjectViewId).toBe(201);
+  });
+
+  it('upsertScopedConfigView should reject unknown field keys in configJson', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce(null as any);
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { configObjectId: 102 } as any,
+      fields: [{ field: { fieldKey: 'knownField' } } as any],
+    } as any);
+
+    await expect(
+      service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'list',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          list: {
+            columns: ['unknownField'],
+          },
+        },
+      }),
+    ).rejects.toThrow('Scoped view config contains unknown field keys');
+  });
+
+  it('upsertScopedConfigView should skip field-key validation for system_table binding mode', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 104,
+      configTemplateSetId: 10,
+      objectType: 'tenant_teams',
+      bindingMode: 'system_table',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce(null as any);
+    const createSpy = jest.spyOn(viewRepo, 'create').mockImplementation(
+      (dto) =>
+        ({
+          configObjectViewId: 303,
+          ...dto,
+        }) as any,
+    );
+    jest.spyOn(viewRepo, 'save').mockImplementation(async (row) => row as any);
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const result = await service.upsertScopedConfigView({
+      tenantId: 1,
+      entityKey: 'tenant_teams',
+      viewType: 'list',
+      updatedBy: 55,
+      isActive: false,
+      configJson: {
+        list: { columns: ['external_openapi_field'] },
+      },
+    });
+
+    expect(result.configObjectViewId).toBe(303);
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        configObjectId: 104,
+        viewType: 'list',
+      }),
+    );
+  });
+
+  it('activateScopedConfigView should enforce tenant scope match', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 103,
+      configTemplateSetId: 10,
+      objectType: 'project',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 202,
+      configObjectId: 103,
+      tenantId: null,
+      viewType: 'list',
+    } as any);
+
+    await expect(
+      service.activateScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'list',
+        configObjectViewId: 202,
+        updatedBy: 99,
+      }),
+    ).rejects.toThrow('Scoped config view does not match the requested tenant scope.');
   });
 });
 

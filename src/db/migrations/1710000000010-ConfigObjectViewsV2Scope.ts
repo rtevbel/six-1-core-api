@@ -58,6 +58,19 @@ export class ConfigObjectViewsV2Scope1710000000010
       `);
     }
 
+    if (!(await queryRunner.hasColumn(tableName, 'active_tenant_scope_id'))) {
+      await queryRunner.query(`
+        ALTER TABLE \`${tableName}\`
+        ADD COLUMN \`active_tenant_scope_id\` BIGINT UNSIGNED
+        GENERATED ALWAYS AS (
+          CASE
+            WHEN \`is_active\` = 1 THEN IFNULL(\`tenant_id\`, 0)
+            ELSE NULL
+          END
+        ) STORED
+      `);
+    }
+
     if (!(await queryRunner.hasColumn(tableName, 'config_json'))) {
       await queryRunner.addColumn(
         tableName,
@@ -130,6 +143,23 @@ export class ConfigObjectViewsV2Scope1710000000010
       );
     }
 
+    // Keep only the newest active row for each (config_object_id, tenant_id, view_type)
+    // before enforcing the active-scope uniqueness index.
+    await queryRunner.query(`
+      UPDATE \`${tableName}\` older
+      INNER JOIN \`${tableName}\` newer
+        ON newer.config_object_id = older.config_object_id
+       AND newer.view_type = older.view_type
+       AND (
+         (newer.tenant_id = older.tenant_id)
+         OR (newer.tenant_id IS NULL AND older.tenant_id IS NULL)
+       )
+       AND newer.is_active = 1
+       AND newer.config_object_view_id > older.config_object_view_id
+      SET older.is_active = 0
+      WHERE older.is_active = 1
+    `);
+
     if (
       !(await this.hasIndex(
         queryRunner,
@@ -144,9 +174,8 @@ export class ConfigObjectViewsV2Scope1710000000010
           isUnique: true,
           columnNames: [
             'config_object_id',
-            'tenant_scope_id',
             'view_type',
-            'is_active',
+            'active_tenant_scope_id',
           ],
         }),
       );
@@ -192,6 +221,9 @@ export class ConfigObjectViewsV2Scope1710000000010
     }
     if (await queryRunner.hasColumn(tableName, 'tenant_scope_id')) {
       await queryRunner.dropColumn(tableName, 'tenant_scope_id');
+    }
+    if (await queryRunner.hasColumn(tableName, 'active_tenant_scope_id')) {
+      await queryRunner.dropColumn(tableName, 'active_tenant_scope_id');
     }
     if (await queryRunner.hasColumn(tableName, 'tenant_id')) {
       await queryRunner.dropColumn(tableName, 'tenant_id');

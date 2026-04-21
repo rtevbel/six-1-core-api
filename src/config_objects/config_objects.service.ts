@@ -294,9 +294,16 @@ export class ConfigObjectsService {
     tenantId: number | null;
     entityKey: string;
     configJson: Record<string, unknown> | null;
+    bindingMode: ConfigObjectBindingMode;
   }): Promise<void> {
-    const { tenantId, entityKey, configJson } = params;
+    const { tenantId, entityKey, configJson, bindingMode } = params;
     if (!configJson) {
+      return;
+    }
+
+    // system_table fields are resolved from external DTO/OpenAPI in gateway composition.
+    // Core cannot reliably validate those keys against config_object_fields.
+    if (bindingMode === 'system_table') {
       return;
     }
 
@@ -3483,6 +3490,7 @@ export class ConfigObjectsService {
         tenantId: effectiveTenantId,
         entityKey,
         configJson: nextConfigJson,
+        bindingMode: configObject.bindingMode,
       });
 
       const oldValue = {
@@ -3543,6 +3551,7 @@ export class ConfigObjectsService {
       tenantId: effectiveTenantId,
       entityKey,
       configJson: typeof configJson === 'undefined' ? null : configJson,
+      bindingMode: configObject.bindingMode,
     });
 
     if (shouldActivate) {
