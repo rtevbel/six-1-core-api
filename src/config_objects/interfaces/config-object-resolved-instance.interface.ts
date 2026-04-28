@@ -16,6 +16,8 @@ import {
 import { ConfigObjectEntity } from '../entities/config_object.entity';
 import { ConfigObjectFieldEntity } from '../entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from '../entities/config_object_field_rule.entity';
+import type { CoreFieldDescriptor } from '../core-field-descriptor/core-field-descriptor.types';
+import type { RelationDescriptor } from './relation-descriptor.interface';
 
 /**
  * Union type for all core system-of-record entities currently supported
@@ -62,12 +64,20 @@ export interface ConfigObjectRunnerSchemaView extends ConfigObjectSchemaView {
   supportsCustomFields: boolean;
   resolveInstanceWith: ConfigObjectResolveInstanceWithHint;
   fieldSchemaSource: ConfigObjectFieldSchemaSource;
+  /** Unified field catalog after base generation, field merge, and write-capability inference. */
+  fieldRegistry: CoreFieldDescriptor[];
   /** SoR vs custom ordering policy (always `sor_first_then_custom` when merge is used). */
   fieldMergePolicy: typeof CONFIG_OBJECT_FIELD_MERGE_POLICY;
   /** Code-first SoR column descriptors; empty for `system_table` / unknown types. */
   sorFieldDescriptors: SorFieldDescriptor[];
   /** Authoritative form/list column order: all SoR fields, then all custom fields. */
   mergedFieldOrder: MergedConfigFieldOrderEntry[];
+  /** Additive relation catalog for builder/runtime consumption. */
+  relations?: RelationDescriptor[];
+  /** Related-field registry keyed by `relationshipKey`. */
+  relatedFieldRegistryByRelationKey?: Record<string, CoreFieldDescriptor[]>;
+  /** Persisted relation-manifest metadata keyed by `relationshipKey`. */
+  relationManifestsByKey?: Record<string, Record<string, unknown> | null>;
 }
 
 /**

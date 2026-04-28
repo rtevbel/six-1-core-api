@@ -16,8 +16,8 @@ import { ConfigObjectStatus } from '../entities/config_object.entity';
  * omitted and derived from auth context.
  *
  * The handler response adds Object Runner fields (`runnerKind`, `supportsCustomFields`,
- * `resolveInstanceWith`, `fieldSchemaSource`, `fieldMergePolicy`, `sorFieldDescriptors`,
- * `mergedFieldOrder`) — see `ConfigObjectRunnerSchemaView`.
+ * `resolveInstanceWith`, `fieldSchemaSource`, `fieldRegistry`, `fieldMergePolicy`,
+ * `sorFieldDescriptors`, `mergedFieldOrder`) — see `ConfigObjectRunnerSchemaView`.
  */
 export class GetConfigSchemaDto {
   @IsInt()

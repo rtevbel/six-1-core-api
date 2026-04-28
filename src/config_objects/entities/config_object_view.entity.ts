@@ -8,14 +8,18 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import {
+  CONFIG_OBJECT_VIEW_TYPES,
+  type ConfigObjectViewType,
+} from '../constants/config-object-view-type';
 import { ConfigObjectEntity } from './config_object.entity';
 import { ConfigObjectViewPanelEntity } from './config_object_view_panel.entity';
 
 /**
  * Entity class for `config_object_views` table.
  *
- * Describes a named view for an object type (list, board, or detail),
- * optionally scoped by role and marked as the default for that object.
+ * Describes a named view for an object type (list, detail, or form).
+ * Kanban/board presentation is configured under `list.config_json.board`, not as a separate view row.
  */
 @Entity('config_object_views')
 export class ConfigObjectViewEntity {
@@ -45,10 +49,10 @@ export class ConfigObjectViewEntity {
   @Column({
     name: 'view_type',
     type: 'enum',
-    enum: ['list', 'board', 'detail'],
+    enum: [...CONFIG_OBJECT_VIEW_TYPES],
     default: 'list',
   })
-  viewType!: 'list' | 'board' | 'detail';
+  viewType!: ConfigObjectViewType;
 
   @Column({
     name: 'name',

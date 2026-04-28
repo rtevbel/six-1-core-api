@@ -6,7 +6,7 @@ import {
   IsEnum,
   IsDateString,
 } from 'class-validator';
-import { IsTodayOrLater } from 'src/common/validators/is-today-or-later.validator';
+import { IsTodayOrLater } from '../../../../common/validators/is-today-or-later.validator';
 
 /**
  * Create tenant user invitation DTO class.

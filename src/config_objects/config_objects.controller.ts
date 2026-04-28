@@ -7,6 +7,7 @@ import { ConfigLifecycleService } from './config_lifecycle.service';
 import {
   MICROSERVICE_GET_CONFIG_SCHEMA_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELDS_PATTERN,
+  MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN,
   MICROSERVICE_LIST_CONFIG_OBJECTS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_OBJECT_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_OBJECT_PATTERN,
@@ -20,9 +21,11 @@ import {
   MICROSERVICE_APPLY_SOR_BOUND_INSTANCE_PATCH_PATTERN,
   MICROSERVICE_GET_CONFIG_LIFECYCLES_PATTERN,
   MICROSERVICE_GET_CONFIG_RELATIONSHIPS_PATTERN,
+  MICROSERVICE_GET_CONFIG_RELATIONSHIP_RELATED_FIELD_CATALOG_PATTERN,
   MICROSERVICE_GET_CONFIG_VIEWS_PATTERN,
   MICROSERVICE_LIST_CONFIG_VIEWS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_FIELD_PATTERN,
+  MICROSERVICE_CREATE_CONFIG_FIELD_RULE_PATTERN,
   MICROSERVICE_CREATE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_GET_ACTIVE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_LIST_ACTIVE_CONFIG_VIEWS_PATTERN,
@@ -30,8 +33,10 @@ import {
   MICROSERVICE_ACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
   MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_FIELD_PATTERN,
+  MICROSERVICE_UPDATE_CONFIG_FIELD_RULE_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_DELETE_CONFIG_FIELD_PATTERN,
+  MICROSERVICE_DELETE_CONFIG_FIELD_RULE_PATTERN,
   MICROSERVICE_DELETE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_LIST_CONFIG_VIEW_PANELS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_VIEW_PANEL_PATTERN,
@@ -70,6 +75,8 @@ import {
 } from './dto/custom-object-instance.dto';
 import { GetConfigLifecyclesDto } from './dto/get-config-lifecycles.dto';
 import { GetConfigRelationshipsDto } from './dto/get-config-relationships.dto';
+import { GetRelatedFieldCatalogDto } from './dto/get-related-field-catalog.dto';
+import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
 import {
   ApplySorBoundInstancePatchResult,
   ConfigObjectRunnerSchemaView,
@@ -81,6 +88,7 @@ import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_objec
 import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
 import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
 import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
+import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
 import { ConfigObjectViewEntity } from './entities/config_object_view.entity';
 import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel.entity';
@@ -103,6 +111,12 @@ import {
   UpdateConfigFieldDto,
   DeleteConfigFieldDto,
 } from './dto/config-field.dto';
+import {
+  ListConfigFieldRulesDto,
+  CreateConfigFieldRuleDto,
+  UpdateConfigFieldRuleDto,
+  DeleteConfigFieldRuleDto,
+} from './dto/config-field-rule.dto';
 import {
   CreateConfigViewDto,
   DeleteConfigViewDto,
@@ -250,10 +264,32 @@ export class ConfigObjectsController {
   @UsePipes(AppRpcValidationPipe)
   async getConfigRelationships(
     @Payload('data') dto: GetConfigRelationshipsDto,
-  ): Promise<ConfigObjectRelationshipEntity[]> {
+  ): Promise<RelationDescriptor[]> {
     return this.configObjectsService.getRelationshipsForObjectType(
       dto.objectType,
     );
+  }
+
+  /**
+   * Returns field keys on the target (`toObjectType`) of a relationship for authoring UIs.
+   */
+  @MessagePattern(MICROSERVICE_GET_CONFIG_RELATIONSHIP_RELATED_FIELD_CATALOG_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async getConfigRelationshipRelatedFieldCatalog(
+    @Payload('data') dto: GetRelatedFieldCatalogDto,
+  ): Promise<{
+    fromObjectType: string;
+    relationshipKey: string;
+    toObjectType: string;
+    cardinality: string;
+    relationshipSource: 'orm' | 'designer';
+    fieldKeys: string[];
+  }> {
+    return this.configObjectsService.getRelatedFieldCatalogForRelationship({
+      tenantId: dto.tenantId,
+      fromObjectType: dto.fromObjectType,
+      relationshipKey: dto.relationshipKey,
+    });
   }
 
   /**
@@ -372,7 +408,7 @@ export class ConfigObjectsController {
   }
 
   /**
-   * Retrieves configured views (list, board, detail) and their panels
+   * Retrieves configured views (list, detail, form) and their panels
    * for a given object type.
    *
    * @param {GetConfigSchemaDto} dto - DTO containing tenant and object type.
@@ -387,7 +423,7 @@ export class ConfigObjectsController {
   }
 
   /**
-   * Lists configured views (list, board, detail) for an object type,
+   * Lists configured views (list, detail, form) for an object type,
    * including their panels, scoped to a tenant.
    */
   @MessagePattern(MICROSERVICE_LIST_CONFIG_VIEWS_PATTERN)
@@ -819,6 +855,97 @@ export class ConfigObjectsController {
   }
 
   /**
+   * Lists field-rule rows for one config field.
+   */
+  @MessagePattern(MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async listConfigFieldRules(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ListConfigFieldRulesDto,
+  ): Promise<{
+    configFieldRules: ConfigObjectFieldRuleEntity[];
+    pagination: { total: number; page: number; limit: number };
+  }> {
+    const configFieldRules = await this.configObjectsService.listConfigFieldRules({
+      tenantId: dto.tenantId ?? null,
+      configObjectFieldId: dto.configObjectFieldId,
+    });
+
+    return {
+      configFieldRules,
+      pagination: {
+        total: configFieldRules.length,
+        page: 1,
+        limit: configFieldRules.length || 1,
+      },
+    };
+  }
+
+  /**
+   * Creates one field-rule row.
+   */
+  @MessagePattern(MICROSERVICE_CREATE_CONFIG_FIELD_RULE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async createConfigFieldRule(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: CreateConfigFieldRuleDto,
+  ): Promise<ConfigObjectFieldRuleEntity> {
+    return this.configObjectsService.createConfigFieldRule({
+      tenantId: dto.tenantId ?? null,
+      configObjectFieldId: dto.configObjectFieldId,
+      createdBy: dto.createdBy,
+      lifecycleStateKey: dto.lifecycleStateKey,
+      roleKey: dto.roleKey,
+      isVisible: dto.isVisible,
+      isReadonly: dto.isReadonly,
+      isRequired: dto.isRequired,
+      rulesJson: dto.rulesJson,
+    });
+  }
+
+  /**
+   * Updates one field-rule row.
+   */
+  @MessagePattern(MICROSERVICE_UPDATE_CONFIG_FIELD_RULE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async updateConfigFieldRule(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: UpdateConfigFieldRuleDto,
+  ): Promise<ConfigObjectFieldRuleEntity> {
+    return this.configObjectsService.updateConfigFieldRule({
+      tenantId: dto.tenantId ?? null,
+      configObjectFieldRuleId: dto.configObjectFieldRuleId,
+      updatedBy: dto.updatedBy,
+      lifecycleStateKey: dto.lifecycleStateKey,
+      roleKey: dto.roleKey,
+      isVisible: dto.isVisible,
+      isReadonly: dto.isReadonly,
+      isRequired: dto.isRequired,
+      rulesJson: dto.rulesJson,
+    });
+  }
+
+  /**
+   * Deletes one field-rule row.
+   */
+  @MessagePattern(MICROSERVICE_DELETE_CONFIG_FIELD_RULE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async deleteConfigFieldRule(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: DeleteConfigFieldRuleDto,
+  ): Promise<void> {
+    await this.configObjectsService.deleteConfigFieldRule({
+      tenantId: dto.tenantId ?? null,
+      configObjectFieldRuleId: dto.configObjectFieldRuleId,
+      deletedBy: dto.deletedBy,
+    });
+  }
+
+  /**
    * Creates a new relationship metadata entry.
    */
   @MessagePattern(MICROSERVICE_CREATE_CONFIG_RELATIONSHIP_PATTERN)
@@ -838,6 +965,8 @@ export class ConfigObjectsController {
       queryConfig: dto.queryConfig,
       createdBy: dto.createdBy,
       isActive: dto.isActive,
+      relationshipSource: dto.relationshipSource,
+      relationManifestsByKey: dto.relationManifestsByKey,
     });
   }
 
@@ -859,6 +988,8 @@ export class ConfigObjectsController {
       cardinality: dto.cardinality,
       queryConfig: dto.queryConfig,
       isActive: dto.isActive,
+      relationshipSource: dto.relationshipSource,
+      relationManifestsByKey: dto.relationManifestsByKey,
     });
   }
 

@@ -1,19 +1,21 @@
 import {
   IsBoolean,
-  IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsOptional,
   IsString,
   Min,
 } from 'class-validator';
-
-type ViewType = 'list' | 'board' | 'detail';
+import {
+  CONFIG_OBJECT_VIEW_TYPES,
+  type ConfigObjectViewType,
+} from '../constants/config-object-view-type';
 
 /**
  * Create DTO for configuration views.
  *
- * Used by admin APIs to define a new view (list/board/detail) for a
+ * Used by admin APIs to define a new view (list, detail, or form) for a
  * given object type. For tenant-level configuration `tenantId` should be
  * provided; for system-level configuration it may be omitted and derived
  * from context.
@@ -36,8 +38,8 @@ export class CreateConfigViewDto {
   @IsNotEmpty()
   viewKey!: string;
 
-  @IsEnum(['list', 'board', 'detail'])
-  viewType!: ViewType;
+  @IsIn([...CONFIG_OBJECT_VIEW_TYPES])
+  viewType!: ConfigObjectViewType;
 
   @IsString()
   @IsNotEmpty()

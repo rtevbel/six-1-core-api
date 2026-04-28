@@ -40,7 +40,6 @@ export class AppRpcExceptionsFilter
   ): Observable<any> {
     let errorResponse: any;
 
-    console.log(exception,'exceptionexceptionexception');
     // Handle RpcException
     if (exception instanceof RpcException) {
       errorResponse = exception.getError();

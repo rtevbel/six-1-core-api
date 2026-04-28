@@ -1,5 +1,6 @@
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
@@ -9,6 +10,10 @@ import {
 } from 'class-validator';
 
 type Cardinality = 'one_to_many' | 'many_to_one' | 'many_to_many';
+
+export const CONFIG_RELATIONSHIP_SOURCE_VALUES = ['orm', 'designer'] as const;
+export type ConfigRelationshipSource =
+  (typeof CONFIG_RELATIONSHIP_SOURCE_VALUES)[number];
 
 /**
  * Create DTO for configuration relationships.
@@ -57,5 +62,20 @@ export class CreateConfigRelationshipDto {
   @IsBoolean()
   @IsOptional()
   isActive?: boolean;
+
+  @IsOptional()
+  @IsIn([...CONFIG_RELATIONSHIP_SOURCE_VALUES])
+  relationshipSource?: ConfigRelationshipSource;
+
+  /**
+   * Validated on save; persisted as `relation_manifest_json`.
+   *
+   * Supports lightweight refs (`dataRef`/`actionRef`) and richer authoring metadata
+   * (for example `mode`, `targetEntityKey`, `displayMode`, `selectionControl`,
+   * `columns`, `queryDefaults`, `actions`) used by relation-membership UIs.
+   */
+  @IsObject()
+  @IsOptional()
+  relationManifestsByKey?: Record<string, unknown> | null;
 }
 

@@ -60,6 +60,18 @@ export const MICROSERVICE_DELETE_CONFIG_FIELD_PATTERN =
   'v0.1_delete_config_field';
 
 /**
+ * Message patterns used to manage configuration field-rule metadata.
+ */
+export const MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN =
+  'v0.1_list_config_field_rules';
+export const MICROSERVICE_CREATE_CONFIG_FIELD_RULE_PATTERN =
+  'v0.1_create_config_field_rule';
+export const MICROSERVICE_UPDATE_CONFIG_FIELD_RULE_PATTERN =
+  'v0.1_update_config_field_rule';
+export const MICROSERVICE_DELETE_CONFIG_FIELD_RULE_PATTERN =
+  'v0.1_delete_config_field_rule';
+
+/**
  * Message pattern used to resolve a configurable object instance by
  * combining core entity data with dynamic meta fields.
  */
@@ -100,6 +112,13 @@ export const MICROSERVICE_GET_CONFIG_LIFECYCLES_PATTERN =
  */
 export const MICROSERVICE_GET_CONFIG_RELATIONSHIPS_PATTERN =
   'v0.1_get_config_relationships';
+
+/**
+ * Message pattern used to list field keys on the target (`toObjectType`) of a relationship
+ * for Object Designer relation panels (related-field catalog).
+ */
+export const MICROSERVICE_GET_CONFIG_RELATIONSHIP_RELATED_FIELD_CATALOG_PATTERN =
+  'v0.1_get_config_relationship_related_field_catalog';
 
 /**
  * Message patterns used to manage lifecycle states and transitions
@@ -178,7 +197,7 @@ export const MICROSERVICE_DEACTIVATE_TEMPLATE_SET_PATTERN =
 
 /**
  * Message pattern used to list configured views for an object type,
- * including list, board, and detail views.
+ * including list, detail, and form views (board layout is under list `config_json`).
  */
 export const MICROSERVICE_LIST_CONFIG_VIEWS_PATTERN =
   'v0.1_list_config_views';

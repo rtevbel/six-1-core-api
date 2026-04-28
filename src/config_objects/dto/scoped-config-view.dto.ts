@@ -1,6 +1,6 @@
 import {
   IsBoolean,
-  IsEnum,
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
@@ -8,8 +8,10 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-
-type ConfigViewType = 'list' | 'board' | 'detail';
+import {
+  CONFIG_OBJECT_VIEW_TYPES,
+  type ConfigObjectViewType,
+} from '../constants/config-object-view-type';
 
 /**
  * Base DTO for scoped view-config contracts keyed by runtime `entityKey`.
@@ -26,15 +28,15 @@ class ScopedConfigViewBaseDto {
 }
 
 export class GetActiveScopedConfigViewDto extends ScopedConfigViewBaseDto {
-  @IsEnum(['list', 'board', 'detail'])
-  viewType!: ConfigViewType;
+  @IsIn([...CONFIG_OBJECT_VIEW_TYPES])
+  viewType!: ConfigObjectViewType;
 }
 
 export class ListActiveScopedConfigViewsDto extends ScopedConfigViewBaseDto {}
 
 export class UpsertScopedConfigViewDto extends ScopedConfigViewBaseDto {
-  @IsEnum(['list', 'board', 'detail'])
-  viewType!: ConfigViewType;
+  @IsIn([...CONFIG_OBJECT_VIEW_TYPES])
+  viewType!: ConfigObjectViewType;
 
   @IsInt()
   @Min(1)
@@ -75,8 +77,8 @@ export class UpsertScopedConfigViewDto extends ScopedConfigViewBaseDto {
 }
 
 export class ActivateScopedConfigViewDto extends ScopedConfigViewBaseDto {
-  @IsEnum(['list', 'board', 'detail'])
-  viewType!: ConfigViewType;
+  @IsIn([...CONFIG_OBJECT_VIEW_TYPES])
+  viewType!: ConfigObjectViewType;
 
   @IsInt()
   @Min(1)
@@ -88,8 +90,8 @@ export class ActivateScopedConfigViewDto extends ScopedConfigViewBaseDto {
 }
 
 export class DeactivateScopedConfigViewDto extends ScopedConfigViewBaseDto {
-  @IsEnum(['list', 'board', 'detail'])
-  viewType!: ConfigViewType;
+  @IsIn([...CONFIG_OBJECT_VIEW_TYPES])
+  viewType!: ConfigObjectViewType;
 
   @IsInt()
   @Min(1)

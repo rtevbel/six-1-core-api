@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
@@ -41,6 +41,36 @@ import {
   CONFIG_OBJECT_SYSTEM_TABLE_FIELDS_FORBIDDEN_MESSAGE,
   CONFIG_OBJECT_SYSTEM_TABLE_RESOLVE_FORBIDDEN_MESSAGE,
 } from './constants';
+import type { ConfigObjectViewType } from './constants/config-object-view-type';
+import {
+  AuthoringErrorCode,
+  authoringRpcException,
+} from './constants/authoring-error-codes';
+import {
+  ListViewConfigValidationError,
+  validateAndNormalizeListViewConfigJson,
+} from './list-view-config';
+import {
+  PanelLayoutConfigValidationError,
+  validateAndNormalizePanelLayoutConfigJson,
+} from './panel-layout';
+import {
+  DetailFormViewConfigValidationError,
+  validateAndNormalizeDetailFormViewConfigJson,
+} from './detail-form-view-config';
+import {
+  DerivedDisplayAuthoringValidationError,
+  validateDerivedDisplayAuthoringMetadata,
+} from './derived-display-authoring';
+import {
+  mapRelationAuthoringErrorToRpc,
+  normalizeQueryConfigInlineRelation,
+  validateAndNormalizeRelationManifestsByKey,
+} from './relation-authoring';
+import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
+import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/relation-catalog.generator';
+import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
+import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
 import {
   ConfigCustomObjectInstanceEntity,
   ConfigCustomObjectInstanceStatus,
@@ -63,6 +93,13 @@ import {
  */
 @Injectable()
 export class ConfigObjectsService {
+  private static readonly FORBIDDEN_VIEW_CONFIG_INLINE_FIELD_KEYS = [
+    'fieldDefinitions',
+    'inlineFields',
+  ] as const;
+
+  private readonly logger = new Logger(ConfigObjectsService.name);
+
   constructor(
     @InjectRepository(ConfigTemplateSetEntity)
     private readonly templateSetRepository: Repository<ConfigTemplateSetEntity>,
@@ -309,7 +346,10 @@ export class ConfigObjectsService {
 
     const schema = await this.getObjectSchema(tenantId, entityKey);
     if (!schema) {
-      throw new RpcException('Unable to resolve schema for scoped view validation.');
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewSchemaUnavailable,
+        'Unable to resolve schema for scoped view validation.',
+      );
     }
 
     const availableFieldKeys = new Set(
@@ -323,8 +363,407 @@ export class ConfigObjectsService {
     );
 
     if (invalidFieldKeys.length > 0) {
-      throw new RpcException(
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewUnknownFieldKeys,
         `Scoped view config contains unknown field keys: ${invalidFieldKeys.join(', ')}`,
+      );
+    }
+  }
+
+  private normalizeListViewConfigJsonOrThrow(
+    value: Record<string, unknown>,
+  ): Record<string, unknown> {
+    try {
+      return validateAndNormalizeListViewConfigJson(value) as unknown as Record<
+        string,
+        unknown
+      >;
+    } catch (error) {
+      if (error instanceof ListViewConfigValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.ViewListConfigInvalid,
+          error.message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  private normalizePanelLayoutConfigOrThrow(
+    value: Record<string, unknown>,
+  ): Record<string, unknown> {
+    try {
+      const normalized = validateAndNormalizePanelLayoutConfigJson(value);
+      if (!normalized) {
+        throw authoringRpcException(
+          AuthoringErrorCode.PanelLayoutInvalid,
+          'layout_config must be a valid panel layout object.',
+        );
+      }
+      return normalized as unknown as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof PanelLayoutConfigValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.PanelLayoutInvalid,
+          error.message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  private assertRelationMembershipPanelLayoutOrThrow(
+    panelType: 'summary' | 'section' | 'related' | 'custom',
+    layoutConfig: Record<string, unknown> | null,
+  ): void {
+    if (panelType !== 'related' || !layoutConfig) {
+      return;
+    }
+    const displayMode = layoutConfig.displayMode;
+    if (displayMode !== 'table') {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must use displayMode "table".',
+      );
+    }
+
+    const layout = layoutConfig.layout;
+    if (!layout || typeof layout !== 'object' || Array.isArray(layout)) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must define membership metadata under layout.',
+      );
+    }
+
+    const relationKey = (layout as Record<string, unknown>).relationKey;
+    if (typeof relationKey !== 'string' || relationKey.trim().length === 0) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must define layout.relationKey.',
+      );
+    }
+
+    const targetEntityKey = (layout as Record<string, unknown>).targetEntityKey;
+    if (
+      typeof targetEntityKey !== 'string' ||
+      targetEntityKey.trim().length === 0
+    ) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must define layout.targetEntityKey.',
+      );
+    }
+
+    const selectionControl = (layout as Record<string, unknown>).selectionControl;
+    if (selectionControl !== 'checkbox' && selectionControl !== 'radio') {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must define layout.selectionControl as "checkbox" or "radio".',
+      );
+    }
+
+    const actions = layoutConfig.actions;
+    if (!actions || typeof actions !== 'object' || Array.isArray(actions)) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panels must define actions with assignRef and unassignRef.',
+      );
+    }
+    const assignRef = (actions as Record<string, unknown>).assignRef;
+    const unassignRef = (actions as Record<string, unknown>).unassignRef;
+    if (
+      typeof assignRef !== 'string' ||
+      !assignRef.trim() ||
+      typeof unassignRef !== 'string' ||
+      !unassignRef.trim()
+    ) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'Related panel actions must include non-empty assignRef and unassignRef.',
+      );
+    }
+  }
+
+  private normalizeDetailFormViewConfigJsonOrThrow(
+    value: Record<string, unknown>,
+  ): Record<string, unknown> {
+    try {
+      const normalized = validateAndNormalizeDetailFormViewConfigJson(value);
+      if (!normalized) {
+        throw authoringRpcException(
+          AuthoringErrorCode.ViewDetailFormConfigInvalid,
+          'detail/form view config must be a valid object.',
+        );
+      }
+      return normalized as unknown as Record<string, unknown>;
+    } catch (error) {
+      if (error instanceof DetailFormViewConfigValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.ViewDetailFormConfigInvalid,
+          error.message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * B-1: reject inline field-definition bundles on scoped view saves; fields must use field CRUD.
+   */
+  private assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(
+    configJson: Record<string, unknown>,
+  ): void {
+    for (const key of ConfigObjectsService.FORBIDDEN_VIEW_CONFIG_INLINE_FIELD_KEYS) {
+      const v = configJson[key];
+      if (v !== undefined && v !== null && Array.isArray(v) && v.length > 0) {
+        throw authoringRpcException(
+          AuthoringErrorCode.FieldInlineBundleForbidden,
+          `View config must not embed "${key}"; define fields via config object field CRUD APIs instead.`,
+        );
+      }
+    }
+  }
+
+  private extractDetailFormPanelKeysFromConfigJson(
+    configJson: Record<string, unknown> | null,
+  ): string[] {
+    if (!configJson) {
+      return [];
+    }
+    const panels = configJson.panels;
+    if (!Array.isArray(panels)) {
+      return [];
+    }
+    return panels
+      .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+      .map((p) => p.trim());
+  }
+
+  private extractFieldKeysFromPanelLayout(
+    panel: ConfigObjectViewPanelEntity,
+  ): string[] {
+    if (panel.panelType === 'related') {
+      return [];
+    }
+    if (
+      panel.layoutConfig === null ||
+      typeof panel.layoutConfig !== 'object' ||
+      Array.isArray(panel.layoutConfig)
+    ) {
+      return [];
+    }
+    const out = new Set<string>();
+    const visit = (node: unknown): void => {
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          visit(item);
+        }
+        return;
+      }
+      if (!node || typeof node !== 'object') {
+        return;
+      }
+      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+        if (
+          ['field', 'fieldKey', 'timeField', 'groupBy'].includes(key) &&
+          typeof value === 'string' &&
+          value.trim().length > 0
+        ) {
+          out.add(value.trim());
+        } else if (
+          ['columns', 'cardFields', 'keyValueFields', 'fieldOrder', 'eventFields'].includes(
+            key,
+          ) &&
+          Array.isArray(value)
+        ) {
+          for (const entry of value) {
+            if (typeof entry === 'string' && entry.trim().length > 0) {
+              out.add(entry.trim());
+            }
+          }
+        }
+        visit(value);
+      }
+    };
+    visit(panel.layoutConfig);
+    return Array.from(out.values());
+  }
+
+  private async assertFormViewWriteSchemaConstraints(params: {
+    tenantId: number | null;
+    entityKey: string;
+    configObjectViewId: number;
+    configJson: Record<string, unknown> | null;
+  }): Promise<void> {
+    const panelKeys = this.extractDetailFormPanelKeysFromConfigJson(params.configJson);
+    if (!panelKeys.length) {
+      return;
+    }
+    const schema = await this.getObjectSchema(params.tenantId, params.entityKey);
+    if (!schema) {
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewSchemaUnavailable,
+        'Unable to resolve schema for form write-schema validation.',
+      );
+    }
+
+    const panels = await this.panelRepository.find({
+      where: {
+        configObjectViewId: params.configObjectViewId,
+        panelKey: In(panelKeys),
+      },
+    });
+    const configuredFieldKeys = new Set<string>(
+      panels.flatMap((panel) => this.extractFieldKeysFromPanelLayout(panel)),
+    );
+    const fieldRegistryByKey = new Map(
+      schema.fieldRegistry.map((field) => [field.fieldKey, field] as const),
+    );
+
+    const nonWritableFields: string[] = [];
+    for (const fieldKey of configuredFieldKeys) {
+      const descriptor = fieldRegistryByKey.get(fieldKey);
+      if (!descriptor) {
+        continue;
+      }
+      if (descriptor.canCreate === false && descriptor.canUpdate === false) {
+        nonWritableFields.push(fieldKey);
+      }
+    }
+    if (nonWritableFields.length > 0) {
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewDetailFormConfigInvalid,
+        `Form panels reference non-writable fields: ${nonWritableFields.join(', ')}`,
+      );
+    }
+
+    const requiredFields = schema.fieldRegistry
+      .filter(
+        (field) =>
+          (field.requiredOnCreate === true || field.requiredOnUpdate === true) &&
+          !(field.canCreate === false && field.canUpdate === false),
+      )
+      .map((field) => field.fieldKey);
+    const missingRequired = requiredFields.filter(
+      (fieldKey) => !configuredFieldKeys.has(fieldKey),
+    );
+    if (missingRequired.length > 0) {
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewDetailFormConfigInvalid,
+        `Form panels must include required writable fields: ${missingRequired.join(', ')}`,
+      );
+    }
+
+    const requiredInlineRelationshipKeys = (schema.relations ?? [])
+      .filter((relation) => {
+        if (!relation.queryConfig || typeof relation.queryConfig !== 'object') {
+          return false;
+        }
+        const inlineRelation = (relation.queryConfig as Record<string, unknown>)
+          .inlineRelation;
+        if (
+          !inlineRelation ||
+          typeof inlineRelation !== 'object' ||
+          Array.isArray(inlineRelation)
+        ) {
+          return false;
+        }
+        const mode = (inlineRelation as Record<string, unknown>).mode;
+        return mode === 'inline_required';
+      })
+      .map((relation) => relation.relationshipKey);
+
+    if (!requiredInlineRelationshipKeys.length) {
+      return;
+    }
+
+    const coveredRelationKeys = new Set<string>();
+    for (const panel of panels) {
+      if (panel.panelType !== 'related') {
+        continue;
+      }
+      if (panelKeys.includes(panel.panelKey)) {
+        coveredRelationKeys.add(panel.panelKey);
+      }
+      if (
+        panel.layoutConfig &&
+        typeof panel.layoutConfig === 'object' &&
+        !Array.isArray(panel.layoutConfig)
+      ) {
+        const relationKey = (panel.layoutConfig as Record<string, unknown>).relationKey;
+        if (typeof relationKey === 'string' && relationKey.trim().length > 0) {
+          coveredRelationKeys.add(relationKey.trim());
+        }
+      }
+    }
+
+    const missingInlineRequired = requiredInlineRelationshipKeys.filter(
+      (key) => !coveredRelationKeys.has(key),
+    );
+    if (missingInlineRequired.length > 0) {
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewDetailFormConfigInvalid,
+        `Form panels must include inline_required relationships: ${missingInlineRequired.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * B-3: every `panels[]` entry must match a `config_object_view_panels.panel_key` on this view.
+   */
+  private async assertPanelKeysExistForView(
+    configObjectViewId: number,
+    panelKeys: string[],
+  ): Promise<void> {
+    if (!panelKeys.length) {
+      return;
+    }
+    const rows = await this.panelRepository.find({
+      where: { configObjectViewId },
+      select: ['panelKey'],
+    });
+    const existing = new Set(rows.map((r) => r.panelKey));
+    const missing = panelKeys.filter((k) => !existing.has(k));
+    if (missing.length > 0) {
+      throw authoringRpcException(
+        AuthoringErrorCode.ViewPanelKeyUnknown,
+        `View config references unknown panel keys (no matching panel rows on this view): ${missing.join(', ')}`,
+      );
+    }
+  }
+
+  /**
+   * B-3: optional diagnostic when DB panels exist that are not listed in `config_json.panels`.
+   */
+  private async warnOrphanPanelsForDetailFormViewIfNeeded(
+    view: ConfigObjectViewEntity,
+  ): Promise<void> {
+    if (view.viewType !== 'detail' && view.viewType !== 'form') {
+      return;
+    }
+    const cfg = view.configJson;
+    if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) {
+      return;
+    }
+    const panels = cfg.panels;
+    if (!Array.isArray(panels) || panels.length === 0) {
+      return;
+    }
+    const configured = new Set(
+      panels
+        .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        .map((p) => p.trim()),
+    );
+    const rows = await this.panelRepository.find({
+      where: { configObjectViewId: view.configObjectViewId },
+      select: ['panelKey'],
+    });
+    const orphans = rows
+      .map((r) => r.panelKey)
+      .filter((key) => !configured.has(key));
+    if (orphans.length > 0) {
+      this.logger.warn(
+        `detail/form view ${view.configObjectViewId} has panel rows not referenced in config_json.panels: ${orphans.join(', ')}`,
       );
     }
   }
@@ -374,14 +813,112 @@ export class ConfigObjectsService {
     schema: ConfigObjectSchemaView,
   ): ConfigObjectRunnerSchemaView {
     const meta = runnerMetadataForBindingMode(schema.configObject.bindingMode);
+    const fieldRegistry = finalizeCoreFieldDescriptors({
+      bindingMode: schema.configObject.bindingMode,
+      objectType: schema.configObject.objectType,
+      fieldViews: schema.fields,
+    });
     const base: ConfigObjectRunnerSchemaView = {
       ...schema,
       ...meta,
+      fieldRegistry,
       fieldMergePolicy: CONFIG_OBJECT_FIELD_MERGE_POLICY,
       sorFieldDescriptors: [],
       mergedFieldOrder: [],
     };
     return this.attachMergedFieldOrder(base);
+  }
+
+  private async loadFieldViewsForConfigObjectId(
+    configObjectId: number,
+  ): Promise<ConfigObjectFieldView[]> {
+    const fields = await this.configObjectFieldRepository.find({
+      where: {
+        configObjectId,
+      },
+      order: {
+        sectionKey: 'ASC',
+        orderIndex: 'ASC',
+      },
+    });
+
+    const fieldIds = fields.map((field) => field.configObjectFieldId);
+    const rules = fieldIds.length
+      ? await this.configObjectFieldRuleRepository.find({
+          where: {
+            configObjectFieldId: In(fieldIds),
+          },
+        })
+      : [];
+
+    const rulesByFieldId = new Map<number, ConfigObjectFieldRuleEntity[]>();
+    for (const rule of rules) {
+      const list = rulesByFieldId.get(rule.configObjectFieldId) ?? [];
+      list.push(rule);
+      rulesByFieldId.set(rule.configObjectFieldId, list);
+    }
+
+    return fields.map((field) => ({
+      field,
+      rules: (rulesByFieldId.get(field.configObjectFieldId) ?? []).map(
+        (fieldRule) => ({ fieldRule }),
+      ),
+    }));
+  }
+
+  private async buildRelatedFieldRegistryByRelationKey(
+    relations: RelationDescriptor[],
+    templateSetId: number,
+  ): Promise<Record<string, CoreFieldDescriptor[]>> {
+    const out: Record<string, CoreFieldDescriptor[]> = {};
+
+    for (const rel of relations) {
+      const targetConfigObject = await this.configObjectRepository.findOne({
+        where: {
+          configTemplateSetId: templateSetId,
+          objectType: rel.toObjectType,
+        },
+      });
+      if (!targetConfigObject) {
+        out[rel.relationshipKey] = [];
+        continue;
+      }
+
+      const targetFieldViews = await this.loadFieldViewsForConfigObjectId(
+        targetConfigObject.configObjectId,
+      );
+      out[rel.relationshipKey] = finalizeCoreFieldDescriptors({
+        bindingMode: targetConfigObject.bindingMode,
+        objectType: targetConfigObject.objectType,
+        fieldViews: targetFieldViews,
+      });
+    }
+
+    return out;
+  }
+
+  private async attachRelationCatalog(
+    schema: ConfigObjectRunnerSchemaView,
+    templateSetId: number,
+  ): Promise<ConfigObjectRunnerSchemaView> {
+    const relations = await this.getMergedRelationshipCatalogForObjectType(
+      schema.configObject.objectType,
+    );
+    const relatedFieldRegistryByRelationKey =
+      await this.buildRelatedFieldRegistryByRelationKey(relations, templateSetId);
+    const relationManifestsByKey = Object.fromEntries(
+      relations.map((rel) => [
+        rel.relationshipKey,
+        rel.relationManifestJson ?? null,
+      ]),
+    );
+
+    return {
+      ...schema,
+      relations,
+      relatedFieldRegistryByRelationKey,
+      relationManifestsByKey,
+    };
   }
 
   /**
@@ -902,44 +1439,15 @@ export class ConfigObjectsService {
       return null;
     }
 
-    const fields = await this.configObjectFieldRepository.find({
-      where: {
-        configObjectId: configObject.configObjectId,
-      },
-      order: {
-        sectionKey: 'ASC',
-        orderIndex: 'ASC',
-      },
-    });
+    const fieldViews = await this.loadFieldViewsForConfigObjectId(
+      configObject.configObjectId,
+    );
 
-    const fieldIds = fields.map((field) => field.configObjectFieldId);
-
-    const rules = fieldIds.length
-      ? await this.configObjectFieldRuleRepository.find({
-          where: {
-            configObjectFieldId: In(fieldIds),
-          },
-        })
-      : [];
-
-    const rulesByFieldId = new Map<number, ConfigObjectFieldRuleEntity[]>();
-    for (const rule of rules) {
-      const list = rulesByFieldId.get(rule.configObjectFieldId) ?? [];
-      list.push(rule);
-      rulesByFieldId.set(rule.configObjectFieldId, list);
-    }
-
-    const fieldViews: ConfigObjectFieldView[] = fields.map((field) => ({
-      field,
-      rules: (rulesByFieldId.get(field.configObjectFieldId) ?? []).map(
-        (fieldRule) => ({ fieldRule }),
-      ),
-    }));
-
-    return this.enrichSchemaViewWithRunner({
+    const base = this.enrichSchemaViewWithRunner({
       configObject,
       fields: fieldViews,
     });
+    return this.attachRelationCatalog(base, templateSet.configTemplateSetId);
   }
 
   /**
@@ -1802,8 +2310,9 @@ export class ConfigObjectsService {
       label,
       description: typeof description === 'undefined' ? null : description,
       fieldType,
-      validationJson:
+      validationJson: this.applyDerivedDisplayAuthoringInValidationJson(
         typeof validationJson === 'undefined' ? null : validationJson,
+      ),
       defaultValue: typeof defaultValue === 'undefined' ? null : defaultValue,
       isRequired: typeof isRequired === 'boolean' ? isRequired : false,
       isSystem: typeof isSystem === 'boolean' ? isSystem : false,
@@ -1931,7 +2440,9 @@ export class ConfigObjectsService {
       existing.fieldType = fieldType;
     }
     if (typeof validationJson !== 'undefined') {
-      existing.validationJson = validationJson;
+      existing.validationJson = this.applyDerivedDisplayAuthoringInValidationJson(
+        validationJson,
+      );
     }
     if (typeof defaultValue !== 'undefined') {
       existing.defaultValue = defaultValue;
@@ -2041,6 +2552,363 @@ export class ConfigObjectsService {
       effectiveTenantId,
       'field',
       configObjectFieldId,
+      'delete',
+      deletedBy,
+      oldValue,
+      null,
+    );
+  }
+
+  private normalizeFieldRulesJson(
+    rulesJson: unknown,
+  ): Record<string, unknown> | null {
+    if (rulesJson === undefined) {
+      return null;
+    }
+    if (rulesJson === null) {
+      return null;
+    }
+    if (typeof rulesJson !== 'object' || Array.isArray(rulesJson)) {
+      throw new RpcException('rulesJson must be a plain object or null.');
+    }
+    return rulesJson as Record<string, unknown>;
+  }
+
+  /**
+   * Lists field-rule rows for one config field, scoped to tenant.
+   */
+  async listConfigFieldRules(params: {
+    tenantId: number | null | undefined;
+    configObjectFieldId: number;
+  }): Promise<ConfigObjectFieldRuleEntity[]> {
+    const { tenantId, configObjectFieldId } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const field = await this.configObjectFieldRepository.findOne({
+      where: { configObjectFieldId },
+    });
+    if (!field) {
+      return [];
+    }
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: { configObjectId: field.configObjectId },
+    });
+    if (!configObject) {
+      throw new RpcException('Config object not found for field.');
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+    if (!templateSet) {
+      throw new RpcException(
+        'Config field does not belong to the specified tenant.',
+      );
+    }
+
+    return this.configObjectFieldRuleRepository.find({
+      where: { configObjectFieldId },
+      order: {
+        lifecycleStateKey: 'ASC',
+        roleKey: 'ASC',
+        configObjectFieldRuleId: 'ASC',
+      },
+    });
+  }
+
+  /**
+   * Creates one field-rule row and logs the change.
+   */
+  async createConfigFieldRule(params: {
+    tenantId: number | null | undefined;
+    configObjectFieldId: number;
+    createdBy: number;
+    lifecycleStateKey?: string | null;
+    roleKey?: string | null;
+    isVisible?: boolean;
+    isReadonly?: boolean;
+    isRequired?: boolean;
+    rulesJson?: Record<string, unknown> | null;
+  }): Promise<ConfigObjectFieldRuleEntity> {
+    const {
+      tenantId,
+      configObjectFieldId,
+      createdBy,
+      lifecycleStateKey,
+      roleKey,
+      isVisible,
+      isReadonly,
+      isRequired,
+      rulesJson,
+    } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const field = await this.configObjectFieldRepository.findOne({
+      where: { configObjectFieldId },
+    });
+    if (!field) {
+      throw new RpcException('Config field not found.');
+    }
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: { configObjectId: field.configObjectId },
+    });
+    if (!configObject) {
+      throw new RpcException('Config object not found for field.');
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+    if (!templateSet) {
+      throw new RpcException(
+        'Config field does not belong to the specified tenant.',
+      );
+    }
+
+    this.assertConfigObjectAllowsDesignerFields(configObject);
+
+    const existing = await this.configObjectFieldRuleRepository.findOne({
+      where: {
+        configObjectFieldId,
+        lifecycleStateKey: lifecycleStateKey ?? IsNull(),
+        roleKey: roleKey ?? IsNull(),
+      },
+    });
+    if (existing) {
+      throw new RpcException(
+        'A field rule already exists for this field + lifecycle + role scope.',
+      );
+    }
+
+    const row = this.configObjectFieldRuleRepository.create({
+      configObjectFieldId,
+      lifecycleStateKey: lifecycleStateKey ?? null,
+      roleKey: roleKey ?? null,
+      isVisible: typeof isVisible === 'boolean' ? isVisible : true,
+      isReadonly: typeof isReadonly === 'boolean' ? isReadonly : false,
+      isRequired: typeof isRequired === 'boolean' ? isRequired : false,
+      rulesJson: this.normalizeFieldRulesJson(rulesJson),
+    });
+
+    const saved = await this.configObjectFieldRuleRepository.save(row);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'field_rule',
+      saved.configObjectFieldRuleId,
+      'create',
+      createdBy,
+      null,
+      {
+        configObjectFieldId: saved.configObjectFieldId,
+        lifecycleStateKey: saved.lifecycleStateKey ?? null,
+        roleKey: saved.roleKey ?? null,
+        isVisible: saved.isVisible,
+        isReadonly: saved.isReadonly,
+        isRequired: saved.isRequired,
+        rulesJson: saved.rulesJson ?? null,
+      },
+    );
+
+    return saved;
+  }
+
+  /**
+   * Updates one field-rule row and logs the change.
+   */
+  async updateConfigFieldRule(params: {
+    tenantId: number | null | undefined;
+    configObjectFieldRuleId: number;
+    updatedBy: number;
+    lifecycleStateKey?: string | null;
+    roleKey?: string | null;
+    isVisible?: boolean;
+    isReadonly?: boolean;
+    isRequired?: boolean;
+    rulesJson?: Record<string, unknown> | null;
+  }): Promise<ConfigObjectFieldRuleEntity> {
+    const {
+      tenantId,
+      configObjectFieldRuleId,
+      updatedBy,
+      lifecycleStateKey,
+      roleKey,
+      isVisible,
+      isReadonly,
+      isRequired,
+      rulesJson,
+    } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const existing = await this.configObjectFieldRuleRepository.findOne({
+      where: { configObjectFieldRuleId },
+    });
+    if (!existing) {
+      throw new RpcException('Config field rule not found.');
+    }
+
+    const field = await this.configObjectFieldRepository.findOne({
+      where: { configObjectFieldId: existing.configObjectFieldId },
+    });
+    if (!field) {
+      throw new RpcException('Config field not found for field rule.');
+    }
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: { configObjectId: field.configObjectId },
+    });
+    if (!configObject) {
+      throw new RpcException('Config object not found for field rule.');
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+    if (!templateSet) {
+      throw new RpcException(
+        'Config field rule does not belong to the specified tenant.',
+      );
+    }
+
+    this.assertConfigObjectAllowsDesignerFields(configObject);
+
+    const oldValue = {
+      lifecycleStateKey: existing.lifecycleStateKey ?? null,
+      roleKey: existing.roleKey ?? null,
+      isVisible: existing.isVisible,
+      isReadonly: existing.isReadonly,
+      isRequired: existing.isRequired,
+      rulesJson: existing.rulesJson ?? null,
+    };
+
+    if (typeof lifecycleStateKey !== 'undefined') {
+      existing.lifecycleStateKey = lifecycleStateKey;
+    }
+    if (typeof roleKey !== 'undefined') {
+      existing.roleKey = roleKey;
+    }
+    if (typeof isVisible === 'boolean') {
+      existing.isVisible = isVisible;
+    }
+    if (typeof isReadonly === 'boolean') {
+      existing.isReadonly = isReadonly;
+    }
+    if (typeof isRequired === 'boolean') {
+      existing.isRequired = isRequired;
+    }
+    if (typeof rulesJson !== 'undefined') {
+      existing.rulesJson = this.normalizeFieldRulesJson(rulesJson);
+    }
+
+    const duplicate = await this.configObjectFieldRuleRepository.findOne({
+      where: {
+        configObjectFieldId: existing.configObjectFieldId,
+        lifecycleStateKey: existing.lifecycleStateKey ?? IsNull(),
+        roleKey: existing.roleKey ?? IsNull(),
+      },
+    });
+    if (
+      duplicate &&
+      duplicate.configObjectFieldRuleId !== existing.configObjectFieldRuleId
+    ) {
+      throw new RpcException(
+        'A field rule already exists for this field + lifecycle + role scope.',
+      );
+    }
+
+    const saved = await this.configObjectFieldRuleRepository.save(existing);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'field_rule',
+      saved.configObjectFieldRuleId,
+      'update',
+      updatedBy,
+      oldValue,
+      {
+        lifecycleStateKey: saved.lifecycleStateKey ?? null,
+        roleKey: saved.roleKey ?? null,
+        isVisible: saved.isVisible,
+        isReadonly: saved.isReadonly,
+        isRequired: saved.isRequired,
+        rulesJson: saved.rulesJson ?? null,
+      },
+    );
+
+    return saved;
+  }
+
+  /**
+   * Deletes one field-rule row and logs the change.
+   */
+  async deleteConfigFieldRule(params: {
+    tenantId: number | null | undefined;
+    configObjectFieldRuleId: number;
+    deletedBy: number;
+  }): Promise<void> {
+    const { tenantId, configObjectFieldRuleId, deletedBy } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+
+    const existing = await this.configObjectFieldRuleRepository.findOne({
+      where: { configObjectFieldRuleId },
+    });
+    if (!existing) {
+      return;
+    }
+
+    const field = await this.configObjectFieldRepository.findOne({
+      where: { configObjectFieldId: existing.configObjectFieldId },
+    });
+    if (!field) {
+      throw new RpcException('Config field not found for field rule.');
+    }
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: { configObjectId: field.configObjectId },
+    });
+    if (!configObject) {
+      throw new RpcException('Config object not found for field rule.');
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+    if (!templateSet) {
+      throw new RpcException(
+        'Config field rule does not belong to the specified tenant.',
+      );
+    }
+
+    const oldValue = {
+      configObjectFieldId: existing.configObjectFieldId,
+      lifecycleStateKey: existing.lifecycleStateKey ?? null,
+      roleKey: existing.roleKey ?? null,
+      isVisible: existing.isVisible,
+      isReadonly: existing.isReadonly,
+      isRequired: existing.isRequired,
+      rulesJson: existing.rulesJson ?? null,
+    };
+
+    await this.configObjectFieldRuleRepository.remove(existing);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'field_rule',
+      configObjectFieldRuleId,
       'delete',
       deletedBy,
       oldValue,
@@ -2436,6 +3304,186 @@ export class ConfigObjectsService {
     };
   }
 
+  private applyDerivedDisplayAuthoringInValidationJson(
+    validationJson: Record<string, unknown> | null | undefined,
+  ): Record<string, unknown> | null {
+    if (!validationJson) {
+      return null;
+    }
+    try {
+      const next = { ...validationJson };
+      if (
+        Object.prototype.hasOwnProperty.call(next, '_six1DerivedDisplayAuthoring')
+      ) {
+        next._six1DerivedDisplayAuthoring = validateDerivedDisplayAuthoringMetadata(
+          next._six1DerivedDisplayAuthoring,
+        );
+      }
+      return next;
+    } catch (error) {
+      if (error instanceof DerivedDisplayAuthoringValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.DerivedDisplayInvalid,
+          error.message,
+        );
+      }
+      throw error;
+    }
+  }
+
+  private safeNormalizeQueryConfigForRelationship(
+    queryConfig: Record<string, unknown>,
+  ): Record<string, unknown> {
+    try {
+      return normalizeQueryConfigInlineRelation({ ...queryConfig });
+    } catch (error) {
+      mapRelationAuthoringErrorToRpc(error);
+    }
+  }
+
+  private safeNormalizeRelationManifestsJson(
+    value: unknown | null | undefined,
+  ): Record<string, unknown> | null {
+    try {
+      const normalized = validateAndNormalizeRelationManifestsByKey(value);
+      return normalized as unknown as Record<string, unknown> | null;
+    } catch (error) {
+      mapRelationAuthoringErrorToRpc(error);
+    }
+  }
+
+  private async assertRelationshipEndpointsPublishedInScope(
+    tenantId: number | null | undefined,
+    fromObjectType: string,
+    toObjectType: string,
+  ): Promise<void> {
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const templateSetWhere =
+      effectiveTenantId === null
+        ? { status: 'PUBLISHED' as const }
+        : { tenantId: effectiveTenantId, status: 'PUBLISHED' as const };
+    const templateSet = await this.templateSetRepository.findOne({
+      where: templateSetWhere,
+      order: { configTemplateSetId: 'ASC' },
+    });
+    if (!templateSet) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RelationPublishedEndpoints,
+        'No active published template set found for relationship authoring scope.',
+      );
+    }
+
+    const [from, to] = await Promise.all([
+      this.configObjectRepository.findOne({
+        where: {
+          configTemplateSetId: templateSet.configTemplateSetId,
+          objectType: fromObjectType,
+          status: 'PUBLISHED',
+        },
+      }),
+      this.configObjectRepository.findOne({
+        where: {
+          configTemplateSetId: templateSet.configTemplateSetId,
+          objectType: toObjectType,
+          status: 'PUBLISHED',
+        },
+      }),
+    ]);
+    if (!from) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RelationPublishedEndpoints,
+        `fromObjectType "${fromObjectType}" must be a PUBLISHED configurable object.`,
+      );
+    }
+    if (!to) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RelationPublishedEndpoints,
+        `toObjectType "${toObjectType}" must be a PUBLISHED configurable object.`,
+      );
+    }
+  }
+
+  private async getMergedRelationshipCatalogForObjectType(
+    objectType: string,
+  ): Promise<RelationDescriptor[]> {
+    const ormRows = generateOrmRelationDescriptorsForObjectType(objectType);
+    const designerRows = await this.relationshipRepository.find({
+      where: {
+        fromObjectType: objectType,
+        isActive: true,
+      },
+    });
+
+    const byKey = new Map<string, RelationDescriptor>();
+    for (const row of ormRows) {
+      byKey.set(row.relationshipKey, row);
+    }
+
+    for (const row of designerRows) {
+      if (byKey.has(row.relationshipKey)) {
+        throw authoringRpcException(
+          AuthoringErrorCode.RelationConfigInvalid,
+          `Duplicate relationship key "${row.relationshipKey}" exists in both orm and designer catalogs for "${objectType}".`,
+        );
+      }
+      byKey.set(row.relationshipKey, {
+        fromObjectType: row.fromObjectType,
+        toObjectType: row.toObjectType,
+        relationshipKey: row.relationshipKey,
+        displayName: row.displayName,
+        cardinality: row.cardinality,
+        relationshipSource: row.relationshipSource ?? 'designer',
+        isActive: !!row.isActive,
+        queryConfig: row.queryConfig ?? {},
+        relationManifestJson:
+          (row.relationManifestJson as Record<string, unknown> | null) ?? null,
+      });
+    }
+
+    return Array.from(byKey.values()).sort((a, b) =>
+      a.relationshipKey.localeCompare(b.relationshipKey),
+    );
+  }
+
+  /**
+   * Related-field catalog for a relationship (`toObjectType` field keys from schema).
+   */
+  async getRelatedFieldCatalogForRelationship(params: {
+    tenantId: number | null | undefined;
+    fromObjectType: string;
+    relationshipKey: string;
+  }): Promise<{
+    fromObjectType: string;
+    relationshipKey: string;
+    toObjectType: string;
+    cardinality: string;
+    relationshipSource: 'orm' | 'designer';
+    fieldKeys: string[];
+  }> {
+    const merged = await this.getMergedRelationshipCatalogForObjectType(
+      params.fromObjectType,
+    );
+    const rel =
+      merged.find((r) => r.relationshipKey === params.relationshipKey) ?? null;
+    if (!rel) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RelationCatalogNotFound,
+        'Relationship not found for catalog lookup.',
+      );
+    }
+    const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
+    const schema = await this.getObjectSchema(effectiveTenantId, rel.toObjectType);
+    const fieldKeys = schema?.fields.map((v) => v.field.fieldKey) ?? [];
+    return {
+      fromObjectType: rel.fromObjectType,
+      relationshipKey: rel.relationshipKey,
+      toObjectType: rel.toObjectType,
+      cardinality: rel.cardinality,
+      relationshipSource: rel.relationshipSource,
+      fieldKeys,
+    };
+  }
+
   /**
    * Retrieves relationship metadata where the given type is the
    * source (`from_object_type`).
@@ -2445,13 +3493,8 @@ export class ConfigObjectsService {
    */
   async getRelationshipsForObjectType(
     objectType: string,
-  ): Promise<ConfigObjectRelationshipEntity[]> {
-    return this.relationshipRepository.find({
-      where: {
-        fromObjectType: objectType,
-        isActive: true,
-      },
-    });
+  ): Promise<RelationDescriptor[]> {
+    return this.getMergedRelationshipCatalogForObjectType(objectType);
   }
 
   /**
@@ -2467,6 +3510,8 @@ export class ConfigObjectsService {
     queryConfig?: Record<string, unknown>;
     createdBy: number;
     isActive?: boolean;
+    relationshipSource?: 'orm' | 'designer';
+    relationManifestsByKey?: Record<string, unknown> | null;
   }): Promise<ConfigObjectRelationshipEntity> {
     const {
       tenantId,
@@ -2503,13 +3548,31 @@ export class ConfigObjectsService {
       );
     }
 
+    await this.assertRelationshipEndpointsPublishedInScope(
+      tenantId,
+      fromObjectType,
+      toObjectType,
+    );
+
+    const relationshipSource =
+      params.relationshipSource === 'orm' ? 'orm' : 'designer';
+    const normalizedQuery = this.safeNormalizeQueryConfigForRelationship(
+      queryConfig as Record<string, unknown>,
+    );
+    const relationManifestJson =
+      params.relationManifestsByKey !== undefined
+        ? this.safeNormalizeRelationManifestsJson(params.relationManifestsByKey)
+        : null;
+
     const rel = this.relationshipRepository.create({
       fromObjectType,
       toObjectType,
       relationshipKey,
+      relationshipSource,
       displayName,
       cardinality,
-      queryConfig,
+      queryConfig: normalizedQuery,
+      relationManifestJson,
       isActive: typeof isActive === 'boolean' ? isActive : true,
     });
 
@@ -2526,9 +3589,11 @@ export class ConfigObjectsService {
         fromObjectType: saved.fromObjectType,
         toObjectType: saved.toObjectType,
         relationshipKey: saved.relationshipKey,
+        relationshipSource: saved.relationshipSource,
         displayName: saved.displayName,
         cardinality: saved.cardinality,
         queryConfig: saved.queryConfig,
+        relationManifestJson: saved.relationManifestJson ?? null,
         isActive: saved.isActive,
       },
     );
@@ -2547,6 +3612,8 @@ export class ConfigObjectsService {
     cardinality?: 'one_to_many' | 'many_to_one' | 'many_to_many';
     queryConfig?: Record<string, unknown>;
     isActive?: boolean;
+    relationshipSource?: 'orm' | 'designer';
+    relationManifestsByKey?: Record<string, unknown> | null;
   }): Promise<ConfigObjectRelationshipEntity> {
     const {
       tenantId,
@@ -2566,11 +3633,19 @@ export class ConfigObjectsService {
       throw new RpcException('Config relationship not found.');
     }
 
+    await this.assertRelationshipEndpointsPublishedInScope(
+      tenantId,
+      rel.fromObjectType,
+      rel.toObjectType,
+    );
+
     const oldValue = {
       displayName: rel.displayName,
       cardinality: rel.cardinality,
       queryConfig: rel.queryConfig,
       isActive: rel.isActive,
+      relationshipSource: rel.relationshipSource,
+      relationManifestJson: rel.relationManifestJson ?? null,
     };
 
     if (typeof displayName === 'string') {
@@ -2580,7 +3655,22 @@ export class ConfigObjectsService {
       rel.cardinality = cardinality;
     }
     if (typeof queryConfig !== 'undefined') {
-      rel.queryConfig = queryConfig;
+      const base =
+        queryConfig !== null &&
+        typeof queryConfig === 'object' &&
+        !Array.isArray(queryConfig)
+          ? (queryConfig as Record<string, unknown>)
+          : {};
+      rel.queryConfig = this.safeNormalizeQueryConfigForRelationship(base);
+    }
+    if (typeof params.relationshipSource === 'string') {
+      rel.relationshipSource =
+        params.relationshipSource === 'orm' ? 'orm' : 'designer';
+    }
+    if (params.relationManifestsByKey !== undefined) {
+      rel.relationManifestJson = this.safeNormalizeRelationManifestsJson(
+        params.relationManifestsByKey,
+      ) as unknown as Record<string, unknown> | null;
     }
     if (typeof isActive === 'boolean') {
       rel.isActive = isActive;
@@ -2600,6 +3690,8 @@ export class ConfigObjectsService {
         cardinality: saved.cardinality,
         queryConfig: saved.queryConfig,
         isActive: saved.isActive,
+        relationshipSource: saved.relationshipSource,
+        relationManifestJson: saved.relationManifestJson ?? null,
       },
     );
 
@@ -2624,6 +3716,12 @@ export class ConfigObjectsService {
       return;
     }
 
+    await this.assertRelationshipEndpointsPublishedInScope(
+      tenantId,
+      rel.fromObjectType,
+      rel.toObjectType,
+    );
+
     const oldValue = {
       fromObjectType: rel.fromObjectType,
       toObjectType: rel.toObjectType,
@@ -2632,6 +3730,8 @@ export class ConfigObjectsService {
       cardinality: rel.cardinality,
       queryConfig: rel.queryConfig,
       isActive: rel.isActive,
+      relationshipSource: rel.relationshipSource,
+      relationManifestJson: rel.relationManifestJson ?? null,
     };
 
     await this.relationshipRepository.remove(rel);
@@ -2994,7 +4094,7 @@ export class ConfigObjectsService {
     objectType: string;
     createdBy: number;
     viewKey: string;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
     name: string;
     description?: string | null;
     roleKey?: string | null;
@@ -3283,7 +4383,7 @@ export class ConfigObjectsService {
 
   private async deactivateViewsInScope(params: {
     configObjectId: number;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
     tenantId: number | null;
     exceptConfigObjectViewId?: number;
   }): Promise<void> {
@@ -3317,7 +4417,7 @@ export class ConfigObjectsService {
   async getActiveScopedConfigView(params: {
     tenantId: number | null | undefined;
     entityKey: string;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
   }): Promise<ConfigObjectViewEntity | null> {
     const { tenantId, entityKey, viewType } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
@@ -3416,7 +4516,7 @@ export class ConfigObjectsService {
   async upsertScopedConfigView(params: {
     tenantId: number | null | undefined;
     entityKey: string;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
     updatedBy: number;
     configObjectViewId?: number;
     viewKey?: string;
@@ -3484,14 +4584,51 @@ export class ConfigObjectsService {
         : `${entityKey} ${viewType} view`;
 
     if (existing) {
-      const nextConfigJson =
+      let nextConfigJson: Record<string, unknown> | null =
         typeof configJson === 'undefined' ? existing.configJson : configJson;
+      if (
+        nextConfigJson !== null &&
+        typeof nextConfigJson === 'object' &&
+        !Array.isArray(nextConfigJson)
+      ) {
+        this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(nextConfigJson);
+      }
+      if (
+        viewType === 'list' &&
+        nextConfigJson !== null &&
+        typeof nextConfigJson === 'object' &&
+        !Array.isArray(nextConfigJson)
+      ) {
+        nextConfigJson = this.normalizeListViewConfigJsonOrThrow(nextConfigJson);
+      }
+      if (
+        (viewType === 'detail' || viewType === 'form') &&
+        nextConfigJson !== null &&
+        typeof nextConfigJson === 'object' &&
+        !Array.isArray(nextConfigJson)
+      ) {
+        nextConfigJson = this.normalizeDetailFormViewConfigJsonOrThrow(nextConfigJson);
+      }
       await this.assertScopedViewConfigFieldKeysExist({
         tenantId: effectiveTenantId,
         entityKey,
         configJson: nextConfigJson,
         bindingMode: configObject.bindingMode,
       });
+      if (viewType === 'detail' || viewType === 'form') {
+        await this.assertPanelKeysExistForView(
+          existing.configObjectViewId,
+          this.extractDetailFormPanelKeysFromConfigJson(nextConfigJson),
+        );
+        if (viewType === 'form') {
+          await this.assertFormViewWriteSchemaConstraints({
+            tenantId: effectiveTenantId,
+            entityKey,
+            configObjectViewId: existing.configObjectViewId,
+            configJson: nextConfigJson,
+          });
+        }
+      }
 
       const oldValue = {
         viewKey: existing.viewKey,
@@ -3544,13 +4681,41 @@ export class ConfigObjectsService {
         },
       );
 
+      await this.warnOrphanPanelsForDetailFormViewIfNeeded(saved);
+
       return saved;
+    }
+
+    let finalConfigJson: Record<string, unknown> | null =
+      typeof configJson === 'undefined' ? null : configJson;
+    if (
+      finalConfigJson !== null &&
+      typeof finalConfigJson === 'object' &&
+      !Array.isArray(finalConfigJson)
+    ) {
+      this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(finalConfigJson);
+    }
+    if (
+      viewType === 'list' &&
+      finalConfigJson !== null &&
+      typeof finalConfigJson === 'object' &&
+      !Array.isArray(finalConfigJson)
+    ) {
+      finalConfigJson = this.normalizeListViewConfigJsonOrThrow(finalConfigJson);
+    }
+    if (
+      (viewType === 'detail' || viewType === 'form') &&
+      finalConfigJson !== null &&
+      typeof finalConfigJson === 'object' &&
+      !Array.isArray(finalConfigJson)
+    ) {
+      finalConfigJson = this.normalizeDetailFormViewConfigJsonOrThrow(finalConfigJson);
     }
 
     await this.assertScopedViewConfigFieldKeysExist({
       tenantId: effectiveTenantId,
       entityKey,
-      configJson: typeof configJson === 'undefined' ? null : configJson,
+      configJson: finalConfigJson,
       bindingMode: configObject.bindingMode,
     });
 
@@ -3572,12 +4737,32 @@ export class ConfigObjectsService {
       isDefault: typeof isDefault === 'boolean' ? isDefault : false,
       isActive: shouldActivate,
       tenantId: effectiveTenantId,
-      configJson: typeof configJson === 'undefined' ? null : configJson,
+      configJson: finalConfigJson,
       createdBy: updatedBy,
       updatedBy,
     });
 
     const saved = await this.viewRepository.save(created);
+
+    try {
+      if (viewType === 'detail' || viewType === 'form') {
+        await this.assertPanelKeysExistForView(
+          saved.configObjectViewId,
+          this.extractDetailFormPanelKeysFromConfigJson(saved.configJson),
+        );
+        if (viewType === 'form') {
+          await this.assertFormViewWriteSchemaConstraints({
+            tenantId: effectiveTenantId,
+            entityKey,
+            configObjectViewId: saved.configObjectViewId,
+            configJson: saved.configJson,
+          });
+        }
+      }
+    } catch (error) {
+      await this.viewRepository.remove(saved);
+      throw error;
+    }
 
     await this.logConfigChange(
       effectiveTenantId,
@@ -3597,6 +4782,8 @@ export class ConfigObjectsService {
       },
     );
 
+    await this.warnOrphanPanelsForDetailFormViewIfNeeded(saved);
+
     return saved;
   }
 
@@ -3606,7 +4793,7 @@ export class ConfigObjectsService {
   async activateScopedConfigView(params: {
     tenantId: number | null | undefined;
     entityKey: string;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
     configObjectViewId: number;
     updatedBy: number;
   }): Promise<ConfigObjectViewEntity> {
@@ -3632,7 +4819,8 @@ export class ConfigObjectsService {
 
     const targetTenant = target.tenantId ?? null;
     if (targetTenant !== effectiveTenantId) {
-      throw new RpcException(
+      throw authoringRpcException(
+        AuthoringErrorCode.ScopeTenantMismatch,
         'Scoped config view does not match the requested tenant scope.',
       );
     }
@@ -3667,7 +4855,7 @@ export class ConfigObjectsService {
   async deactivateScopedConfigView(params: {
     tenantId: number | null | undefined;
     entityKey: string;
-    viewType: 'list' | 'board' | 'detail';
+    viewType: ConfigObjectViewType;
     configObjectViewId?: number;
     updatedBy: number;
   }): Promise<{ deactivated: number }> {
@@ -3694,7 +4882,8 @@ export class ConfigObjectsService {
 
       const targetTenant = target.tenantId ?? null;
       if (targetTenant !== effectiveTenantId) {
-        throw new RpcException(
+        throw authoringRpcException(
+          AuthoringErrorCode.ScopeTenantMismatch,
           'Scoped config view does not match the requested tenant scope.',
         );
       }
@@ -3861,12 +5050,23 @@ export class ConfigObjectsService {
       );
     }
 
+    let finalLayoutConfig: Record<string, unknown> | null =
+      typeof layoutConfig === 'undefined' ? null : layoutConfig;
+    if (
+      finalLayoutConfig !== null &&
+      typeof finalLayoutConfig === 'object' &&
+      !Array.isArray(finalLayoutConfig)
+    ) {
+      finalLayoutConfig = this.normalizePanelLayoutConfigOrThrow(finalLayoutConfig);
+    }
+    this.assertRelationMembershipPanelLayoutOrThrow(panelType, finalLayoutConfig);
+
     const panel = this.panelRepository.create({
       configObjectViewId,
       panelKey,
       title,
       panelType,
-      layoutConfig: typeof layoutConfig === 'undefined' ? null : layoutConfig,
+      layoutConfig: finalLayoutConfig,
       orderIndex: typeof orderIndex === 'number' ? orderIndex : 0,
     });
 
@@ -3973,7 +5173,19 @@ export class ConfigObjectsService {
       existing.panelType = panelType;
     }
     if (typeof layoutConfig !== 'undefined') {
-      existing.layoutConfig = layoutConfig;
+      let nextLayoutConfig: Record<string, unknown> | null = layoutConfig;
+      if (
+        nextLayoutConfig !== null &&
+        typeof nextLayoutConfig === 'object' &&
+        !Array.isArray(nextLayoutConfig)
+      ) {
+        nextLayoutConfig = this.normalizePanelLayoutConfigOrThrow(nextLayoutConfig);
+      }
+      this.assertRelationMembershipPanelLayoutOrThrow(
+        typeof panelType === 'string' ? panelType : existing.panelType,
+        nextLayoutConfig,
+      );
+      existing.layoutConfig = nextLayoutConfig;
     }
     if (typeof orderIndex === 'number') {
       existing.orderIndex = orderIndex;

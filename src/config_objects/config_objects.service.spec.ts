@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { AuthoringErrorCode } from './constants/authoring-error-codes';
 import { DataSource, Repository } from 'typeorm';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
@@ -36,6 +37,7 @@ describe('ConfigObjectsService', () => {
   let lifecycleRepo: Repository<ConfigObjectLifecycleEntity>;
   let relationshipRepo: Repository<ConfigObjectRelationshipEntity>;
   let viewRepo: Repository<ConfigObjectViewEntity>;
+  let panelRepo: Repository<ConfigObjectViewPanelEntity>;
   let auditLogRepo: Repository<ConfigAuditLogEntity>;
 
   beforeEach(async () => {
@@ -147,7 +149,13 @@ describe('ConfigObjectsService', () => {
       getRepositoryToken(ConfigObjectRelationshipEntity),
     );
     viewRepo = module.get(getRepositoryToken(ConfigObjectViewEntity));
+    panelRepo = module.get(getRepositoryToken(ConfigObjectViewPanelEntity));
     auditLogRepo = module.get(getRepositoryToken(ConfigAuditLogEntity));
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue(null as any);
+    jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValue([]);
   });
 
   it('should be defined', () => {
@@ -204,6 +212,8 @@ describe('ConfigObjectsService', () => {
       {
         configObjectFieldId: 1,
         fieldKey: 'project_type',
+        label: 'Project Type',
+        fieldType: 'text',
         orderIndex: 0,
         sectionKey: null,
         defaultValue: 'customer',
@@ -213,6 +223,7 @@ describe('ConfigObjectsService', () => {
     jest
       .spyOn(fieldRuleRepo, 'find')
       .mockResolvedValueOnce([{ configObjectFieldId: 1 } as any]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
 
     const schema = await service.getObjectSchema(1, 'project');
 
@@ -230,13 +241,25 @@ describe('ConfigObjectsService', () => {
     expect(schema?.mergedFieldOrder.some((e) => e.source === 'custom')).toBe(
       true,
     );
+    expect(schema?.fieldRegistry.some((field) => field.fieldKey === 'projectId')).toBe(
+      true,
+    );
+    expect(
+      schema?.fieldRegistry.some((field) => field.fieldKey === 'project_type'),
+    ).toBe(true);
     // Keep v0.1_get_config_schema baseline stable and avoid leaking runtime-manifest keys.
     expect(schema).toHaveProperty('configObject');
     expect(schema).toHaveProperty('fields');
     expect(schema).not.toHaveProperty('list');
     expect(schema).not.toHaveProperty('detail');
     expect(schema).not.toHaveProperty('form');
-    expect(schema).not.toHaveProperty('fieldRegistry');
+    expect(schema).toHaveProperty('fieldRegistry');
+    expect(Array.isArray(schema?.relations)).toBe(true);
+    expect(schema?.relations?.some((r) => r.relationshipKey === 'project_tasks')).toBe(
+      true,
+    );
+    expect(schema?.relatedFieldRegistryByRelationKey).toBeDefined();
+    expect(schema?.relationManifestsByKey).toBeDefined();
   });
 
   it('getObjectSchema should include system_entity runner hints for system_table', async () => {
@@ -256,6 +279,7 @@ describe('ConfigObjectsService', () => {
     } as any);
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
 
     const schema = await service.getObjectSchema(1, 'tenant_teams');
 
@@ -264,8 +288,86 @@ describe('ConfigObjectsService', () => {
     expect(schema?.supportsCustomFields).toBe(false);
     expect(schema?.resolveInstanceWith).toBe('none');
     expect(schema?.fieldSchemaSource).toBe('external_dto');
+    expect(schema?.fieldRegistry.length).toBeGreaterThan(0);
+    expect(schema?.fieldRegistry.some((field) => field.fieldKey === 'tenantTeamId')).toBe(
+      true,
+    );
     expect(schema?.sorFieldDescriptors).toEqual([]);
     expect(schema?.mergedFieldOrder).toEqual([]);
+    expect(schema?.relations?.some((rel) => rel.relationshipKey === 'tenant_teams_projects')).toBe(
+      true,
+    );
+  });
+
+  it('getObjectSchema should include merged relation catalogs and related field registries', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockImplementation(async (opts: any) => {
+      const w = opts?.where ?? {};
+      if (w.objectType === 'role') {
+        return {
+          configObjectId: 301,
+          configTemplateSetId: 10,
+          objectType: 'role',
+          bindingMode: 'system_table',
+          status: 'PUBLISHED',
+        } as any;
+      }
+      if (w.objectType === 'permissions') {
+        return {
+          configObjectId: 302,
+          configTemplateSetId: 10,
+          objectType: 'permissions',
+          bindingMode: 'system_table',
+          status: 'PUBLISHED',
+        } as any;
+      }
+      if (w.objectType === 'role_descriptions') {
+        return {
+          configObjectId: 303,
+          configTemplateSetId: 10,
+          objectType: 'role_descriptions',
+          bindingMode: 'system_table',
+          status: 'PUBLISHED',
+        } as any;
+      }
+      return null as any;
+    });
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
+      {
+        fromObjectType: 'role',
+        toObjectType: 'custom_checklist',
+        relationshipKey: 'role_custom_checklist',
+        displayName: 'Role custom checklist',
+        cardinality: 'one_to_many',
+        relationshipSource: 'designer',
+        isActive: true,
+        queryConfig: {},
+        relationManifestJson: { actionRef: 'assignChecklist' },
+      } as any,
+    ]);
+
+    const schema = await service.getObjectSchema(1, 'role');
+
+    expect(schema?.relations?.some((r) => r.relationshipKey === 'role_permissions')).toBe(true);
+    expect(schema?.relations?.some((r) => r.relationshipKey === 'role_descriptions')).toBe(true);
+    expect(schema?.relations?.some((r) => r.relationshipKey === 'role_custom_checklist')).toBe(true);
+    expect(
+      schema?.relatedFieldRegistryByRelationKey?.role_permissions?.some(
+        (f) => f.fieldKey === 'permission_id',
+      ),
+    ).toBe(true);
+    expect(schema?.fieldRegistry.some((f) => f.fieldKey === 'roleId')).toBe(true);
+    expect(schema?.relationManifestsByKey?.role_custom_checklist).toEqual({
+      actionRef: 'assignChecklist',
+    });
   });
 
   it('applySorBoundInstancePatch should merge core and meta in one transaction for project', async () => {
@@ -287,6 +389,8 @@ describe('ConfigObjectsService', () => {
       {
         configObjectFieldId: 1,
         fieldKey: 'dyn1',
+        label: 'Dyn 1',
+        fieldType: 'text',
         orderIndex: 0,
         sectionKey: null,
       } as any,
@@ -348,19 +452,50 @@ describe('ConfigObjectsService', () => {
     expect(lifecycles[0].stateKey).toBe('active');
   });
 
-  it('getRelationshipsForObjectType should return relationships when configured', async () => {
+  it('getRelationshipsForObjectType should return merged orm+designer relationships', async () => {
     jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
-      { relationshipKey: 'project_tasks' } as any,
+      {
+        fromObjectType: 'project',
+        toObjectType: 'custom_checklist',
+        relationshipKey: 'project_custom_checklist',
+        displayName: 'Project custom checklist',
+        cardinality: 'one_to_many',
+        relationshipSource: 'designer',
+        isActive: true,
+        queryConfig: {},
+      } as any,
     ]);
 
-    const relationships =
-      await service.getRelationshipsForObjectType('project');
+    const relationships = await service.getRelationshipsForObjectType('project');
 
-    expect(relationships).toHaveLength(1);
-    expect(relationships[0].relationshipKey).toBe('project_tasks');
+    expect(
+      relationships.some((r) => r.relationshipKey === 'project_custom_checklist'),
+    ).toBe(true);
+    expect(
+      relationships.some(
+        (r) => r.relationshipSource === 'orm' && r.fromObjectType === 'project',
+      ),
+    ).toBe(true);
   });
 
   it('createConfigRelationship defaults displayName to relationshipKey and queryConfig to {} when omitted', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+    jest
+      .spyOn(configObjectRepo, 'findOne')
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'role',
+        status: 'PUBLISHED',
+      } as any)
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'permission',
+        status: 'PUBLISHED',
+      } as any);
     jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce(null);
     jest
       .spyOn(relationshipRepo, 'create')
@@ -388,8 +523,10 @@ describe('ConfigObjectsService', () => {
         fromObjectType: 'role',
         toObjectType: 'permission',
         relationshipKey: 'role_permission',
+        relationshipSource: 'designer',
         displayName: 'role_permission',
         queryConfig: {},
+        relationManifestJson: null,
         cardinality: 'one_to_many',
         isActive: true,
       }),
@@ -403,6 +540,23 @@ describe('ConfigObjectsService', () => {
   });
 
   it('createConfigRelationship keeps explicit displayName and queryConfig when provided', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+    jest
+      .spyOn(configObjectRepo, 'findOne')
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'role',
+        status: 'PUBLISHED',
+      } as any)
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'permission',
+        status: 'PUBLISHED',
+      } as any);
     jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce(null);
     jest
       .spyOn(relationshipRepo, 'create')
@@ -431,7 +585,139 @@ describe('ConfigObjectsService', () => {
       expect.objectContaining({
         displayName: 'Role permissions',
         queryConfig,
+        relationshipSource: 'designer',
+        relationManifestJson: null,
       }),
+    );
+  });
+
+  it('createConfigRelationship should reject unpublished toObjectType (B-4)', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+    jest
+      .spyOn(configObjectRepo, 'findOne')
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'role',
+        status: 'PUBLISHED',
+      } as any)
+      .mockResolvedValueOnce(null as any);
+    jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce(null);
+
+    try {
+      await service.createConfigRelationship({
+        tenantId: 1,
+        fromObjectType: 'role',
+        toObjectType: 'ghost_type',
+        relationshipKey: 'r1',
+        cardinality: 'one_to_many',
+        createdBy: 1,
+      });
+      fail('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect((e as RpcException).getError()).toMatchObject({
+        code: AuthoringErrorCode.RelationPublishedEndpoints,
+      });
+    }
+  });
+
+  it('updateConfigRelationship should reject relationship outside tenant scope', async () => {
+    jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce({
+      configObjectRelationshipId: 77,
+      fromObjectType: 'role',
+      toObjectType: 'permission',
+      relationshipKey: 'role_permission',
+      displayName: 'Role permission',
+      cardinality: 'one_to_many',
+      queryConfig: {},
+      isActive: true,
+      relationshipSource: 'designer',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.updateConfigRelationship({
+        tenantId: 1,
+        configObjectRelationshipId: 77,
+        updatedBy: 10,
+        displayName: 'x',
+      }),
+    ).rejects.toThrow('No active published template set found');
+  });
+
+  it('deleteConfigRelationship should reject relationship outside tenant scope', async () => {
+    jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce({
+      configObjectRelationshipId: 78,
+      fromObjectType: 'role',
+      toObjectType: 'permission',
+      relationshipKey: 'role_permission',
+      displayName: 'Role permission',
+      cardinality: 'one_to_many',
+      queryConfig: {},
+      isActive: true,
+      relationshipSource: 'designer',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.deleteConfigRelationship({
+        tenantId: 1,
+        configObjectRelationshipId: 78,
+        deletedBy: 10,
+      }),
+    ).rejects.toThrow('No active published template set found');
+  });
+
+  it('getRelatedFieldCatalogForRelationship should return field keys from target schema', async () => {
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
+      {
+      fromObjectType: 'role',
+      relationshipKey: 'role_perms',
+      toObjectType: 'permission',
+      cardinality: 'many_to_many',
+      relationshipSource: 'designer',
+      isActive: true,
+      queryConfig: {},
+    } as any,
+    ]);
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      fields: [
+        { field: { fieldKey: 'name' } },
+        { field: { fieldKey: 'code' } },
+      ],
+    } as any);
+
+    const out = await service.getRelatedFieldCatalogForRelationship({
+      tenantId: 1,
+      fromObjectType: 'role',
+      relationshipKey: 'role_perms',
+    });
+
+    expect(out.toObjectType).toBe('permission');
+    expect(out.fieldKeys).toEqual(['name', 'code']);
+    expect(out.relationshipSource).toBe('designer');
+  });
+
+  it('getRelationshipsForObjectType should reject duplicate orm and designer relation keys', async () => {
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
+      {
+        fromObjectType: 'role',
+        toObjectType: 'permission',
+        relationshipKey: 'role_permissions',
+        displayName: 'Role permissions',
+        cardinality: 'many_to_many',
+        relationshipSource: 'designer',
+        isActive: true,
+        queryConfig: {},
+      } as any,
+    ]);
+
+    await expect(service.getRelationshipsForObjectType('role')).rejects.toThrow(
+      /Duplicate relationship key/,
     );
   });
 
@@ -556,6 +842,98 @@ describe('ConfigObjectsService', () => {
     expect(fields).toEqual([]);
   });
 
+  it('listConfigFieldRules should return rules for a tenant-owned field', async () => {
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValueOnce({
+      configObjectFieldId: 11,
+      configObjectId: 10,
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([
+      {
+        configObjectFieldRuleId: 21,
+        configObjectFieldId: 11,
+        isVisible: true,
+      } as any,
+    ]);
+
+    const rules = await service.listConfigFieldRules({
+      tenantId: 1,
+      configObjectFieldId: 11,
+    });
+
+    expect(rules).toHaveLength(1);
+    expect(rules[0].configObjectFieldRuleId).toBe(21);
+  });
+
+  it('createConfigFieldRule should create a row for tenant-owned sor_bound field', async () => {
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValueOnce({
+      configObjectFieldId: 11,
+      configObjectId: 10,
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(fieldRuleRepo, 'findOne').mockResolvedValueOnce(null as any);
+    jest.spyOn(fieldRuleRepo, 'create').mockImplementation((v: any) => v);
+    jest.spyOn(fieldRuleRepo, 'save').mockImplementation(async (v: any) => ({
+      configObjectFieldRuleId: 31,
+      ...v,
+    }));
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((v: any) => v as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const saved = await service.createConfigFieldRule({
+      tenantId: 1,
+      configObjectFieldId: 11,
+      createdBy: 9,
+      lifecycleStateKey: 'open',
+      roleKey: 'manager',
+      isVisible: true,
+      isReadonly: false,
+      isRequired: true,
+      rulesJson: { maxLength: 20 },
+    });
+
+    expect(saved.configObjectFieldRuleId).toBe(31);
+    expect(saved.roleKey).toBe('manager');
+    expect(saved.isRequired).toBe(true);
+  });
+
+  it('createConfigFieldRule should reject fields outside tenant scope', async () => {
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValueOnce({
+      configObjectFieldId: 11,
+      configObjectId: 10,
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.createConfigFieldRule({
+        tenantId: 1,
+        configObjectFieldId: 11,
+        createdBy: 9,
+      }),
+    ).rejects.toThrow('Config field does not belong to the specified tenant.');
+  });
+
   it('getActiveScopedConfigView should fallback to global active view when tenant-scoped view does not exist', async () => {
     jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
       configObjectId: 100,
@@ -645,12 +1023,43 @@ describe('ConfigObjectsService', () => {
         updatedBy: 10,
         isActive: false,
         configJson: {
-          list: {
+          schemaVersion: 1,
+          table: {
             columns: ['unknownField'],
           },
         },
       }),
     ).rejects.toThrow('Scoped view config contains unknown field keys');
+  });
+
+  it('upsertScopedConfigView should reject invalid list view config_json before field-key checks', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'list',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          notAllowed: true,
+        } as Record<string, unknown>,
+      }),
+    ).rejects.toThrow('Unknown top-level key');
   });
 
   it('upsertScopedConfigView should skip field-key validation for system_table binding mode', async () => {
@@ -685,7 +1094,8 @@ describe('ConfigObjectsService', () => {
       updatedBy: 55,
       isActive: false,
       configJson: {
-        list: { columns: ['external_openapi_field'] },
+        schemaVersion: 1,
+        table: { columns: ['external_openapi_field'] },
       },
     });
 
@@ -696,6 +1106,526 @@ describe('ConfigObjectsService', () => {
         viewType: 'list',
       }),
     );
+  });
+
+  it('upsertScopedConfigView should reject inline fieldDefinitions before detail schema (B-1)', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 900,
+      configObjectId: 102,
+      viewType: 'detail',
+      tenantId: 1,
+      isActive: false,
+      viewKey: 'project_detail_1',
+      name: 'Detail',
+      description: null,
+      roleKey: null,
+      isDefault: false,
+      configJson: { schemaVersion: 1, panels: [] },
+    } as any);
+
+    await expect(
+      service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'detail',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          panels: [],
+          fieldDefinitions: [{ fieldKey: 'ghost' }],
+        } as Record<string, unknown>,
+      }),
+    ).rejects.toThrow(/fieldDefinitions/);
+  });
+
+  it('upsertScopedConfigView should reject unknown panel keys for detail views (B-3)', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 900,
+      configObjectId: 102,
+      viewType: 'detail',
+      tenantId: 1,
+      isActive: false,
+      viewKey: 'project_detail_1',
+      name: 'Detail',
+      description: null,
+      roleKey: null,
+      isDefault: false,
+      configJson: { schemaVersion: 1, panels: [] },
+    } as any);
+
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { configObjectId: 102 } as any,
+      fields: [],
+    } as any);
+
+    jest.spyOn(panelRepo, 'find').mockResolvedValue([
+      { panelKey: 'header' },
+    ] as any);
+
+    jest.spyOn(viewRepo, 'save').mockImplementation(async (e) => e as any);
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    try {
+      await service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'detail',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          panels: ['missing_panel'],
+        },
+      });
+      fail('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect((e as RpcException).getError()).toMatchObject({
+        code: AuthoringErrorCode.ViewPanelKeyUnknown,
+      });
+    }
+  });
+
+  it('upsertScopedConfigView should reject non-writable fields in form panel layouts', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 901,
+      configObjectId: 102,
+      viewType: 'form',
+      tenantId: 1,
+      isActive: false,
+      viewKey: 'project_form_1',
+      name: 'Form',
+      configJson: { schemaVersion: 1, panels: ['main_section'] },
+    } as any);
+
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValue({
+      configObject: { configObjectId: 102 } as any,
+      fields: [{ field: { fieldKey: 'readonlyField' } } as any],
+      fieldRegistry: [
+        {
+          fieldKey: 'readonlyField',
+          label: 'Readonly Field',
+          fieldType: 'text',
+          orderIndex: 10,
+          canCreate: false,
+          canUpdate: false,
+        },
+      ],
+      relations: [],
+    } as any);
+
+    jest
+      .spyOn(panelRepo, 'find')
+      .mockResolvedValueOnce([{ panelKey: 'main_section' }] as any)
+      .mockResolvedValueOnce([
+        {
+          panelKey: 'main_section',
+          panelType: 'section',
+          layoutConfig: {
+            schemaVersion: 1,
+            displayMode: 'form-section',
+            layout: { fieldOrder: ['readonlyField'] },
+          },
+        },
+      ] as any);
+
+    await expect(
+      service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'form',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          panels: ['main_section'],
+        },
+      }),
+    ).rejects.toThrow('Form panels reference non-writable fields');
+  });
+
+  it('upsertScopedConfigView should reject missing inline_required relation panels in form', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 902,
+      configObjectId: 102,
+      viewType: 'form',
+      tenantId: 1,
+      isActive: false,
+      viewKey: 'project_form_2',
+      name: 'Form',
+      configJson: { schemaVersion: 1, panels: ['main_section'] },
+    } as any);
+
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValue({
+      configObject: { configObjectId: 102 } as any,
+      fields: [{ field: { fieldKey: 'name' } } as any],
+      fieldRegistry: [
+        {
+          fieldKey: 'name',
+          label: 'Name',
+          fieldType: 'text',
+          orderIndex: 10,
+          canCreate: true,
+          canUpdate: true,
+          requiredOnCreate: true,
+        },
+      ],
+      relations: [
+        {
+          relationshipKey: 'project_role_descriptions',
+          queryConfig: {
+            inlineRelation: {
+              mode: 'inline_required',
+            },
+          },
+        },
+      ],
+    } as any);
+
+    jest
+      .spyOn(panelRepo, 'find')
+      .mockResolvedValueOnce([{ panelKey: 'main_section' }] as any)
+      .mockResolvedValueOnce([
+        {
+          panelKey: 'main_section',
+          panelType: 'section',
+          layoutConfig: {
+            schemaVersion: 1,
+            displayMode: 'form-section',
+            layout: { fieldOrder: ['name'] },
+          },
+        },
+      ] as any);
+
+    await expect(
+      service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'form',
+        updatedBy: 10,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          panels: ['main_section'],
+        },
+      }),
+    ).rejects.toThrow('Form panels must include inline_required relationships');
+  });
+
+  it('createConfigViewPanel should reject related panel without relation membership keys', async () => {
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 8802,
+      configObjectId: 102,
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(panelRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.createConfigViewPanel({
+        tenantId: 1,
+        configObjectViewId: 8802,
+        createdBy: 1,
+        panelKey: 'related_roles',
+        title: 'Related Roles',
+        panelType: 'related',
+        layoutConfig: {
+          schemaVersion: 1,
+          displayMode: 'table',
+        layout: { columns: ['name'] },
+          actions: { assignRef: 'x' },
+        },
+      }),
+    ).rejects.toThrow('layout.relationKey');
+  });
+
+  it('createConfigViewPanel should accept valid related relation-membership panel', async () => {
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+      configObjectViewId: 8802,
+      configObjectId: 102,
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(panelRepo, 'findOne').mockResolvedValueOnce(null as any);
+    jest.spyOn(panelRepo, 'create').mockImplementation((dto) => dto as any);
+    jest.spyOn(panelRepo, 'save').mockImplementation(async (row: any) => ({
+      configObjectViewPanelId: 7733,
+      ...row,
+    }));
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const out = await service.createConfigViewPanel({
+      tenantId: 1,
+      configObjectViewId: 8802,
+      createdBy: 1,
+      panelKey: 'related_roles',
+      title: 'Related Roles',
+      panelType: 'related',
+      layoutConfig: {
+        schemaVersion: 1,
+        displayMode: 'table',
+        layout: {
+          columns: ['name'],
+          relationKey: 'project_roles',
+          targetEntityKey: 'roles',
+          selectionControl: 'checkbox',
+        },
+        actions: {
+          assignRef: 'six1:action:project.roles.assign',
+          unassignRef: 'six1:action:project.roles.unassign',
+        },
+      },
+    });
+
+    expect(out.configObjectViewPanelId).toBe(7733);
+    expect(out.panelType).toBe('related');
+  });
+
+  describe('C-4 authoring vertical slice (sequential service calls, mocked repos)', () => {
+    const projectCo = {
+      configObjectId: 102,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+    } as any;
+
+    const templateRow = {
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any;
+
+    it('chains field → list view → detail view + panel → relationship without throwing', async () => {
+      jest.spyOn(configObjectRepo, 'findOne').mockImplementation(async (opts: any) => {
+        const w = opts?.where ?? {};
+        if (w.objectType === 'role' && w.status === 'PUBLISHED') {
+          return { objectType: 'role', status: 'PUBLISHED' } as any;
+        }
+        if (w.objectType === 'permission' && w.status === 'PUBLISHED') {
+          return { objectType: 'permission', status: 'PUBLISHED' } as any;
+        }
+        if (w.configObjectId === 102) {
+          return projectCo;
+        }
+        if (w.objectType === 'project') {
+          return projectCo;
+        }
+        return null as any;
+      });
+
+      jest
+        .spyOn(templateSetRepo, 'findOne')
+        .mockResolvedValue(templateRow as any);
+
+      jest.spyOn(fieldRepo, 'findOne').mockResolvedValueOnce(null as any);
+      jest
+        .spyOn(fieldRepo, 'create')
+        .mockImplementation((dto) => ({ ...dto, configObjectFieldId: 9101 }) as any);
+      jest.spyOn(fieldRepo, 'save').mockImplementation(async (e) => e as any);
+      jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+      jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+      await service.createConfigField({
+        tenantId: 1,
+        configObjectId: 102,
+        createdBy: 1,
+        fieldKey: 'c4_custom_note',
+        label: 'C4 note',
+        fieldType: 'text',
+      });
+
+      jest.spyOn(service, 'getObjectSchema').mockResolvedValue({
+        configObject: { configObjectId: 102 } as any,
+        fields: [
+          { field: { fieldKey: 'project_type' } } as any,
+          { field: { fieldKey: 'c4_custom_note' } } as any,
+        ],
+      } as any);
+
+      jest.spyOn(viewRepo, 'findOne').mockImplementation(async (opts: any) => {
+        const w = opts?.where ?? {};
+        if (w.configObjectViewId === 8802) {
+          return {
+            configObjectViewId: 8802,
+            configObjectId: 102,
+            viewType: 'detail',
+            tenantId: 1,
+            isActive: false,
+            viewKey: 'project_detail_c4',
+            name: 'Detail',
+            description: null,
+            roleKey: null,
+            isDefault: false,
+            configJson: { schemaVersion: 1, panels: [] },
+          } as any;
+        }
+        if (w.viewType === 'list' && !w.configObjectViewId) {
+          return null as any;
+        }
+        if (w.viewType === 'detail' && !w.configObjectViewId) {
+          return null as any;
+        }
+        return null as any;
+      });
+
+      jest.spyOn(viewRepo, 'create').mockImplementation((dto) => ({ ...dto }) as any);
+      jest.spyOn(viewRepo, 'save').mockImplementation(async (row: any) => {
+        if (row.configObjectViewId) {
+          return row as any;
+        }
+        if (row.viewType === 'list') {
+          return { ...row, configObjectViewId: 8801 } as any;
+        }
+        if (row.viewType === 'detail') {
+          return { ...row, configObjectViewId: 8802 } as any;
+        }
+        return { ...row, configObjectViewId: 8899 } as any;
+      });
+      jest.spyOn(viewRepo, 'remove').mockResolvedValue({} as any);
+
+      const listView = await service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'list',
+        updatedBy: 1,
+        isActive: false,
+        configJson: {
+          schemaVersion: 1,
+          defaultPresentation: 'table',
+          table: { columns: ['project_type', 'c4_custom_note'] },
+          board: { groupByField: 'project_type', cardTitleField: 'c4_custom_note' },
+        },
+      });
+      expect(listView.configObjectViewId).toBe(8801);
+
+      await service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'detail',
+        updatedBy: 1,
+        isActive: false,
+        configJson: {},
+      });
+
+      jest.spyOn(panelRepo, 'findOne').mockResolvedValueOnce(null as any);
+      jest
+        .spyOn(panelRepo, 'create')
+        .mockImplementation((dto) => ({ ...dto, configObjectViewPanelId: 7701 }) as any);
+      jest.spyOn(panelRepo, 'save').mockImplementation(async (e) => e as any);
+
+      const panel = await service.createConfigViewPanel({
+        tenantId: 1,
+        configObjectViewId: 8802,
+        createdBy: 1,
+        panelKey: 'main_section',
+        title: 'Main',
+        panelType: 'section',
+        layoutConfig: {
+          schemaVersion: 1,
+          displayMode: 'summary',
+          layout: { keyValueFields: ['project_type'] },
+        },
+      });
+      expect(panel.panelKey).toBe('main_section');
+
+      jest.spyOn(panelRepo, 'find').mockResolvedValue([{ panelKey: 'main_section' }] as any);
+
+      const detailUpdated = await service.upsertScopedConfigView({
+        tenantId: 1,
+        entityKey: 'project',
+        viewType: 'detail',
+        updatedBy: 1,
+        isActive: false,
+        configObjectViewId: 8802,
+        configJson: {
+          schemaVersion: 1,
+          panels: ['main_section'],
+        },
+      });
+      expect(detailUpdated.configObjectViewId).toBe(8802);
+
+      jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce(null as any);
+      jest
+        .spyOn(relationshipRepo, 'create')
+        .mockImplementation((dto) => ({ ...dto, configObjectRelationshipId: 6601 }) as any);
+      jest.spyOn(relationshipRepo, 'save').mockImplementation(async (e) => e as any);
+
+      const rel = await service.createConfigRelationship({
+        tenantId: 1,
+        fromObjectType: 'role',
+        toObjectType: 'permission',
+        relationshipKey: 'c4_role_perms',
+        cardinality: 'many_to_many',
+        createdBy: 1,
+      });
+      expect(rel.relationshipKey).toBe('c4_role_perms');
+    });
   });
 
   it('activateScopedConfigView should enforce tenant scope match', async () => {

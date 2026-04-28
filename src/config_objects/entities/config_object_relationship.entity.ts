@@ -39,6 +39,15 @@ export class ConfigObjectRelationshipEntity {
   })
   relationshipKey!: string;
 
+  /** TypeORM-derived (`orm`) vs designer-authored additive (`designer`). */
+  @Column({
+    name: 'relationship_source',
+    type: 'enum',
+    enum: ['orm', 'designer'],
+    default: 'designer',
+  })
+  relationshipSource!: 'orm' | 'designer';
+
   @Column({
     name: 'display_name',
     type: 'varchar',
@@ -61,6 +70,20 @@ export class ConfigObjectRelationshipEntity {
     nullable: false,
   })
   queryConfig!: Record<string, unknown>;
+
+  /**
+   * Optional `relationManifestsByKey` payload.
+   *
+   * Validation allows:
+   * - lightweight refs (`dataRef`, `actionRef`), and
+   * - richer relation metadata blocks (e.g. relation membership mode/config).
+   */
+  @Column({
+    name: 'relation_manifest_json',
+    type: 'json',
+    nullable: true,
+  })
+  relationManifestJson!: Record<string, unknown> | null;
 
   @Column({
     name: 'is_active',
