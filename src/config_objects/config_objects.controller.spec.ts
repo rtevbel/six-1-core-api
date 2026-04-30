@@ -20,6 +20,10 @@ describe('ConfigObjectsController', () => {
             upsertScopedConfigView: jest.fn(),
             activateScopedConfigView: jest.fn(),
             deactivateScopedConfigView: jest.fn(),
+            getRuntimeManifest: jest.fn(),
+            invalidateRuntimeCaches: jest.fn(),
+            composeRuntimeSubmitPayload: jest.fn(),
+            validateRuntimeRelationAction: jest.fn(),
           },
         },
         {
@@ -177,6 +181,122 @@ describe('ConfigObjectsController', () => {
       viewType: 'list',
       configObjectViewId: undefined,
       updatedBy: 88,
+    });
+  });
+
+  it('getRuntimeManifest should delegate to service and pass diagnostics flag', async () => {
+    const manifest = {
+      entityKey: 'project',
+      tenantId: 77,
+      generatedAt: '2026-01-01T00:00:00.000Z',
+      list: null,
+      detail: null,
+      form: null,
+      diagnostics: [],
+    } as any;
+    configObjectsService.getRuntimeManifest.mockResolvedValueOnce(manifest);
+
+    const result = await controller.getRuntimeManifest({
+      tenantId: 77,
+      entityKey: 'project',
+      includeDiagnostics: false,
+    } as any);
+
+    expect(result).toEqual(manifest);
+    expect(configObjectsService.getRuntimeManifest).toHaveBeenCalledWith({
+      tenantId: 77,
+      entityKey: 'project',
+      includeDiagnostics: false,
+    });
+  });
+
+  it('invalidateRuntimeCache should delegate to service with cache-scope filters', async () => {
+    configObjectsService.invalidateRuntimeCaches.mockResolvedValueOnce({
+      ttlMs: 30000,
+      cleared: { schema: 1, view: 2, manifest: 3 },
+    } as any);
+
+    const result = await controller.invalidateRuntimeCache(
+      999,
+      {
+        tenantId: 77,
+        entityKey: 'project',
+        includeSchemaCache: true,
+        includeViewCache: true,
+        includeManifestCache: false,
+      } as any,
+    );
+
+    expect(result).toEqual({
+      ttlMs: 30000,
+      cleared: { schema: 1, view: 2, manifest: 3 },
+    });
+    expect(configObjectsService.invalidateRuntimeCaches).toHaveBeenCalledWith({
+      tenantId: 77,
+      entityKey: 'project',
+      includeSchemaCache: true,
+      includeViewCache: true,
+      includeManifestCache: false,
+    });
+  });
+
+  it('composeRuntimeSubmitPayload should delegate operation payload composition', async () => {
+    const composed = {
+      entityKey: 'project',
+      tenantId: 77,
+      operation: 'create',
+      payload: { name: 'My project', roleDescriptions: [{ languageId: 1, name: 'X' }] },
+    } as any;
+    configObjectsService.composeRuntimeSubmitPayload.mockResolvedValueOnce(composed);
+
+    const result = await controller.composeRuntimeSubmitPayload({
+      tenantId: 77,
+      entityKey: 'project',
+      operation: 'create',
+      fieldValues: { name: 'My project' },
+      relationBlocks: {
+        role_descriptions: [{ languageId: 1, name: 'X' }],
+      },
+    } as any);
+
+    expect(result).toEqual(composed);
+    expect(configObjectsService.composeRuntimeSubmitPayload).toHaveBeenCalledWith({
+      tenantId: 77,
+      entityKey: 'project',
+      operation: 'create',
+      fieldValues: { name: 'My project' },
+      relationBlocks: {
+        role_descriptions: [{ languageId: 1, name: 'X' }],
+      },
+    });
+  });
+
+  it('validateRuntimeRelationAction should delegate relation action permission checks', async () => {
+    configObjectsService.validateRuntimeRelationAction.mockResolvedValueOnce({
+      entityKey: 'project',
+      tenantId: 77,
+      relationKey: 'project_roles',
+      actionRef: 'six1:action:project.roles.assign',
+      allowed: true,
+      requiredPermissions: ['project.manage_roles'],
+      missingPermissions: [],
+    } as any);
+
+    const result = await controller.validateRuntimeRelationAction({
+      tenantId: 77,
+      entityKey: 'project',
+      relationKey: 'project_roles',
+      actionRef: 'six1:action:project.roles.assign',
+      grantedPermissions: ['project.manage_roles'],
+    } as any);
+
+    expect(result.allowed).toBe(true);
+    expect(configObjectsService.validateRuntimeRelationAction).toHaveBeenCalledWith({
+      tenantId: 77,
+      entityKey: 'project',
+      relationKey: 'project_roles',
+      actionRef: 'six1:action:project.roles.assign',
+      grantedPermissions: ['project.manage_roles'],
     });
   });
 });

@@ -76,6 +76,16 @@ export interface ConfigObjectRunnerSchemaView extends ConfigObjectSchemaView {
   relations?: RelationDescriptor[];
   /** Related-field registry keyed by `relationshipKey`. */
   relatedFieldRegistryByRelationKey?: Record<string, CoreFieldDescriptor[]>;
+  /**
+   * Source marker for each related-field registry entry.
+   * - `configured_object`: derived from a published `config_object` target
+   * - `entity_fallback`: derived from entity/DTO metadata when no target object is configured
+   * - `unavailable`: no descriptor source could be resolved (for example junction-only targets)
+   */
+  relatedFieldRegistrySourceByRelationKey?: Record<
+    string,
+    'configured_object' | 'entity_fallback' | 'unavailable'
+  >;
   /** Persisted relation-manifest metadata keyed by `relationshipKey`. */
   relationManifestsByKey?: Record<string, Record<string, unknown> | null>;
 }

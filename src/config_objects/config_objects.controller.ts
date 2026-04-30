@@ -32,6 +32,10 @@ import {
   MICROSERVICE_UPSERT_CONFIG_VIEW_SCOPE_PATTERN,
   MICROSERVICE_ACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
   MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN,
+  MICROSERVICE_GET_RUNTIME_MANIFEST_PATTERN,
+  MICROSERVICE_INVALIDATE_RUNTIME_CACHE_PATTERN,
+  MICROSERVICE_COMPOSE_RUNTIME_SUBMIT_PAYLOAD_PATTERN,
+  MICROSERVICE_VALIDATE_RUNTIME_RELATION_ACTION_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_FIELD_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_FIELD_RULE_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_VIEW_PATTERN,
@@ -137,11 +141,21 @@ import {
   UpsertScopedConfigViewDto,
 } from './dto/scoped-config-view.dto';
 import { GetRelatedObjectsDto } from './dto/get-related-objects.dto';
+import { GetRuntimeManifestDto } from './dto/get-runtime-manifest.dto';
+import { InvalidateRuntimeCacheDto } from './dto/invalidate-runtime-cache.dto';
+import { ComposeRuntimeSubmitPayloadDto } from './dto/compose-runtime-submit-payload.dto';
+import { ValidateRuntimeRelationActionDto } from './dto/validate-runtime-relation-action.dto';
 import {
   InstanceLifecycleStateDto,
   InstanceLifecycleStateView,
 } from './dto/config-lifecycle.dto';
 import { RelatedObjectsResult } from './interfaces/config-object-resolved-instance.interface';
+import {
+  ConfigObjectRuntimeManifestView,
+  RuntimeComposedSubmitPayloadView,
+  RuntimeCacheInvalidationResult,
+  RuntimeRelationActionValidationResult,
+} from './interfaces/runtime-manifest.interface';
 import { RequirePermissions } from '../authorization/authorization.decorator';
 import {
   CreateLifecycleDto,
@@ -1165,6 +1179,74 @@ export class ConfigObjectsController {
       viewType: dto.viewType,
       configObjectViewId: dto.configObjectViewId,
       updatedBy: dto.updatedBy,
+    });
+  }
+
+  /**
+   * Returns runtime manifest payload (list/detail/form) for Object Runner.
+   */
+  @MessagePattern(MICROSERVICE_GET_RUNTIME_MANIFEST_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async getRuntimeManifest(
+    @Payload('data') dto: GetRuntimeManifestDto,
+  ): Promise<ConfigObjectRuntimeManifestView> {
+    return this.configObjectsService.getRuntimeManifest({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      includeDiagnostics: dto.includeDiagnostics ?? true,
+    });
+  }
+
+  /**
+   * Manually invalidates runtime caches (schema/view/manifest).
+   */
+  @MessagePattern(MICROSERVICE_INVALIDATE_RUNTIME_CACHE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async invalidateRuntimeCache(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: InvalidateRuntimeCacheDto,
+  ): Promise<RuntimeCacheInvalidationResult> {
+    return this.configObjectsService.invalidateRuntimeCaches({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      includeSchemaCache: dto.includeSchemaCache,
+      includeViewCache: dto.includeViewCache,
+      includeManifestCache: dto.includeManifestCache,
+    });
+  }
+
+  /**
+   * Composes runtime submit payload (root + nested relation blocks) for create/update.
+   */
+  @MessagePattern(MICROSERVICE_COMPOSE_RUNTIME_SUBMIT_PAYLOAD_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async composeRuntimeSubmitPayload(
+    @Payload('data') dto: ComposeRuntimeSubmitPayloadDto,
+  ): Promise<RuntimeComposedSubmitPayloadView> {
+    return this.configObjectsService.composeRuntimeSubmitPayload({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      operation: dto.operation,
+      fieldValues: dto.fieldValues,
+      relationBlocks: dto.relationBlocks ?? {},
+    });
+  }
+
+  /**
+   * Validates relation action permissions for runtime execution.
+   */
+  @MessagePattern(MICROSERVICE_VALIDATE_RUNTIME_RELATION_ACTION_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async validateRuntimeRelationAction(
+    @Payload('data') dto: ValidateRuntimeRelationActionDto,
+  ): Promise<RuntimeRelationActionValidationResult> {
+    return this.configObjectsService.validateRuntimeRelationAction({
+      tenantId: dto.tenantId ?? null,
+      entityKey: dto.entityKey,
+      relationKey: dto.relationKey,
+      actionRef: dto.actionRef,
+      grantedPermissions: dto.grantedPermissions ?? [],
     });
   }
 

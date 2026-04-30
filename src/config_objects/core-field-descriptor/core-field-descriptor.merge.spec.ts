@@ -129,6 +129,46 @@ describe('mergeCoreFieldDescriptorsWithFieldViews', () => {
     ]);
     expect(merged.find((d) => d.fieldKey === 'name')?.readOnly).toBe(true);
   });
+
+  it('maps lookup and derived runtime metadata from validationJson', () => {
+    const base = generateBaseCoreFieldDescriptorsFromSorRegistry('project');
+    const nameRow = fieldStub({
+      fieldKey: 'name',
+      label: 'Project Name',
+      fieldType: 'text',
+      orderIndex: 10,
+      validationJson: {
+        _six1LookupSelectAuthoring: {
+          schemaVersion: 1,
+          dataRef: 'core.system_statuses.list',
+          valueKey: 'statusId',
+          labelKey: 'name',
+        },
+        _six1DerivedRuntimeAuthoring: {
+          schemaVersion: 1,
+          operation: 'concat',
+          sourceFieldKeys: ['groupName', 'name'],
+          separator: ' - ',
+        },
+      },
+    });
+    const merged = mergeCoreFieldDescriptorsWithFieldViews(base, [
+      viewOf(nameRow),
+    ]);
+    const nameDesc = merged.find((d) => d.fieldKey === 'name');
+    expect(nameDesc?.lookupSelectConfig).toEqual({
+      schemaVersion: 1,
+      dataRef: 'core.system_statuses.list',
+      valueKey: 'statusId',
+      labelKey: 'name',
+    });
+    expect(nameDesc?.derivedRuntimeConfig).toEqual({
+      schemaVersion: 1,
+      operation: 'concat',
+      sourceFieldKeys: ['groupName', 'name'],
+      separator: ' - ',
+    });
+  });
 });
 
 describe('buildMergedCoreFieldDescriptors', () => {
@@ -148,13 +188,13 @@ describe('buildMergedCoreFieldDescriptors', () => {
     expect(rows[0].fieldKey).toBe('title');
   });
 
-  it('returns empty for system_table with no fields', () => {
-    expect(
-      buildMergedCoreFieldDescriptors({
-        bindingMode: 'system_table',
-        objectType: 'tenant_teams',
-        fieldViews: [],
-      }),
-    ).toEqual([]);
+  it('returns metadata-backed descriptors for system_table with no custom fields', () => {
+    const rows = buildMergedCoreFieldDescriptors({
+      bindingMode: 'system_table',
+      objectType: 'tenant_teams',
+      fieldViews: [],
+    });
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.some((row) => row.fieldKey === 'tenantTeamId')).toBe(true);
   });
 });

@@ -31,6 +31,26 @@ describe('validateCoreFieldDescriptor', () => {
     expect(result.path).toBe('roleDescriptions[0].name');
   });
 
+  it('accepts lookup and derived runtime metadata blocks', () => {
+    const result = validateCoreFieldDescriptor({
+      ...validMinimal,
+      lookupSelectConfig: {
+        schemaVersion: 1,
+        dataRef: 'core.system_statuses.list',
+        valueKey: 'statusId',
+        labelKey: 'name',
+      },
+      derivedRuntimeConfig: {
+        schemaVersion: 1,
+        operation: 'concat',
+        sourceFieldKeys: ['firstName', 'lastName'],
+        separator: ' ',
+      },
+    });
+    expect(result.lookupSelectConfig).toBeDefined();
+    expect(result.derivedRuntimeConfig).toBeDefined();
+  });
+
   it('strips unknown properties', () => {
     const result = validateCoreFieldDescriptor({
       ...validMinimal,

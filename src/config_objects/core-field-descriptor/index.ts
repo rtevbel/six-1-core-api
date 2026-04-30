@@ -2,6 +2,15 @@ export {
   CORE_FIELD_PRIMITIVE_TYPES,
 } from './core-field-descriptor.constants';
 export type { CoreFieldDescriptor } from './core-field-descriptor.types';
+export type {
+  CoreFieldDerivedRuntimeConfig,
+  CoreFieldDerivedRuntimeOperation,
+  CoreFieldLookupSelectConfig,
+} from './core-field-descriptor.runtime-metadata.types';
+export {
+  CORE_FIELD_DERIVED_RUNTIME_SCHEMA_VERSION,
+  CORE_FIELD_LOOKUP_SELECT_SCHEMA_VERSION,
+} from './core-field-descriptor.runtime-metadata.types';
 export { CoreFieldDescriptorValidationClass } from './core-field-descriptor.schema';
 export {
   CoreFieldDescriptorValidationError,

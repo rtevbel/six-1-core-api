@@ -46,10 +46,12 @@ import {
   AuthoringErrorCode,
   authoringRpcException,
 } from './constants/authoring-error-codes';
+import { RuntimeErrorCode } from './constants/runtime-error-codes';
 import {
   ListViewConfigValidationError,
   validateAndNormalizeListViewConfigJson,
 } from './list-view-config';
+import type { ListViewConfig } from './list-view-config/list-view-config.types';
 import {
   PanelLayoutConfigValidationError,
   validateAndNormalizePanelLayoutConfigJson,
@@ -58,10 +60,17 @@ import {
   DetailFormViewConfigValidationError,
   validateAndNormalizeDetailFormViewConfigJson,
 } from './detail-form-view-config';
+import type { DetailFormViewConfig } from './detail-form-view-config/detail-form-view-config.types';
 import {
   DerivedDisplayAuthoringValidationError,
   validateDerivedDisplayAuthoringMetadata,
 } from './derived-display-authoring';
+import {
+  DerivedRuntimeAuthoringValidationError,
+  LookupSelectAuthoringValidationError,
+  validateDerivedRuntimeAuthoringMetadata,
+  validateLookupSelectAuthoringMetadata,
+} from './field-runtime-authoring';
 import {
   mapRelationAuthoringErrorToRpc,
   normalizeQueryConfigInlineRelation,
@@ -71,6 +80,7 @@ import type { RelationDescriptor } from './interfaces/relation-descriptor.interf
 import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/relation-catalog.generator';
 import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
 import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
+import type { CoreFieldDerivedRuntimeConfig } from './core-field-descriptor/core-field-descriptor.runtime-metadata.types';
 import {
   ConfigCustomObjectInstanceEntity,
   ConfigCustomObjectInstanceStatus,
@@ -84,6 +94,15 @@ import {
   ConfigObjectStatusMappingEntity,
   ConfigObjectStatusSource,
 } from './entities/config_object_status_mapping.entity';
+import { inferDefaultBindingModeForObjectType } from './object-catalog-scope';
+import type {
+  ConfigObjectRuntimeManifestView,
+  RuntimeComposedSubmitPayloadView,
+  RuntimeManifestDiagnostic,
+  RuntimeCacheInvalidationResult,
+  RuntimeRelationActionValidationResult,
+  RuntimeManifestViewSection,
+} from './interfaces/runtime-manifest.interface';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -93,12 +112,88 @@ import {
  */
 @Injectable()
 export class ConfigObjectsService {
+  private readonly runtimeCacheTtlMs = 30_000;
+  private readonly runtimeRelationMaxDepth = 1;
+  private readonly runtimeRelationMaxPageSize = 100;
+  private readonly schemaCache = new Map<
+    string,
+    { expiresAt: number; value: ConfigObjectRunnerSchemaView | null }
+  >();
+  private readonly activeViewCache = new Map<
+    string,
+    { expiresAt: number; value: ConfigObjectViewEntity | null }
+  >();
+  private readonly runtimeManifestCache = new Map<
+    string,
+    { expiresAt: number; value: ConfigObjectRuntimeManifestView }
+  >();
+
   private static readonly FORBIDDEN_VIEW_CONFIG_INLINE_FIELD_KEYS = [
     'fieldDefinitions',
     'inlineFields',
   ] as const;
 
   private readonly logger = new Logger(ConfigObjectsService.name);
+
+  private isFresh(expiresAt: number): boolean {
+    return expiresAt > Date.now();
+  }
+
+  private getSchemaCacheKey(
+    tenantId: number | null,
+    objectType: string,
+  ): string {
+    return `${tenantId ?? 'global'}::${objectType}`;
+  }
+
+  private getActiveViewCacheKey(params: {
+    tenantId: number | null;
+    entityKey: string;
+    viewType: ConfigObjectViewType;
+  }): string {
+    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.viewType}`;
+  }
+
+  private getRuntimeManifestCacheKey(params: {
+    tenantId: number | null;
+    entityKey: string;
+    includeDiagnostics: boolean;
+  }): string {
+    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.includeDiagnostics ? 'diag' : 'no_diag'}`;
+  }
+
+  private clearExpiredRuntimeCaches(): void {
+    const now = Date.now();
+    for (const [key, entry] of this.schemaCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.schemaCache.delete(key);
+      }
+    }
+    for (const [key, entry] of this.activeViewCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.activeViewCache.delete(key);
+      }
+    }
+    for (const [key, entry] of this.runtimeManifestCache.entries()) {
+      if (entry.expiresAt <= now) {
+        this.runtimeManifestCache.delete(key);
+      }
+    }
+  }
+
+  private clearCacheByPredicate<T>(
+    map: Map<string, T>,
+    predicate: (key: string) => boolean,
+  ): number {
+    let removed = 0;
+    for (const key of map.keys()) {
+      if (predicate(key)) {
+        map.delete(key);
+        removed += 1;
+      }
+    }
+    return removed;
+  }
 
   constructor(
     @InjectRepository(ConfigTemplateSetEntity)
@@ -259,7 +354,154 @@ export class ConfigObjectsService {
       }
     }
 
+    if ('fieldRegistry' in schema && Array.isArray(schema.fieldRegistry)) {
+      this.applyDerivedRuntimeFields({
+        fieldRegistry: schema.fieldRegistry,
+        target: dynamicFields,
+      });
+    }
+
     return dynamicFields;
+  }
+
+  private normalizeDerivedInputValue(value: unknown, trim: boolean): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    const normalized = String(value);
+    const out = trim ? normalized.trim() : normalized;
+    return out.length > 0 ? out : null;
+  }
+
+  private evaluateDerivedRuntimeValue(
+    cfg: CoreFieldDerivedRuntimeConfig,
+    source: Record<string, unknown>,
+  ): string | null {
+    const trim = cfg.trim !== false;
+    const values = cfg.sourceFieldKeys.map((k) =>
+      this.normalizeDerivedInputValue(source[k], trim),
+    );
+
+    if (cfg.operation === 'coalesce') {
+      for (const value of values) {
+        if (value !== null) {
+          return value;
+        }
+      }
+      return cfg.nullDisplayValue ?? null;
+    }
+
+    const separator = cfg.separator ?? ' ';
+    const nonNullValues = values.filter((v): v is string => v !== null);
+    if (!nonNullValues.length) {
+      return cfg.nullDisplayValue ?? null;
+    }
+    const joined = nonNullValues.join(separator);
+    const finalValue = trim ? joined.trim() : joined;
+    return finalValue.length > 0 ? finalValue : (cfg.nullDisplayValue ?? null);
+  }
+
+  private applyDerivedRuntimeFields(params: {
+    fieldRegistry: CoreFieldDescriptor[];
+    target: Record<string, unknown>;
+  }): void {
+    const { fieldRegistry, target } = params;
+    for (const descriptor of fieldRegistry) {
+      const cfg = descriptor.derivedRuntimeConfig;
+      if (!cfg) {
+        continue;
+      }
+      // Preserve explicit value from source/default; derive only when missing.
+      if (Object.prototype.hasOwnProperty.call(target, descriptor.fieldKey)) {
+        continue;
+      }
+      target[descriptor.fieldKey] = this.evaluateDerivedRuntimeValue(cfg, target);
+    }
+  }
+
+  private setValueAtPath(
+    target: Record<string, unknown>,
+    path: string,
+    value: unknown,
+  ): void {
+    const normalizedPath = path.replace(/\[(\d+)\]/g, '.$1');
+    const segments = normalizedPath
+      .split('.')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (!segments.length) {
+      return;
+    }
+    let cursor: Record<string, unknown> | unknown[] = target;
+    for (let i = 0; i < segments.length - 1; i += 1) {
+      const seg = segments[i];
+      const nextSeg = segments[i + 1];
+      const idx = Number(seg);
+      const isArrayIndex = Number.isInteger(idx) && String(idx) === seg;
+      const nextIsArray = Number.isInteger(Number(nextSeg)) && String(Number(nextSeg)) === nextSeg;
+      if (isArrayIndex) {
+        if (!Array.isArray(cursor)) {
+          return;
+        }
+        if (cursor[idx] == null) {
+          cursor[idx] = nextIsArray ? [] : {};
+        }
+        cursor = cursor[idx] as Record<string, unknown> | unknown[];
+      } else {
+        const obj = cursor as Record<string, unknown>;
+        if (obj[seg] == null) {
+          obj[seg] = nextIsArray ? [] : {};
+        }
+        cursor = obj[seg] as Record<string, unknown> | unknown[];
+      }
+    }
+    const last = segments[segments.length - 1];
+    const lastIdx = Number(last);
+    const lastIsArrayIndex = Number.isInteger(lastIdx) && String(lastIdx) === last;
+    if (lastIsArrayIndex) {
+      if (Array.isArray(cursor)) {
+        cursor[lastIdx] = value;
+      }
+      return;
+    }
+    (cursor as Record<string, unknown>)[last] = value;
+  }
+
+  private getInlineRelationPath(rel: RelationDescriptor): string {
+    const inlineRelation =
+      rel.queryConfig &&
+      typeof rel.queryConfig === 'object' &&
+      !Array.isArray(rel.queryConfig)
+        ? (rel.queryConfig as Record<string, unknown>).inlineRelation
+        : null;
+    if (
+      inlineRelation &&
+      typeof inlineRelation === 'object' &&
+      !Array.isArray(inlineRelation)
+    ) {
+      const path = (inlineRelation as Record<string, unknown>).path;
+      if (typeof path === 'string' && path.trim().length > 0) {
+        return path.trim();
+      }
+    }
+    return rel.relationshipKey;
+  }
+
+  private isInlineRequiredRelation(rel: RelationDescriptor): boolean {
+    const inlineRelation =
+      rel.queryConfig &&
+      typeof rel.queryConfig === 'object' &&
+      !Array.isArray(rel.queryConfig)
+        ? (rel.queryConfig as Record<string, unknown>).inlineRelation
+        : null;
+    if (
+      !inlineRelation ||
+      typeof inlineRelation !== 'object' ||
+      Array.isArray(inlineRelation)
+    ) {
+      return false;
+    }
+    return (inlineRelation as Record<string, unknown>).mode === 'inline_required';
   }
 
   private normalizeCustomInstancePayload(
@@ -869,8 +1111,18 @@ export class ConfigObjectsService {
   private async buildRelatedFieldRegistryByRelationKey(
     relations: RelationDescriptor[],
     templateSetId: number,
-  ): Promise<Record<string, CoreFieldDescriptor[]>> {
+  ): Promise<{
+    relatedFieldRegistryByRelationKey: Record<string, CoreFieldDescriptor[]>;
+    relatedFieldRegistrySourceByRelationKey: Record<
+      string,
+      'configured_object' | 'entity_fallback' | 'unavailable'
+    >;
+  }> {
     const out: Record<string, CoreFieldDescriptor[]> = {};
+    const sourceByRelationshipKey: Record<
+      string,
+      'configured_object' | 'entity_fallback' | 'unavailable'
+    > = {};
 
     for (const rel of relations) {
       const targetConfigObject = await this.configObjectRepository.findOne({
@@ -880,7 +1132,20 @@ export class ConfigObjectsService {
         },
       });
       if (!targetConfigObject) {
-        out[rel.relationshipKey] = [];
+        const inferredBindingMode = inferDefaultBindingModeForObjectType(
+          rel.toObjectType,
+        );
+        if (!inferredBindingMode) {
+          out[rel.relationshipKey] = [];
+          sourceByRelationshipKey[rel.relationshipKey] = 'unavailable';
+          continue;
+        }
+        out[rel.relationshipKey] = finalizeCoreFieldDescriptors({
+          bindingMode: inferredBindingMode,
+          objectType: rel.toObjectType,
+          fieldViews: [],
+        });
+        sourceByRelationshipKey[rel.relationshipKey] = 'entity_fallback';
         continue;
       }
 
@@ -892,9 +1157,13 @@ export class ConfigObjectsService {
         objectType: targetConfigObject.objectType,
         fieldViews: targetFieldViews,
       });
+      sourceByRelationshipKey[rel.relationshipKey] = 'configured_object';
     }
 
-    return out;
+    return {
+      relatedFieldRegistryByRelationKey: out,
+      relatedFieldRegistrySourceByRelationKey: sourceByRelationshipKey,
+    };
   }
 
   private async attachRelationCatalog(
@@ -904,7 +1173,10 @@ export class ConfigObjectsService {
     const relations = await this.getMergedRelationshipCatalogForObjectType(
       schema.configObject.objectType,
     );
-    const relatedFieldRegistryByRelationKey =
+    const {
+      relatedFieldRegistryByRelationKey,
+      relatedFieldRegistrySourceByRelationKey,
+    } =
       await this.buildRelatedFieldRegistryByRelationKey(relations, templateSetId);
     const relationManifestsByKey = Object.fromEntries(
       relations.map((rel) => [
@@ -917,6 +1189,7 @@ export class ConfigObjectsService {
       ...schema,
       relations,
       relatedFieldRegistryByRelationKey,
+      relatedFieldRegistrySourceByRelationKey,
       relationManifestsByKey,
     };
   }
@@ -1413,6 +1686,12 @@ export class ConfigObjectsService {
     objectType: string,
   ): Promise<ConfigObjectRunnerSchemaView | null> {
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    this.clearExpiredRuntimeCaches();
+    const cacheKey = this.getSchemaCacheKey(effectiveTenantId, objectType);
+    const cached = this.schemaCache.get(cacheKey);
+    if (cached && this.isFresh(cached.expiresAt)) {
+      return cached.value;
+    }
 
     const where =
       effectiveTenantId === null
@@ -1425,6 +1704,10 @@ export class ConfigObjectsService {
     });
 
     if (!templateSet) {
+      this.schemaCache.set(cacheKey, {
+        expiresAt: Date.now() + this.runtimeCacheTtlMs,
+        value: null,
+      });
       return null;
     }
 
@@ -1436,6 +1719,10 @@ export class ConfigObjectsService {
     });
 
     if (!configObject) {
+      this.schemaCache.set(cacheKey, {
+        expiresAt: Date.now() + this.runtimeCacheTtlMs,
+        value: null,
+      });
       return null;
     }
 
@@ -1447,7 +1734,12 @@ export class ConfigObjectsService {
       configObject,
       fields: fieldViews,
     });
-    return this.attachRelationCatalog(base, templateSet.configTemplateSetId);
+    const schema = await this.attachRelationCatalog(base, templateSet.configTemplateSetId);
+    this.schemaCache.set(cacheKey, {
+      expiresAt: Date.now() + this.runtimeCacheTtlMs,
+      value: schema,
+    });
+    return schema;
   }
 
   /**
@@ -3319,11 +3611,35 @@ export class ConfigObjectsService {
           next._six1DerivedDisplayAuthoring,
         );
       }
+      if (Object.prototype.hasOwnProperty.call(next, '_six1LookupSelectAuthoring')) {
+        next._six1LookupSelectAuthoring = validateLookupSelectAuthoringMetadata(
+          next._six1LookupSelectAuthoring,
+        );
+      }
+      if (
+        Object.prototype.hasOwnProperty.call(next, '_six1DerivedRuntimeAuthoring')
+      ) {
+        next._six1DerivedRuntimeAuthoring = validateDerivedRuntimeAuthoringMetadata(
+          next._six1DerivedRuntimeAuthoring,
+        );
+      }
       return next;
     } catch (error) {
       if (error instanceof DerivedDisplayAuthoringValidationError) {
         throw authoringRpcException(
           AuthoringErrorCode.DerivedDisplayInvalid,
+          error.message,
+        );
+      }
+      if (error instanceof LookupSelectAuthoringValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.LookupSelectInvalid,
+          error.message,
+        );
+      }
+      if (error instanceof DerivedRuntimeAuthoringValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.DerivedRuntimeInvalid,
           error.message,
         );
       }
@@ -4421,6 +4737,16 @@ export class ConfigObjectsService {
   }): Promise<ConfigObjectViewEntity | null> {
     const { tenantId, entityKey, viewType } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    this.clearExpiredRuntimeCaches();
+    const cacheKey = this.getActiveViewCacheKey({
+      tenantId: effectiveTenantId,
+      entityKey,
+      viewType,
+    });
+    const cached = this.activeViewCache.get(cacheKey);
+    if (cached && this.isFresh(cached.expiresAt)) {
+      return cached.value;
+    }
 
     const configObject = await this.resolveConfigObjectForEntityScope({
       entityKey,
@@ -4439,11 +4765,15 @@ export class ConfigObjectsService {
       });
 
       if (tenantScoped) {
+        this.activeViewCache.set(cacheKey, {
+          expiresAt: Date.now() + this.runtimeCacheTtlMs,
+          value: tenantScoped,
+        });
         return tenantScoped;
       }
     }
 
-    return this.viewRepository.findOne({
+    const fallback = await this.viewRepository.findOne({
       where: {
         configObjectId: configObject.configObjectId,
         viewType,
@@ -4452,6 +4782,11 @@ export class ConfigObjectsService {
       },
       order: { configObjectViewId: 'DESC' },
     });
+    this.activeViewCache.set(cacheKey, {
+      expiresAt: Date.now() + this.runtimeCacheTtlMs,
+      value: fallback,
+    });
+    return fallback;
   }
 
   /**
@@ -4508,6 +4843,696 @@ export class ConfigObjectsService {
     return Array.from(byViewType.values()).sort((a, b) =>
       a.viewType.localeCompare(b.viewType),
     );
+  }
+
+  /**
+   * Returns runtime-manifest payload with resolved list/detail/form sections.
+   * This is the runtime read contract used by Object Runner composition.
+   */
+  async getRuntimeManifest(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    includeDiagnostics?: boolean;
+  }): Promise<ConfigObjectRuntimeManifestView> {
+    const { tenantId, entityKey, includeDiagnostics = true } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    this.clearExpiredRuntimeCaches();
+    const cacheKey = this.getRuntimeManifestCacheKey({
+      tenantId: effectiveTenantId,
+      entityKey,
+      includeDiagnostics,
+    });
+    const cached = this.runtimeManifestCache.get(cacheKey);
+    if (cached && this.isFresh(cached.expiresAt)) {
+      return cached.value;
+    }
+    const schema = await this.getObjectSchema(effectiveTenantId, entityKey);
+
+    if (!schema) {
+      const missingSchemaResult: ConfigObjectRuntimeManifestView = {
+        entityKey,
+        tenantId: effectiveTenantId,
+        generatedAt: new Date().toISOString(),
+        list: null,
+        detail: null,
+        form: null,
+        diagnostics: includeDiagnostics
+          ? [
+              {
+                code: RuntimeErrorCode.SchemaNotFound,
+                message: `No published schema found for entityKey "${entityKey}".`,
+                level: 'error' as const,
+              },
+            ]
+          : [],
+      };
+      this.runtimeManifestCache.set(cacheKey, {
+        expiresAt: Date.now() + this.runtimeCacheTtlMs,
+        value: missingSchemaResult,
+      });
+      return missingSchemaResult;
+    }
+
+    const [listView, detailView, formView] = await Promise.all([
+      this.getActiveScopedConfigView({
+        tenantId: effectiveTenantId,
+        entityKey,
+        viewType: 'list',
+      }),
+      this.getActiveScopedConfigView({
+        tenantId: effectiveTenantId,
+        entityKey,
+        viewType: 'detail',
+      }),
+      this.getActiveScopedConfigView({
+        tenantId: effectiveTenantId,
+        entityKey,
+        viewType: 'form',
+      }),
+    ]);
+
+    const diagnostics: RuntimeManifestDiagnostic[] = [];
+    if (includeDiagnostics) {
+      if (!listView) {
+        diagnostics.push({
+          code: RuntimeErrorCode.ViewListMissing,
+          message: `No active list view found for entityKey "${entityKey}".`,
+          level: 'warn',
+        });
+      }
+      if (!detailView) {
+        diagnostics.push({
+          code: RuntimeErrorCode.ViewDetailMissing,
+          message: `No active detail view found for entityKey "${entityKey}".`,
+          level: 'warn',
+        });
+      }
+      if (!formView) {
+        diagnostics.push({
+          code: RuntimeErrorCode.ViewFormMissing,
+          message: `No active form view found for entityKey "${entityKey}".`,
+          level: 'warn',
+        });
+      }
+    }
+
+    const [listSection, detailSection, formSection] = await Promise.all([
+      this.buildRuntimeListSection({
+        view: listView,
+        schema,
+        diagnostics,
+      }),
+      this.buildRuntimeDetailFormSection({
+        viewType: 'detail',
+        view: detailView,
+        schema,
+        diagnostics,
+      }),
+      this.buildRuntimeDetailFormSection({
+        viewType: 'form',
+        view: formView,
+        schema,
+        diagnostics,
+      }),
+    ]);
+
+    const manifest = {
+      entityKey,
+      tenantId: effectiveTenantId,
+      generatedAt: new Date().toISOString(),
+      list: listSection,
+      detail: detailSection,
+      form: formSection,
+      diagnostics,
+    };
+    this.runtimeManifestCache.set(cacheKey, {
+      expiresAt: Date.now() + this.runtimeCacheTtlMs,
+      value: manifest,
+    });
+    return manifest;
+  }
+
+  async invalidateRuntimeCaches(params: {
+    tenantId?: number | null;
+    entityKey?: string;
+    includeSchemaCache?: boolean;
+    includeViewCache?: boolean;
+    includeManifestCache?: boolean;
+  }): Promise<RuntimeCacheInvalidationResult> {
+    const effectiveTenantId =
+      typeof params.tenantId === 'number' ? this.getEffectiveTenantId(params.tenantId) : null;
+    const includeSchemaCache = params.includeSchemaCache ?? true;
+    const includeViewCache = params.includeViewCache ?? true;
+    const includeManifestCache = params.includeManifestCache ?? true;
+    const tenantPart = `${effectiveTenantId ?? 'global'}::`;
+    const entityPart = params.entityKey ? `::${params.entityKey}` : null;
+    const matches = (key: string): boolean => {
+      const tenantMatch =
+        typeof params.tenantId === 'number' ? key.startsWith(tenantPart) : true;
+      const entityMatch = params.entityKey ? key.includes(entityPart as string) : true;
+      return tenantMatch && entityMatch;
+    };
+
+    const cleared = {
+      schema: includeSchemaCache
+        ? this.clearCacheByPredicate(this.schemaCache, matches)
+        : 0,
+      view: includeViewCache
+        ? this.clearCacheByPredicate(this.activeViewCache, matches)
+        : 0,
+      manifest: includeManifestCache
+        ? this.clearCacheByPredicate(this.runtimeManifestCache, matches)
+        : 0,
+    };
+
+    return {
+      ttlMs: this.runtimeCacheTtlMs,
+      cleared,
+    };
+  }
+
+  async composeRuntimeSubmitPayload(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    operation: 'create' | 'update';
+    fieldValues: Record<string, unknown>;
+    relationBlocks?: Record<string, unknown>;
+  }): Promise<RuntimeComposedSubmitPayloadView> {
+    const { tenantId, entityKey, operation, fieldValues } = params;
+    const relationBlocks = params.relationBlocks ?? {};
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const schema = await this.getObjectSchema(effectiveTenantId, entityKey);
+    if (!schema) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SchemaNotFound,
+        message: `No published schema found for entityKey "${entityKey}".`,
+      });
+    }
+
+    const payload: Record<string, unknown> = {};
+    const deniedFields: string[] = [];
+    const missingRequiredFields: string[] = [];
+    const byFieldKey = new Map(
+      schema.fieldRegistry.map((field) => [field.fieldKey, field] as const),
+    );
+
+    for (const [fieldKey, value] of Object.entries(fieldValues ?? {})) {
+      const descriptor = byFieldKey.get(fieldKey);
+      if (!descriptor) {
+        continue;
+      }
+      const isAllowed =
+        operation === 'create'
+          ? descriptor.canCreate !== false
+          : descriptor.canUpdate !== false;
+      if (!isAllowed) {
+        deniedFields.push(fieldKey);
+        continue;
+      }
+      if (descriptor.path && descriptor.path.trim().length > 0) {
+        this.setValueAtPath(payload, descriptor.path.trim(), value);
+      } else {
+        payload[fieldKey] = value;
+      }
+    }
+
+    for (const descriptor of schema.fieldRegistry) {
+      const required =
+        operation === 'create'
+          ? descriptor.requiredOnCreate === true
+          : descriptor.requiredOnUpdate === true;
+      if (!required) {
+        continue;
+      }
+      const exists = Object.prototype.hasOwnProperty.call(fieldValues ?? {}, descriptor.fieldKey);
+      if (!exists) {
+        missingRequiredFields.push(descriptor.fieldKey);
+      }
+    }
+
+    if (deniedFields.length > 0) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SubmitFieldForbidden,
+        message: `Payload includes non-writable fields for ${operation}: ${deniedFields.join(', ')}`,
+      });
+    }
+    if (missingRequiredFields.length > 0) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SubmitRequiredFieldMissing,
+        message: `Missing required fields for ${operation}: ${missingRequiredFields.join(', ')}`,
+      });
+    }
+
+    const missingRequiredRelations: string[] = [];
+    for (const rel of schema.relations ?? []) {
+      const relationValue = relationBlocks[rel.relationshipKey];
+      if (relationValue !== undefined) {
+        this.setValueAtPath(payload, this.getInlineRelationPath(rel), relationValue);
+      }
+      if (this.isInlineRequiredRelation(rel) && relationValue === undefined) {
+        missingRequiredRelations.push(rel.relationshipKey);
+      }
+    }
+    if (missingRequiredRelations.length > 0) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SubmitRequiredRelationMissing,
+        message: `Missing inline_required relation blocks: ${missingRequiredRelations.join(', ')}`,
+      });
+    }
+
+    return {
+      entityKey,
+      tenantId: effectiveTenantId,
+      operation,
+      payload,
+    };
+  }
+
+  async validateRuntimeRelationAction(params: {
+    tenantId: number | null | undefined;
+    entityKey: string;
+    relationKey: string;
+    actionRef: string;
+    grantedPermissions: string[];
+  }): Promise<RuntimeRelationActionValidationResult> {
+    const { tenantId, entityKey, relationKey, actionRef } = params;
+    const grantedPermissions = new Set(params.grantedPermissions ?? []);
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const schema = await this.getObjectSchema(effectiveTenantId, entityKey);
+    if (!schema) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SchemaNotFound,
+        message: `No published schema found for entityKey "${entityKey}".`,
+      });
+    }
+    const manifestRaw = (schema.relationManifestsByKey ?? {})[relationKey];
+    if (!manifestRaw || typeof manifestRaw !== 'object' || Array.isArray(manifestRaw)) {
+      throw new RpcException({
+        code: RuntimeErrorCode.RelationActionUnknown,
+        message: `Relation manifest not found for relationKey "${relationKey}".`,
+      });
+    }
+    const manifest = manifestRaw as Record<string, unknown>;
+    const actions =
+      manifest.actions && typeof manifest.actions === 'object' && !Array.isArray(manifest.actions)
+        ? (manifest.actions as Record<string, unknown>)
+        : {};
+    const knownActionRefs = Object.values(actions).filter(
+      (v): v is string => typeof v === 'string' && v.trim().length > 0,
+    );
+    if (!knownActionRefs.includes(actionRef)) {
+      throw new RpcException({
+        code: RuntimeErrorCode.RelationActionUnknown,
+        message: `Unknown relation actionRef "${actionRef}" for relation "${relationKey}".`,
+      });
+    }
+
+    const requiredPermissionsRaw =
+      manifest.requiredPermissionsByActionRef &&
+      typeof manifest.requiredPermissionsByActionRef === 'object' &&
+      !Array.isArray(manifest.requiredPermissionsByActionRef)
+        ? (manifest.requiredPermissionsByActionRef as Record<string, unknown>)[actionRef]
+        : [];
+    const requiredPermissions = Array.isArray(requiredPermissionsRaw)
+      ? requiredPermissionsRaw.filter(
+          (p): p is string => typeof p === 'string' && p.trim().length > 0,
+        )
+      : [];
+    const missingPermissions = requiredPermissions.filter((p) => !grantedPermissions.has(p));
+    const allowed = missingPermissions.length === 0;
+    if (!allowed) {
+      throw new RpcException({
+        code: RuntimeErrorCode.RelationActionForbidden,
+        message: `Missing permissions for relation action "${actionRef}": ${missingPermissions.join(', ')}`,
+      });
+    }
+    return {
+      entityKey,
+      tenantId: effectiveTenantId,
+      relationKey,
+      actionRef,
+      allowed,
+      requiredPermissions,
+      missingPermissions,
+    };
+  }
+
+  private getRuntimeCommonResolvedBlock(
+    schema: ConfigObjectRunnerSchemaView,
+  ): Record<string, unknown> {
+    const derivedRuntime = this.buildDerivedRuntimeResolvedBlock(schema);
+    return {
+      fieldRegistry: schema.fieldRegistry,
+      relations: schema.relations ?? [],
+      relatedFieldRegistryByRelationKey: schema.relatedFieldRegistryByRelationKey ?? {},
+      relationManifestsByKey: schema.relationManifestsByKey ?? {},
+      derivedRuntime,
+    };
+  }
+
+  private buildDerivedRuntimeResolvedBlock(
+    schema: ConfigObjectRunnerSchemaView,
+  ): Record<string, unknown> {
+    const fieldDescriptors = schema.fieldRegistry.filter(
+      (field) => field.derivedRuntimeConfig,
+    );
+    const baseSource: Record<string, unknown> = {};
+    for (const fieldView of schema.fields) {
+      if (fieldView.field.defaultValue !== null && fieldView.field.defaultValue !== undefined) {
+        baseSource[fieldView.field.fieldKey] = fieldView.field.defaultValue as unknown;
+      }
+    }
+
+    const valuesByFieldKey: Record<string, unknown> = {};
+    for (const field of fieldDescriptors) {
+      valuesByFieldKey[field.fieldKey] = this.evaluateDerivedRuntimeValue(
+        field.derivedRuntimeConfig as CoreFieldDerivedRuntimeConfig,
+        baseSource,
+      );
+    }
+
+    return {
+      policy: {
+        coalesce: 'first_non_empty_value',
+        concat: 'join_non_empty_values',
+      },
+      fieldKeys: fieldDescriptors.map((field) => field.fieldKey),
+      valuesByFieldKey,
+    };
+  }
+
+  private async buildRuntimeListSection(params: {
+    view: ConfigObjectViewEntity | null;
+    schema: ConfigObjectRunnerSchemaView;
+    diagnostics: RuntimeManifestDiagnostic[];
+  }): Promise<RuntimeManifestViewSection | null> {
+    const { view, schema, diagnostics } = params;
+    if (!view) {
+      return null;
+    }
+
+    const normalizedList = this.safeNormalizeListViewConfigForRuntime(
+      view.configJson,
+      diagnostics,
+    );
+    const commonResolved = this.getRuntimeCommonResolvedBlock(schema);
+    const fieldByKey = new Map(
+      schema.fieldRegistry.map((field) => [field.fieldKey, field] as const),
+    );
+    const tableColumns = normalizedList.table?.columns ?? [];
+    const boardGroupBy = normalizedList.board?.groupByField;
+    const boardCardTitle = normalizedList.board?.cardTitleField;
+    const boardCardSubtitleFields = normalizedList.board?.cardSubtitleFields ?? [];
+
+    const tableColumnDescriptors = tableColumns
+      .map((fieldKey) => fieldByKey.get(fieldKey))
+      .filter((descriptor): descriptor is CoreFieldDescriptor => Boolean(descriptor));
+
+    for (const fieldKey of tableColumns) {
+      if (!fieldByKey.has(fieldKey)) {
+        diagnostics.push({
+          code: RuntimeErrorCode.FieldKeyUnresolved,
+          message: `List table column field "${fieldKey}" is not in fieldRegistry.`,
+          level: 'warn',
+          refType: 'fieldKey',
+          refKey: fieldKey,
+        });
+      }
+    }
+    const boardReferenced = [
+      ...(boardGroupBy ? [boardGroupBy] : []),
+      ...(boardCardTitle ? [boardCardTitle] : []),
+      ...boardCardSubtitleFields,
+    ];
+    for (const fieldKey of boardReferenced) {
+      if (!fieldByKey.has(fieldKey)) {
+        diagnostics.push({
+          code: RuntimeErrorCode.FieldKeyUnresolved,
+          message: `List board field "${fieldKey}" is not in fieldRegistry.`,
+          level: 'warn',
+          refType: 'fieldKey',
+          refKey: fieldKey,
+        });
+      }
+    }
+
+    return {
+      viewType: 'list',
+      config: normalizedList as unknown as Record<string, unknown>,
+      resolved: {
+        ...commonResolved,
+        defaultPresentation: normalizedList.defaultPresentation ?? 'table',
+        table: {
+          columns: tableColumns,
+          columnDescriptors: tableColumnDescriptors,
+          defaultSort: normalizedList.table?.defaultSort ?? null,
+          rowActions: normalizedList.table?.rowActions ?? [],
+          bulkActions: normalizedList.table?.bulkActions ?? [],
+        },
+        board: {
+          groupByField: boardGroupBy ?? null,
+          cardTitleField: boardCardTitle ?? null,
+          cardSubtitleFields: boardCardSubtitleFields,
+          swimlaneOrder: normalizedList.board?.swimlaneOrder ?? [],
+        },
+      },
+    };
+  }
+
+  private async buildRuntimeDetailFormSection(params: {
+    viewType: ConfigObjectViewType,
+    view: ConfigObjectViewEntity | null;
+    schema: ConfigObjectRunnerSchemaView;
+    diagnostics: RuntimeManifestDiagnostic[];
+  }): Promise<RuntimeManifestViewSection | null> {
+    const { viewType, view, schema, diagnostics } = params;
+    if (!view) {
+      return null;
+    }
+
+    if (viewType !== 'detail' && viewType !== 'form') {
+      return {
+        viewType,
+        config: view.configJson ?? null,
+        resolved: this.getRuntimeCommonResolvedBlock(schema),
+      };
+    }
+
+    const normalized = this.safeNormalizeDetailFormViewConfigForRuntime(
+      view.configJson,
+      viewType,
+      diagnostics,
+    );
+    const panelKeys = normalized.panels ?? [];
+    const panels = panelKeys.length
+      ? await this.panelRepository.find({
+          where: {
+            configObjectViewId: view.configObjectViewId,
+            panelKey: In(panelKeys),
+          },
+          order: {
+            orderIndex: 'ASC',
+          },
+        })
+      : [];
+    const panelByKey = new Map(panels.map((panel) => [panel.panelKey, panel]));
+    const orderedPanels: ConfigObjectViewPanelEntity[] = [];
+
+    for (const panelKey of panelKeys) {
+      const panel = panelByKey.get(panelKey);
+      if (!panel) {
+        diagnostics.push({
+          code: RuntimeErrorCode.PanelKeyUnresolved,
+          message: `${viewType} panel "${panelKey}" could not be resolved from config_object_view_panels.`,
+          level: 'warn',
+          refType: 'panelKey',
+          refKey: panelKey,
+        });
+        continue;
+      }
+      orderedPanels.push(panel);
+    }
+
+    const fieldRegistryByKey = new Set(schema.fieldRegistry.map((f) => f.fieldKey));
+    for (const panel of orderedPanels) {
+      const panelFieldKeys = this.extractFieldKeysFromPanelLayout(panel);
+      for (const fieldKey of panelFieldKeys) {
+        if (!fieldRegistryByKey.has(fieldKey)) {
+          diagnostics.push({
+            code: RuntimeErrorCode.FieldKeyUnresolved,
+            message: `${viewType} panel "${panel.panelKey}" references unknown field "${fieldKey}".`,
+            level: 'warn',
+            refType: 'fieldKey',
+            refKey: fieldKey,
+          });
+        }
+      }
+      if (panel.panelType === 'related') {
+        const relationKey = this.extractRelationKeyFromPanel(panel);
+        if (relationKey && !((schema.relationManifestsByKey ?? {})[relationKey])) {
+          diagnostics.push({
+            code: RuntimeErrorCode.RelationKeyUnresolved,
+            message: `${viewType} panel "${panel.panelKey}" references relation "${relationKey}" without relation manifest metadata.`,
+            level: 'warn',
+            refType: 'relationKey',
+            refKey: relationKey,
+          });
+        }
+      }
+    }
+
+    const relationQueryDefaultsByKey: Record<string, unknown> = {};
+    for (const [relationKey, manifestBlock] of Object.entries(
+      schema.relationManifestsByKey ?? {},
+    )) {
+      const block =
+        manifestBlock && typeof manifestBlock === 'object' && !Array.isArray(manifestBlock)
+          ? (manifestBlock as Record<string, unknown>)
+          : {};
+      relationQueryDefaultsByKey[relationKey] = this.normalizeRuntimeRelationQueryDefaults(
+        block.queryDefaults,
+        diagnostics,
+        relationKey,
+      );
+    }
+
+    return {
+      viewType,
+      config: normalized as unknown as Record<string, unknown>,
+      resolved: {
+        ...this.getRuntimeCommonResolvedBlock(schema),
+        panelKeys,
+        relationQueryDefaultsByKey,
+        panels: orderedPanels.map((panel) => ({
+          panelKey: panel.panelKey,
+          title: panel.title,
+          panelType: panel.panelType,
+          orderIndex: panel.orderIndex,
+          layoutConfig: panel.layoutConfig ?? null,
+        })),
+      },
+    };
+  }
+
+  private safeNormalizeListViewConfigForRuntime(
+    value: Record<string, unknown> | null,
+    diagnostics: RuntimeManifestDiagnostic[],
+  ): ListViewConfig {
+    if (!value) {
+      return validateAndNormalizeListViewConfigJson(null);
+    }
+    try {
+      return validateAndNormalizeListViewConfigJson(value);
+    } catch (error) {
+      diagnostics.push({
+        code: RuntimeErrorCode.ViewConfigInvalid,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Invalid list config_json; using default fallback.',
+        level: 'warn',
+      });
+      return validateAndNormalizeListViewConfigJson(null);
+    }
+  }
+
+  private safeNormalizeDetailFormViewConfigForRuntime(
+    value: Record<string, unknown> | null,
+    viewType: 'detail' | 'form',
+    diagnostics: RuntimeManifestDiagnostic[],
+  ): DetailFormViewConfig {
+    if (!value) {
+      return { schemaVersion: 1, panels: [] };
+    }
+    try {
+      return (
+        validateAndNormalizeDetailFormViewConfigJson(value) ?? {
+          schemaVersion: 1,
+          panels: [],
+        }
+      );
+    } catch (error) {
+      diagnostics.push({
+        code: RuntimeErrorCode.ViewConfigInvalid,
+        message:
+          error instanceof Error
+            ? `${viewType} config_json is invalid: ${error.message}`
+            : `${viewType} config_json is invalid; using fallback.`,
+        level: 'warn',
+      });
+      return { schemaVersion: 1, panels: [] };
+    }
+  }
+
+  private extractRelationKeyFromPanel(
+    panel: ConfigObjectViewPanelEntity,
+  ): string | null {
+    if (
+      !panel.layoutConfig ||
+      typeof panel.layoutConfig !== 'object' ||
+      Array.isArray(panel.layoutConfig)
+    ) {
+      return null;
+    }
+    const layout = (panel.layoutConfig as Record<string, unknown>).layout;
+    if (!layout || typeof layout !== 'object' || Array.isArray(layout)) {
+      return null;
+    }
+    const relationKey = (layout as Record<string, unknown>).relationKey;
+    if (typeof relationKey !== 'string' || relationKey.trim().length === 0) {
+      return null;
+    }
+    return relationKey.trim();
+  }
+
+  private normalizeRuntimeRelationQueryDefaults(
+    value: unknown,
+    diagnostics: RuntimeManifestDiagnostic[],
+    relationKey: string,
+  ): { page: number; limit: number; depth: number; sort: unknown; filters: unknown } {
+    const obj =
+      value && typeof value === 'object' && !Array.isArray(value)
+        ? (value as Record<string, unknown>)
+        : {};
+    const pageRaw = Number(obj.page);
+    const limitRaw = Number(obj.limit);
+    const depthRaw = Number(obj.depth);
+    let page = Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
+    let limit =
+      Number.isInteger(limitRaw) && limitRaw >= 1 ? limitRaw : this.runtimeRelationMaxPageSize;
+    let depth = Number.isInteger(depthRaw) && depthRaw >= 0 ? depthRaw : 1;
+
+    if (limit > this.runtimeRelationMaxPageSize) {
+      diagnostics.push({
+        code: RuntimeErrorCode.ViewConfigInvalid,
+        message: `relation "${relationKey}" queryDefaults.limit exceeded max (${this.runtimeRelationMaxPageSize}); clamped.`,
+        level: 'warn',
+        refType: 'relationKey',
+        refKey: relationKey,
+      });
+      limit = this.runtimeRelationMaxPageSize;
+    }
+    if (depth > this.runtimeRelationMaxDepth) {
+      diagnostics.push({
+        code: RuntimeErrorCode.RelationQueryDepthExceeded,
+        message: `relation "${relationKey}" queryDefaults.depth exceeded max (${this.runtimeRelationMaxDepth}); clamped.`,
+        level: 'warn',
+        refType: 'relationKey',
+        refKey: relationKey,
+      });
+      depth = this.runtimeRelationMaxDepth;
+    }
+    if (page < 1) {
+      page = 1;
+    }
+
+    return {
+      page,
+      limit,
+      depth,
+      sort: obj.sort ?? null,
+      filters: obj.filters ?? null,
+    };
   }
 
   /**

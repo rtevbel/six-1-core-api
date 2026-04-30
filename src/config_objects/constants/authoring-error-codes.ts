@@ -17,6 +17,8 @@ export const AuthoringErrorCode = {
   RelationCatalogNotFound: 'SIX1_AUTHORING_RELATION_CATALOG_NOT_FOUND',
   RelationConfigInvalid: 'SIX1_AUTHORING_RELATION_CONFIG_INVALID',
   DerivedDisplayInvalid: 'SIX1_AUTHORING_DERIVED_DISPLAY_INVALID',
+  LookupSelectInvalid: 'SIX1_AUTHORING_LOOKUP_SELECT_INVALID',
+  DerivedRuntimeInvalid: 'SIX1_AUTHORING_DERIVED_RUNTIME_INVALID',
 } as const;
 
 export type AuthoringErrorCodeValue =

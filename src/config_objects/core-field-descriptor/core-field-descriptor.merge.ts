@@ -2,6 +2,10 @@ import type { ConfigObjectBindingMode } from '../entities/config_object.entity';
 import type { ConfigObjectFieldRuleEntity } from '../entities/config_object_field_rule.entity';
 import type { ConfigObjectFieldView } from '../interfaces/config-object-resolved-instance.interface';
 import type { SorFieldPrimitiveType } from '../sor-field-descriptors.registry';
+import {
+  validateDerivedRuntimeAuthoringMetadata,
+  validateLookupSelectAuthoringMetadata,
+} from '../field-runtime-authoring';
 
 import { CORE_FIELD_PRIMITIVE_TYPES } from './core-field-descriptor.constants';
 import { generateBaseCoreFieldDescriptors } from './core-field-descriptor.generator';
@@ -70,6 +74,7 @@ function mergeBaseWithFieldView(
 ): CoreFieldDescriptor {
   const f = fieldView.field;
   const ruleEntities = fieldView.rules.map((rv) => rv.fieldRule);
+  const runtimeMetadata = extractRuntimeMetadataFromValidationJson(f.validationJson);
 
   const merged: CoreFieldDescriptor = {
     ...base,
@@ -77,6 +82,7 @@ function mergeBaseWithFieldView(
     orderIndex: f.orderIndex,
     sectionKey: f.sectionKey ?? undefined,
     description: f.description ?? undefined,
+    ...runtimeMetadata,
   };
 
   if (f.isRequired) {
@@ -93,6 +99,7 @@ function descriptorFromCustomFieldView(
 ): CoreFieldDescriptor {
   const f = fieldView.field;
   const ruleEntities = fieldView.rules.map((rv) => rv.fieldRule);
+  const runtimeMetadata = extractRuntimeMetadataFromValidationJson(f.validationJson);
 
   const draft: CoreFieldDescriptor = {
     fieldKey: f.fieldKey,
@@ -101,6 +108,7 @@ function descriptorFromCustomFieldView(
     orderIndex: f.orderIndex,
     sectionKey: f.sectionKey ?? undefined,
     description: f.description ?? undefined,
+    ...runtimeMetadata,
   };
 
   if (f.isRequired) {
@@ -110,6 +118,42 @@ function descriptorFromCustomFieldView(
 
   const withRules = applyGlobalRulesToDescriptor(draft, ruleEntities);
   return validateCoreFieldDescriptor(withRules);
+}
+
+function extractRuntimeMetadataFromValidationJson(
+  validationJson: Record<string, unknown> | null,
+): Pick<CoreFieldDescriptor, 'lookupSelectConfig' | 'derivedRuntimeConfig'> {
+  if (!validationJson) {
+    return {};
+  }
+  const out: Pick<CoreFieldDescriptor, 'lookupSelectConfig' | 'derivedRuntimeConfig'> =
+    {};
+  try {
+    if (
+      Object.prototype.hasOwnProperty.call(validationJson, '_six1LookupSelectAuthoring')
+    ) {
+      out.lookupSelectConfig = validateLookupSelectAuthoringMetadata(
+        validationJson._six1LookupSelectAuthoring,
+      );
+    }
+  } catch {
+    // Intentionally ignore invalid legacy metadata during read.
+  }
+  try {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        validationJson,
+        '_six1DerivedRuntimeAuthoring',
+      )
+    ) {
+      out.derivedRuntimeConfig = validateDerivedRuntimeAuthoringMetadata(
+        validationJson._six1DerivedRuntimeAuthoring,
+      );
+    }
+  } catch {
+    // Intentionally ignore invalid legacy metadata during read.
+  }
+  return out;
 }
 
 function sortFieldViewsForAppend(

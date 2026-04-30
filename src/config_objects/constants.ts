@@ -238,6 +238,34 @@ export const MICROSERVICE_DEACTIVATE_CONFIG_VIEW_SCOPE_PATTERN =
   'v0.1_deactivate_config_view_scope';
 
 /**
+ * Runtime manifest contract:
+ * returns resolved list/detail/form payload skeleton for Object Runner.
+ */
+export const MICROSERVICE_GET_RUNTIME_MANIFEST_PATTERN =
+  'v0.1_get_runtime_manifest';
+
+/**
+ * Runtime cache invalidation contract:
+ * clears in-memory runtime caches (schema/view/manifest) by scope.
+ */
+export const MICROSERVICE_INVALIDATE_RUNTIME_CACHE_PATTERN =
+  'v0.1_invalidate_runtime_cache';
+
+/**
+ * Runtime submit-payload composition contract:
+ * builds validated root + nested relation payload for create/update.
+ */
+export const MICROSERVICE_COMPOSE_RUNTIME_SUBMIT_PAYLOAD_PATTERN =
+  'v0.1_compose_runtime_submit_payload';
+
+/**
+ * Runtime relation-action authorization contract:
+ * validates relation/action refs against manifest + caller permissions.
+ */
+export const MICROSERVICE_VALIDATE_RUNTIME_RELATION_ACTION_PATTERN =
+  'v0.1_validate_runtime_relation_action';
+
+/**
  * Message pattern used to list panels for a given view.
  */
 export const MICROSERVICE_LIST_CONFIG_VIEW_PANELS_PATTERN =

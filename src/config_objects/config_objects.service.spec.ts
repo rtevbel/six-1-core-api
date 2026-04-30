@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { AuthoringErrorCode } from './constants/authoring-error-codes';
+import { RuntimeErrorCode } from './constants/runtime-error-codes';
 import { DataSource, Repository } from 'typeorm';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
@@ -217,6 +218,20 @@ describe('ConfigObjectsService', () => {
         orderIndex: 0,
         sectionKey: null,
         defaultValue: 'customer',
+        validationJson: {
+          _six1LookupSelectAuthoring: {
+            schemaVersion: 1,
+            dataRef: 'core.system_statuses.list',
+            valueKey: 'statusId',
+            labelKey: 'name',
+          },
+          _six1DerivedRuntimeAuthoring: {
+            schemaVersion: 1,
+            operation: 'concat',
+            sourceFieldKeys: ['groupName', 'name'],
+            separator: ' - ',
+          },
+        },
       } as any,
     ]);
 
@@ -247,6 +262,13 @@ describe('ConfigObjectsService', () => {
     expect(
       schema?.fieldRegistry.some((field) => field.fieldKey === 'project_type'),
     ).toBe(true);
+    const projectType = schema?.fieldRegistry.find(
+      (field) => field.fieldKey === 'project_type',
+    );
+    expect(projectType?.lookupSelectConfig?.dataRef).toBe(
+      'core.system_statuses.list',
+    );
+    expect(projectType?.derivedRuntimeConfig?.operation).toBe('concat');
     // Keep v0.1_get_config_schema baseline stable and avoid leaking runtime-manifest keys.
     expect(schema).toHaveProperty('configObject');
     expect(schema).toHaveProperty('fields');
@@ -364,6 +386,18 @@ describe('ConfigObjectsService', () => {
         (f) => f.fieldKey === 'permission_id',
       ),
     ).toBe(true);
+    expect(
+      (
+        schema?.relatedFieldRegistryByRelationKey?.role_tenant_user_invitations ??
+        []
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      schema?.relatedFieldRegistrySourceByRelationKey?.role_permissions,
+    ).toBe('configured_object');
+    expect(
+      schema?.relatedFieldRegistrySourceByRelationKey?.role_tenant_user_invitations,
+    ).toBe('entity_fallback');
     expect(schema?.fieldRegistry.some((f) => f.fieldKey === 'roleId')).toBe(true);
     expect(schema?.relationManifestsByKey?.role_custom_checklist).toEqual({
       actionRef: 'assignChecklist',
@@ -820,6 +854,81 @@ describe('ConfigObjectsService', () => {
     ).rejects.toThrow(
       'Custom config fields are not supported when binding_mode is system_table.',
     );
+  });
+
+  it('createConfigField should reject invalid lookup-select authoring metadata', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValue(null as any);
+
+    try {
+      await service.createConfigField({
+        tenantId: 1,
+        configObjectId: 10,
+        createdBy: 1,
+        fieldKey: 'statusId',
+        label: 'Status',
+        fieldType: 'number',
+        validationJson: {
+          _six1LookupSelectAuthoring: {
+            schemaVersion: 1,
+            dataRef: 'https://bad.example/statuses',
+            valueKey: 'statusId',
+            labelKey: 'name',
+          },
+        },
+      });
+      fail('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect((e as RpcException).getError()).toMatchObject({
+        code: AuthoringErrorCode.LookupSelectInvalid,
+      });
+    }
+  });
+
+  it('createConfigField should reject invalid derived-runtime authoring metadata', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValue(null as any);
+
+    try {
+      await service.createConfigField({
+        tenantId: 1,
+        configObjectId: 10,
+        createdBy: 1,
+        fieldKey: 'displayName',
+        label: 'Display Name',
+        fieldType: 'text',
+        validationJson: {
+          _six1DerivedRuntimeAuthoring: {
+            schemaVersion: 1,
+            operation: 'concat',
+            sourceFieldKeys: [],
+          },
+        },
+      });
+      fail('expected throw');
+    } catch (e) {
+      expect(e).toBeInstanceOf(RpcException);
+      expect((e as RpcException).getError()).toMatchObject({
+        code: AuthoringErrorCode.DerivedRuntimeInvalid,
+      });
+    }
   });
 
   it('listConfigFields should return empty array for system_table', async () => {
@@ -1656,6 +1765,377 @@ describe('ConfigObjectsService', () => {
         updatedBy: 99,
       }),
     ).rejects.toThrow('Scoped config view does not match the requested tenant scope.');
+  });
+
+  it('getRuntimeManifest should include resolved list/detail/form sections with runtime blocks', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: {
+        objectType: 'project',
+      },
+      fields: [],
+      fieldRegistry: [
+        { fieldKey: 'name', label: 'Name' },
+        { fieldKey: 'status', label: 'Status' },
+      ],
+      relations: [],
+      relatedFieldRegistryByRelationKey: {},
+      relationManifestsByKey: {},
+    } as any);
+
+    jest
+      .spyOn(service, 'getActiveScopedConfigView')
+      .mockResolvedValueOnce({
+        configObjectViewId: 1,
+        viewType: 'list',
+        configJson: {
+          schemaVersion: 1,
+          defaultPresentation: 'table',
+          table: { columns: ['name', 'status'] },
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 2,
+        viewType: 'detail',
+        configJson: {
+          schemaVersion: 1,
+          panels: ['main_panel'],
+        },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 3,
+        viewType: 'form',
+        configJson: {
+          schemaVersion: 1,
+          panels: ['main_panel'],
+        },
+      } as any);
+
+    jest.spyOn(panelRepo, 'find').mockResolvedValue([
+      {
+        panelKey: 'main_panel',
+        title: 'Main',
+        panelType: 'section',
+        orderIndex: 10,
+        layoutConfig: { schemaVersion: 1, displayMode: 'summary', layout: {} },
+      },
+    ] as any);
+
+    const manifest = await service.getRuntimeManifest({
+      tenantId: 1,
+      entityKey: 'project',
+    });
+
+    expect(manifest.list?.resolved).toBeDefined();
+    expect((manifest.list?.resolved as any)?.table?.columns).toEqual(['name', 'status']);
+    expect((manifest.detail?.resolved as any)?.panels?.length).toBe(1);
+    expect((manifest.form?.resolved as any)?.panels?.length).toBe(1);
+  });
+
+  it('getRuntimeManifest should emit schema-not-found diagnostic when schema is missing', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce(null);
+
+    const manifest = await service.getRuntimeManifest({
+      tenantId: 1,
+      entityKey: 'project',
+      includeDiagnostics: true,
+    });
+
+    expect(manifest.list).toBeNull();
+    expect(manifest.detail).toBeNull();
+    expect(manifest.form).toBeNull();
+    expect(
+      manifest.diagnostics.some((d) => d.code === RuntimeErrorCode.SchemaNotFound),
+    ).toBe(
+      true,
+    );
+  });
+
+  it('getRuntimeManifest should evaluate derivedRuntimeConfig preview values', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: {
+        objectType: 'project',
+      },
+      fields: [
+        {
+          field: {
+            fieldKey: 'firstName',
+            defaultValue: 'John',
+          },
+          rules: [],
+        },
+        {
+          field: {
+            fieldKey: 'lastName',
+            defaultValue: 'Doe',
+          },
+          rules: [],
+        },
+      ],
+      fieldRegistry: [
+        { fieldKey: 'firstName', label: 'First name' },
+        { fieldKey: 'lastName', label: 'Last name' },
+        {
+          fieldKey: 'displayName',
+          label: 'Display name',
+          derivedRuntimeConfig: {
+            schemaVersion: 1,
+            operation: 'concat',
+            sourceFieldKeys: ['firstName', 'lastName'],
+            separator: ' ',
+            trim: true,
+            nullDisplayValue: 'N/A',
+          },
+        },
+        {
+          fieldKey: 'fallbackName',
+          label: 'Fallback name',
+          derivedRuntimeConfig: {
+            schemaVersion: 1,
+            operation: 'coalesce',
+            sourceFieldKeys: ['preferredName', 'firstName'],
+            nullDisplayValue: 'N/A',
+            trim: true,
+          },
+        },
+      ],
+      relations: [],
+      relatedFieldRegistryByRelationKey: {},
+      relationManifestsByKey: {},
+    } as any);
+
+    jest
+      .spyOn(service, 'getActiveScopedConfigView')
+      .mockResolvedValueOnce({
+        configObjectViewId: 10,
+        viewType: 'list',
+        configJson: {
+          schemaVersion: 1,
+          table: { columns: ['displayName', 'fallbackName'] },
+        },
+      } as any)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null);
+
+    const manifest = await service.getRuntimeManifest({
+      tenantId: 1,
+      entityKey: 'project',
+    });
+
+    const derivedRuntime = (manifest.list?.resolved as any)?.derivedRuntime;
+    expect(derivedRuntime).toBeDefined();
+    expect(derivedRuntime.valuesByFieldKey.displayName).toBe('John Doe');
+    expect(derivedRuntime.valuesByFieldKey.fallbackName).toBe('John');
+  });
+
+  it('composeRuntimeSubmitPayload should compose root fields and inline relation block by path', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'role' },
+      fieldRegistry: [
+        { fieldKey: 'name', canCreate: true, requiredOnCreate: true },
+        { fieldKey: 'slug', canCreate: true },
+      ],
+      relations: [
+        {
+          relationshipKey: 'role_descriptions',
+          queryConfig: {
+            inlineRelation: { mode: 'inline_required', path: 'roleDescriptions' },
+          },
+        },
+      ],
+    } as any);
+
+    const out = await service.composeRuntimeSubmitPayload({
+      tenantId: 1,
+      entityKey: 'role',
+      operation: 'create',
+      fieldValues: { name: 'Admin', slug: 'admin' },
+      relationBlocks: {
+        role_descriptions: [{ languageId: 1, name: 'Administrator' }],
+      },
+    });
+
+    expect(out.payload).toEqual({
+      name: 'Admin',
+      slug: 'admin',
+      roleDescriptions: [{ languageId: 1, name: 'Administrator' }],
+    });
+  });
+
+  it('composeRuntimeSubmitPayload should reject missing inline_required relation block', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'role' },
+      fieldRegistry: [{ fieldKey: 'name', canCreate: true, requiredOnCreate: true }],
+      relations: [
+        {
+          relationshipKey: 'role_descriptions',
+          queryConfig: {
+            inlineRelation: { mode: 'inline_required', path: 'roleDescriptions' },
+          },
+        },
+      ],
+    } as any);
+
+    await expect(
+      service.composeRuntimeSubmitPayload({
+        tenantId: 1,
+        entityKey: 'role',
+        operation: 'create',
+        fieldValues: { name: 'Admin' },
+        relationBlocks: {},
+      }),
+    ).rejects.toThrow('Missing inline_required relation blocks');
+  });
+
+  it('getRuntimeManifest should clamp unsafe relation query defaults', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'project' },
+      fields: [],
+      fieldRegistry: [{ fieldKey: 'name', label: 'Name' }],
+      relations: [],
+      relationManifestsByKey: {
+        project_roles: {
+          queryDefaults: { page: 1, limit: 500, depth: 9 },
+        },
+      },
+      relatedFieldRegistryByRelationKey: {},
+    } as any);
+
+    jest
+      .spyOn(service, 'getActiveScopedConfigView')
+      .mockResolvedValueOnce({
+        configObjectViewId: 1,
+        viewType: 'list',
+        configJson: { schemaVersion: 1, table: { columns: ['name'] } },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 2,
+        viewType: 'detail',
+        configJson: { schemaVersion: 1, panels: [] },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 3,
+        viewType: 'form',
+        configJson: { schemaVersion: 1, panels: [] },
+      } as any);
+
+    const manifest = await service.getRuntimeManifest({
+      tenantId: 1,
+      entityKey: 'project',
+    });
+    const detailDefaults = (manifest.detail?.resolved as any)?.relationQueryDefaultsByKey
+      ?.project_roles;
+    expect(detailDefaults.limit).toBe(100);
+    expect(detailDefaults.depth).toBe(1);
+    expect(
+      manifest.diagnostics.some((d) => d.code === RuntimeErrorCode.RelationQueryDepthExceeded),
+    ).toBe(true);
+  });
+
+  it('validateRuntimeRelationAction should reject missing required permissions', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'project' },
+      fields: [],
+      fieldRegistry: [],
+      relationManifestsByKey: {
+        project_roles: {
+          actions: {
+            assignRef: 'six1:action:project.roles.assign',
+          },
+          requiredPermissionsByActionRef: {
+            'six1:action:project.roles.assign': ['project.manage_roles'],
+          },
+        },
+      },
+    } as any);
+
+    await expect(
+      service.validateRuntimeRelationAction({
+        tenantId: 1,
+        entityKey: 'project',
+        relationKey: 'project_roles',
+        actionRef: 'six1:action:project.roles.assign',
+        grantedPermissions: [],
+      }),
+    ).rejects.toThrow('Missing permissions for relation action');
+  });
+
+  it('getRuntimeManifest should keep contract stable across binding-mode matrix', async () => {
+    const bindingModes: Array<'system_table' | 'sor_bound' | 'standalone'> = [
+      'system_table',
+      'sor_bound',
+      'standalone',
+    ];
+
+    for (const mode of bindingModes) {
+      jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+        configObject: { objectType: mode === 'sor_bound' ? 'project' : mode, bindingMode: mode },
+        fields: [],
+        fieldRegistry: [{ fieldKey: 'name', label: 'Name' }],
+        relations: [],
+        relationManifestsByKey: {},
+        relatedFieldRegistryByRelationKey: {},
+      } as any);
+
+      jest
+        .spyOn(service, 'getActiveScopedConfigView')
+        .mockResolvedValueOnce({
+          configObjectViewId: 1,
+          viewType: 'list',
+          configJson: { schemaVersion: 1, table: { columns: ['name'] } },
+        } as any)
+        .mockResolvedValueOnce({
+          configObjectViewId: 2,
+          viewType: 'detail',
+          configJson: { schemaVersion: 1, panels: [] },
+        } as any)
+        .mockResolvedValueOnce({
+          configObjectViewId: 3,
+          viewType: 'form',
+          configJson: { schemaVersion: 1, panels: [] },
+        } as any);
+
+      const manifest = await service.getRuntimeManifest({
+        tenantId: 1,
+        entityKey: mode === 'sor_bound' ? 'project' : mode,
+      });
+
+      expect(manifest.entityKey).toBe(mode === 'sor_bound' ? 'project' : mode);
+      expect(manifest.list?.viewType).toBe('list');
+      expect(manifest.detail?.viewType).toBe('detail');
+      expect(manifest.form?.viewType).toBe('form');
+      expect((manifest.list?.resolved as any)?.fieldRegistry).toBeDefined();
+      expect((manifest.detail?.resolved as any)?.relations).toBeDefined();
+    }
+  });
+
+  it('validateRuntimeRelationAction should allow relation-heavy action when permissions are satisfied', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'role' },
+      fields: [],
+      fieldRegistry: [],
+      relationManifestsByKey: {
+        role_permissions: {
+          actions: {
+            assignRef: 'six1:action:role.permissions.assign',
+            unassignRef: 'six1:action:role.permissions.unassign',
+          },
+          requiredPermissionsByActionRef: {
+            'six1:action:role.permissions.assign': ['roles.manage_permissions'],
+          },
+        },
+      },
+    } as any);
+
+    const result = await service.validateRuntimeRelationAction({
+      tenantId: 1,
+      entityKey: 'role',
+      relationKey: 'role_permissions',
+      actionRef: 'six1:action:role.permissions.assign',
+      grantedPermissions: ['roles.manage_permissions'],
+    });
+
+    expect(result.allowed).toBe(true);
+    expect(result.missingPermissions).toEqual([]);
   });
 });
 

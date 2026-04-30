@@ -3,6 +3,7 @@ import {
   IsIn,
   IsInt,
   IsNotEmpty,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
@@ -68,4 +69,12 @@ export class CoreFieldDescriptorValidationClass {
   @IsString()
   @MaxLength(4000)
   description?: string | null;
+
+  @IsOptional()
+  @IsObject()
+  lookupSelectConfig?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsObject()
+  derivedRuntimeConfig?: Record<string, unknown>;
 }

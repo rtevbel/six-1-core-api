@@ -1,4 +1,8 @@
 import type { SorFieldPrimitiveType } from '../sor-field-descriptors.registry';
+import type {
+  CoreFieldDerivedRuntimeConfig,
+  CoreFieldLookupSelectConfig,
+} from './core-field-descriptor.runtime-metadata.types';
 
 /**
  * Normalized catalog field descriptor for configurable objects (`sor_bound`,
@@ -36,4 +40,8 @@ export interface CoreFieldDescriptor {
   sectionKey?: string | null;
   /** Longer help text from `config_object_fields.description`. */
   description?: string | null;
+  /** Optional lookup/select metadata for runner form option binding. */
+  lookupSelectConfig?: CoreFieldLookupSelectConfig;
+  /** Optional derived-value runtime metadata (e.g. concat/coalesce). */
+  derivedRuntimeConfig?: CoreFieldDerivedRuntimeConfig;
 }
