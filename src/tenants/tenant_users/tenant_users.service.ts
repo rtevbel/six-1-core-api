@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Repository,
+import {  Repository,
   UpdateResult,
   DeleteResult,
   Like,
   SelectQueryBuilder,
   Brackets,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUsersEntity } from './entities/tenant_user.entity';
 import { CreateTenantUserDto } from './dto/create-tenant_user.dto';
@@ -69,9 +73,15 @@ export class TenantUsersService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: tenantUsers,
       tenantUsersRecords: tenantUsers,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -218,13 +228,14 @@ export class TenantUsersService {
    * @returns Pagination details.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

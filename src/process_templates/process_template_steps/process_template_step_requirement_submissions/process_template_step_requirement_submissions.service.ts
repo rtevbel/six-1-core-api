@@ -5,11 +5,16 @@ import { ProcessTemplateStepRequirementSubmissionEntity } from './entities/proce
 import { CreateProcessTemplateStepRequirementSubmissionDto } from './dto/create-process_template_step_requirement_submission.dto';
 import { UpdateProcessTemplateStepRequirementSubmissionDto } from './dto/update-process_template_step_requirement_submission.dto';
 import { FiltersDto } from './dto/filters.dto';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {
-  NO_RECORD_FOUND_MESSAGE,
+import {  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../../common/runtime-v2-list-pagination';
 
 @Injectable()
 export class ProcessTemplateStepRequirementSubmissionsService {
@@ -42,10 +47,7 @@ export class ProcessTemplateStepRequirementSubmissionsService {
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<{
-    submissions: ProcessTemplateStepRequirementSubmissionEntity[];
-    pagination: any;
-  }> {
+  ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [submissions, total] =
@@ -60,9 +62,16 @@ export class ProcessTemplateStepRequirementSubmissionsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: submissions,
       submissions,
-      pagination: this.buildPagination(filtersDto, total),
+      processTemplateStepRequirementSubmissionRecords: submissions,
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -179,13 +188,14 @@ export class ProcessTemplateStepRequirementSubmissionsService {
    * @returns The pagination object.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

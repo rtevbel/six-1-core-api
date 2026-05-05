@@ -11,6 +11,7 @@ import { UpdateProcessInstanceStepRequirementSubmissionDto } from './dto/update-
 import { FiltersDto } from './dto/filters.dto';
 import { ProcessInstanceStepRequirementSubmissionEntity } from './entities/process_instance_step_requirement_submission.entity';
 import { DeleteResult, UpdateResult } from 'typeorm';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
 
 import {
@@ -58,10 +59,7 @@ export class ProcessInstanceStepRequirementSubmissionsController {
   findAllSubmissions(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
-  ): Promise<{
-    submissions: ProcessInstanceStepRequirementSubmissionEntity[];
-    pagination: any;
-  }> {
+  ): Promise<FindAllResultInterface> {
     return this.submissionsService.findAll(userId, filtersDto);
   }
 

@@ -2,7 +2,7 @@ import { CustomerEntity } from '../entities/customer.entity';
 
 export interface FindAllResultInterface {
   items: CustomerEntity[];
-  customers?: CustomerEntity[];
+  customers: CustomerEntity[];
   page: number;
   limit: number;
   total: number;

@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  Repository,
+import {  Repository,
   DeleteResult,
   UpdateResult,
   SelectQueryBuilder,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 import { RpcException } from '@nestjs/microservices';
 import { ResourceBlackoutDateEntity } from '../entities/resource_blackout_date.entity';
 import { CreateResourceBlackoutDateDto } from '../dto/create-resource-blackout-date.dto';
@@ -15,10 +19,14 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../../common/constants';
-
 export interface FindAllResourceBlackoutResult {
+  items: ResourceBlackoutDateEntity[];
   blackoutRecords: ResourceBlackoutDateEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -51,9 +59,15 @@ export class ResourceBlackoutDatesService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: items,
       blackoutRecords: items,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -144,13 +158,14 @@ export class ResourceBlackoutDatesService {
   }
 
   private buildPagination(
-    filtersDto: FiltersResourceBlackoutDateDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

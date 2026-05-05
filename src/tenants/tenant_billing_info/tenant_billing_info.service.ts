@@ -7,6 +7,11 @@ import { UpdateTenantBillingInfoDto } from './dto/update-tenant_billing_info.dto
 import { RpcException } from '@nestjs/microservices';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -61,9 +66,15 @@ export class TenantBillingInfoService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: billingInfoRecords,
       contactBillingInfoRecords: billingInfoRecords,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -202,13 +213,14 @@ export class TenantBillingInfoService {
    * @returns Pagination metadata.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

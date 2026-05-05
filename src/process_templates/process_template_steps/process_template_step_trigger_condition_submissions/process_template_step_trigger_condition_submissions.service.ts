@@ -7,10 +7,14 @@ import { UpdateProcessTemplateStepTriggerConditionSubmissionDto } from './dto/up
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
-import {
-  NO_RECORD_FOUND_MESSAGE,
+import {  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../../common/runtime-v2-list-pagination';
 
 @Injectable()
 export class ProcessTemplateStepTriggerConditionSubmissionsService {
@@ -58,9 +62,15 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: submissions,
       processTemplateStepTriggerConditionSubmissionRecords: submissions,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -176,13 +186,14 @@ export class ProcessTemplateStepTriggerConditionSubmissionsService {
    * @returns The pagination object.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

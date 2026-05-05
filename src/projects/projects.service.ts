@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Repository,
+import {  Repository,
   Like,
   UpdateResult,
   DeleteResult,
   DataSource,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProjectEntity } from './entities/project.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -343,9 +347,15 @@ export class ProjectsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: projects,
       projectRecords: projects,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -516,14 +526,15 @@ export class ProjectsService {
    * @returns {{ total: number; page: number; limit: number }}
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

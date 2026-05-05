@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  Repository,
+import {  Repository,
   DeleteResult,
   UpdateResult,
   SelectQueryBuilder,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 import { RpcException } from '@nestjs/microservices';
 import { ResourceAvailabilityEntity } from '../entities/resource_availability.entity';
 import { CreateResourceAvailabilityDto } from '../dto/create-resource-availability.dto';
@@ -15,10 +19,14 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../../common/constants';
-
 export interface FindAllResourceAvailabilityResult {
+  items: ResourceAvailabilityEntity[];
   availabilityRecords: ResourceAvailabilityEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -51,9 +59,15 @@ export class ResourceAvailabilityService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: items,
       availabilityRecords: items,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -154,13 +168,14 @@ export class ResourceAvailabilityService {
   }
 
   private buildPagination(
-    filtersDto: FiltersResourceAvailabilityDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

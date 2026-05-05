@@ -1,4 +1,6 @@
 import { Column, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { PANEL_LAYOUT_DISPLAY_MODES } from '../panel-layout/panel-layout.constants';
+import type { PanelLayoutDisplayMode } from '../panel-layout/panel-layout.types';
 import { ConfigObjectViewEntity } from './config_object_view.entity';
 
 /**
@@ -43,10 +45,10 @@ export class ConfigObjectViewPanelEntity {
   @Column({
     name: 'panel_type',
     type: 'enum',
-    enum: ['summary', 'section', 'related', 'custom'],
-    default: 'section',
+    enum: [...PANEL_LAYOUT_DISPLAY_MODES],
+    default: 'form-section',
   })
-  panelType!: 'summary' | 'section' | 'related' | 'custom';
+  panelType!: PanelLayoutDisplayMode;
 
   @Column({
     name: 'layout_config',

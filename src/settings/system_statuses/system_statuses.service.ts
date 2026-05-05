@@ -7,10 +7,14 @@ import { UpdateSystemStatusDto } from './dto/update-system-status.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {
-  NO_RECORD_FOUND_MESSAGE,
+import {  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 
 @Injectable()
 export class SystemStatusesService {
@@ -61,9 +65,15 @@ export class SystemStatusesService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
-      statuses,
-      pagination: this.buildPagination(filtersDto, total),
+      items: statuses,
+      statuses: statuses,
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -175,13 +185,14 @@ export class SystemStatusesService {
    * @returns The pagination object.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

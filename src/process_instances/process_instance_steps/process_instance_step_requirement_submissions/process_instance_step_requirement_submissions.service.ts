@@ -5,12 +5,18 @@ import { ProcessInstanceStepRequirementSubmissionEntity } from './entities/proce
 import { CreateProcessInstanceStepRequirementSubmissionDto } from './dto/create-process_instance_step_requirement_submission.dto';
 import { UpdateProcessInstanceStepRequirementSubmissionDto } from './dto/update-process_instance_step_requirement_submission.dto';
 import { FiltersDto } from './dto/filters.dto';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { RequirementValidationService } from '../../../automation/requirement-validation.service';
 import { RequirementEnvelope } from '../../../automation/requirement-validation.service';
 import { StepOrchestratorService } from '../../../automation/step-orchestrator.service';
 import { EventsService } from '../../../events/events.service';
 import { ProcessInstanceStepRequirementsService } from '../process_instance_step_requirements/process_instance_step_requirements.service';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -136,10 +142,7 @@ export class ProcessInstanceStepRequirementSubmissionsService {
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<{
-    submissions: ProcessInstanceStepRequirementSubmissionEntity[];
-    pagination: any;
-  }> {
+  ): Promise<FindAllResultInterface> {
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [submissions, total] =
@@ -154,9 +157,16 @@ export class ProcessInstanceStepRequirementSubmissionsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: submissions,
       submissions,
-      pagination: this.buildPagination(filtersDto, total),
+      processTemplateStepRequirementSubmissionRecords: submissions,
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -319,13 +329,14 @@ export class ProcessInstanceStepRequirementSubmissionsService {
    * @returns The pagination details.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

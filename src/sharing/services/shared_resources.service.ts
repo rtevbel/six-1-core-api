@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  DeleteResult,
+import {  DeleteResult,
   Repository,
   SelectQueryBuilder,
   UpdateResult,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 import { RpcException } from '@nestjs/microservices';
 import { SharedResourceEntity } from '../entities/shared_resource.entity';
 import { CreateSharedResourceDto } from '../dto/shared-resources/create-shared-resource.dto';
@@ -17,8 +21,13 @@ import {
 } from '../../common/constants';
 
 export interface FindAllSharedResourcesResult {
+  items: SharedResourceEntity[];
   sharedResources: SharedResourceEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -64,9 +73,15 @@ export class SharedResourcesService {
       );
     }
 
+    const pagination = this.buildPagination(filters, total);
     return {
+      items: items,
       sharedResources: items,
-      pagination: this.buildPagination(filters, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -194,13 +209,14 @@ export class SharedResourcesService {
   }
 
   private buildPagination(
-    filters: FiltersSharedResourceDto,
+    filters: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filters.page,
+      filters.limit,
       total,
-      page: filters.page || 1,
-      limit: filters.limit || 10,
-    };
+      10,
+    );
   }
 }

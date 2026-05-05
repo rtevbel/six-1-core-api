@@ -10,7 +10,7 @@ export interface FindAllResultInterface {
   items: PermissionEntity[];
 
   /** Backward-compatible alias of `items`. */
-  permissions?: PermissionEntity[];
+  permissions: PermissionEntity[];
 
   page: number;
   limit: number;

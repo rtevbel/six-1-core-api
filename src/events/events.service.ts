@@ -11,6 +11,11 @@ import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventEnvelope, EntityRef, normalizeEntityRef } from './types';
 import { EventLogsService } from './event_logs/event_logs.service';
 import { CreateEventLogsDto } from './event_logs/dto/create-event_logs.dto';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -68,9 +73,15 @@ export class EventsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: events,
       eventRecords: events,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -107,14 +118,15 @@ export class EventsService {
   }
 
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

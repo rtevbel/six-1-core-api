@@ -830,6 +830,68 @@ describe('ConfigObjectsService', () => {
     });
   });
 
+  it('createConfigObject should canonicalize objectType to singular form', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(configObjectRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(configObjectRepo, 'create').mockImplementation((dto) => dto as any);
+    jest.spyOn(configObjectRepo, 'save').mockImplementation(async (row: any) => ({
+      configObjectId: 901,
+      ...row,
+    }));
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const out = await service.createConfigObject({
+      tenantId: 1,
+      configTemplateSetId: 10,
+      createdBy: 7,
+      objectType: 'categories',
+      bindingMode: 'system_table',
+      sorTableName: 'categories',
+      displayName: 'Categories',
+    });
+
+    expect(out.objectType).toBe('category');
+    expect(configObjectRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({ objectType: 'category' }),
+    );
+  });
+
+  it('updateConfigObject should canonicalize incoming objectType to singular form', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 902,
+      configTemplateSetId: 10,
+      objectType: 'categories',
+      bindingMode: 'system_table',
+      sorTableName: 'categories',
+      displayName: 'Categories',
+      description: null,
+      status: 'PUBLISHED',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(configObjectRepo, 'find').mockResolvedValueOnce([
+      { configObjectId: 902, objectType: 'categories' } as any,
+    ]);
+    jest.spyOn(configObjectRepo, 'save').mockImplementation(async (row: any) => row);
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const out = await service.updateConfigObject({
+      tenantId: 1,
+      configObjectId: 902,
+      updatedBy: 8,
+      objectType: 'projects',
+    });
+
+    expect(out.objectType).toBe('project');
+  });
+
   it('createConfigField should reject system_table binding_mode', async () => {
     jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
       configObjectId: 10,
@@ -1073,6 +1135,29 @@ describe('ConfigObjectsService', () => {
 
     expect(result?.configObjectViewId).toBe(200);
     expect(findOneSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it('getActiveScopedConfigView should return null when no config object exists for entityKey', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    const result = await service.getActiveScopedConfigView({
+      tenantId: 1,
+      entityKey: 'category',
+      viewType: 'list',
+    });
+
+    expect(result).toBeNull();
+  });
+
+  it('listActiveScopedConfigViews should return empty when no config object exists for entityKey', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    const result = await service.listActiveScopedConfigViews({
+      tenantId: 1,
+      entityKey: 'category',
+    });
+
+    expect(result).toEqual([]);
   });
 
   it('listActiveScopedConfigViews should return global active views when tenant scope is omitted', async () => {
@@ -1367,7 +1452,7 @@ describe('ConfigObjectsService', () => {
       .mockResolvedValueOnce([
         {
           panelKey: 'main_section',
-          panelType: 'section',
+          panelType: 'form-section',
           layoutConfig: {
             schemaVersion: 1,
             displayMode: 'form-section',
@@ -1447,7 +1532,7 @@ describe('ConfigObjectsService', () => {
       .mockResolvedValueOnce([
         {
           panelKey: 'main_section',
-          panelType: 'section',
+          panelType: 'form-section',
           layoutConfig: {
             schemaVersion: 1,
             displayMode: 'form-section',
@@ -1495,10 +1580,11 @@ describe('ConfigObjectsService', () => {
         createdBy: 1,
         panelKey: 'related_roles',
         title: 'Related Roles',
-        panelType: 'related',
+        panelType: 'table',
         layoutConfig: {
           schemaVersion: 1,
           displayMode: 'table',
+          dataBinding: 'relation',
         layout: { columns: ['name'] },
           actions: { assignRef: 'x' },
         },
@@ -1536,10 +1622,11 @@ describe('ConfigObjectsService', () => {
       createdBy: 1,
       panelKey: 'related_roles',
       title: 'Related Roles',
-      panelType: 'related',
+      panelType: 'table',
       layoutConfig: {
         schemaVersion: 1,
         displayMode: 'table',
+        dataBinding: 'relation',
         layout: {
           columns: ['name'],
           relationKey: 'project_roles',
@@ -1554,7 +1641,7 @@ describe('ConfigObjectsService', () => {
     });
 
     expect(out.configObjectViewPanelId).toBe(7733);
-    expect(out.panelType).toBe('related');
+    expect(out.panelType).toBe('table');
   });
 
   describe('C-4 authoring vertical slice (sequential service calls, mocked repos)', () => {
@@ -1694,7 +1781,7 @@ describe('ConfigObjectsService', () => {
         createdBy: 1,
         panelKey: 'main_section',
         title: 'Main',
-        panelType: 'section',
+        panelType: 'summary',
         layoutConfig: {
           schemaVersion: 1,
           displayMode: 'summary',
@@ -1814,7 +1901,7 @@ describe('ConfigObjectsService', () => {
       {
         panelKey: 'main_panel',
         title: 'Main',
-        panelType: 'section',
+        panelType: 'summary',
         orderIndex: 10,
         layoutConfig: { schemaVersion: 1, displayMode: 'summary', layout: {} },
       },

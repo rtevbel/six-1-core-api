@@ -6,7 +6,7 @@ import { CategoryDescriptionEntity } from './entities/category-description.entit
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FiltersDto } from './dto/filters.dto';
-import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { CategoryListResponseDto } from './dto/category-list-response.dto';
 import { RpcException } from '@nestjs/microservices';
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -50,7 +50,7 @@ export class CategoriesService {
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface> {
+  ): Promise<CategoryListResponseDto> {
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [categories, total] =
@@ -65,9 +65,16 @@ export class CategoriesService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
+
     return {
+      items: categories,
       categoryRecords: categories,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -217,11 +224,18 @@ export class CategoriesService {
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
-  ): { total: number; page: number; limit: number } {
+  ): {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  } {
+    const limit = filtersDto.limit || 10;
     return {
       total,
       page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
     };
   }
 }

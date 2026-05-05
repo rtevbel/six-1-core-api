@@ -1,12 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import {
-  Repository,
+import {  Repository,
   Like,
   UpdateResult,
   DeleteResult,
   LessThanOrEqual,
   IsNull,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationEntity } from './entities/notification.entity';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -74,9 +78,15 @@ export class NotificationsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: notifications,
       notificationRecords: notifications,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -188,14 +198,15 @@ export class NotificationsService {
    * @returns An object containing total records, current page, and limit.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

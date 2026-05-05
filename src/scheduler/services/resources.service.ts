@@ -6,14 +6,22 @@ import { ResourceEntity } from '../entities/resource.entity';
 import { CreateResourceDto } from '../dto/create-resource.dto';
 import { UpdateResourceDto } from '../dto/update-resource.dto';
 import { FiltersResourceDto } from '../dto/filters-resource.dto';
-import {
-  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
+import {  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../../common/constants';
 
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 export interface FindAllResourcesResultInterface {
+  items: ResourceEntity[];
   resourceRecords: ResourceEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -59,9 +67,15 @@ export class ResourcesService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: items,
       resourceRecords: items,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -181,13 +195,14 @@ export class ResourcesService {
    * @returns An object containing pagination details.
    */
   private buildPagination(
-    filtersDto: FiltersResourceDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

@@ -1,11 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import {
-  DeleteResult,
+import {  DeleteResult,
   Repository,
   SelectQueryBuilder,
   UpdateResult,
 } from 'typeorm';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 import { RpcException } from '@nestjs/microservices';
 import { SharedTaskEntity } from '../entities/shared_task.entity';
 import { CreateSharedTaskDto } from '../dto/shared-tasks/create-shared-task.dto';
@@ -17,8 +21,13 @@ import {
 } from '../../common/constants';
 
 export interface FindAllSharedTasksResult {
+  items: SharedTaskEntity[];
   sharedTasks: SharedTaskEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -64,9 +73,15 @@ export class SharedTasksService {
       );
     }
 
+    const pagination = this.buildPagination(filters, total);
     return {
+      items: items,
       sharedTasks: items,
-      pagination: this.buildPagination(filters, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -189,13 +204,14 @@ export class SharedTasksService {
   }
 
   private buildPagination(
-    filters: FiltersSharedTaskDto,
+    filters: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filters.page,
+      filters.limit,
       total,
-      page: filters.page || 1,
-      limit: filters.limit || 10,
-    };
+      10,
+    );
   }
 }

@@ -48,6 +48,8 @@ import {
 } from './constants/authoring-error-codes';
 import { RuntimeErrorCode } from './constants/runtime-error-codes';
 import {
+  listViewActionBindingKeys,
+  listViewColumnFieldKeys,
   ListViewConfigValidationError,
   validateAndNormalizeListViewConfigJson,
 } from './list-view-config';
@@ -81,6 +83,8 @@ import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/
 import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
 import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
 import type { CoreFieldDerivedRuntimeConfig } from './core-field-descriptor/core-field-descriptor.runtime-metadata.types';
+import { canonicalizeObjectType } from './core-field-descriptor/object-type-entity.registry';
+import type { PanelLayoutDisplayMode } from './panel-layout/panel-layout.types';
 import {
   ConfigCustomObjectInstanceEntity,
   ConfigCustomObjectInstanceStatus,
@@ -292,6 +296,17 @@ export class ConfigObjectsService {
     }
     const int = Math.trunc(n);
     return int >= 1 ? int : undefined;
+  }
+
+  /**
+   * Canonical `config_objects.object_type` format is singular, lowercase.
+   */
+  private normalizeCanonicalObjectTypeOrThrow(objectType: string): string {
+    const canonical = canonicalizeObjectType(objectType);
+    if (!canonical) {
+      throw new RpcException('object_type must be a non-empty string.');
+    }
+    return canonical;
   }
 
   /**
@@ -654,18 +669,71 @@ export class ConfigObjectsService {
     }
   }
 
-  private assertRelationMembershipPanelLayoutOrThrow(
-    panelType: 'summary' | 'section' | 'related' | 'custom',
+  /**
+   * Relation/membership grids: `panel_type` `table` + `layout_config.dataBinding` `relation`
+   * (replaces legacy `panel_type` `related`).
+   */
+  private isRelationMembershipPanel(panel: ConfigObjectViewPanelEntity): boolean {
+    return (
+      panel.panelType === 'table' &&
+      this.getLayoutConfigDataBinding(panel.layoutConfig) === 'relation'
+    );
+  }
+
+  private getLayoutConfigDataBinding(
+    layoutConfig: Record<string, unknown> | null | undefined,
+  ): string | undefined {
+    if (
+      !layoutConfig ||
+      typeof layoutConfig !== 'object' ||
+      Array.isArray(layoutConfig)
+    ) {
+      return undefined;
+    }
+    const raw = layoutConfig.dataBinding;
+    return typeof raw === 'string' ? raw : undefined;
+  }
+
+  private assertPanelTypeMatchesDisplayMode(
+    panelType: PanelLayoutDisplayMode,
     layoutConfig: Record<string, unknown> | null,
   ): void {
-    if (panelType !== 'related' || !layoutConfig) {
+    if (!layoutConfig) {
       return;
+    }
+    const dm = layoutConfig.displayMode;
+    if (typeof dm !== 'string' || !dm) {
+      return;
+    }
+    if (dm !== panelType) {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        `panelType "${panelType}" must match layout_config.displayMode "${dm}".`,
+      );
+    }
+  }
+
+  private assertRelationMembershipPanelLayoutOrThrow(
+    panelType: PanelLayoutDisplayMode,
+    layoutConfig: Record<string, unknown> | null,
+  ): void {
+    if (!layoutConfig) {
+      return;
+    }
+    if (layoutConfig.dataBinding !== 'relation') {
+      return;
+    }
+    if (panelType !== 'table') {
+      throw authoringRpcException(
+        AuthoringErrorCode.PanelLayoutInvalid,
+        'layout_config.dataBinding "relation" requires panelType "table".',
+      );
     }
     const displayMode = layoutConfig.displayMode;
     if (displayMode !== 'table') {
       throw authoringRpcException(
         AuthoringErrorCode.PanelLayoutInvalid,
-        'Related panels must use displayMode "table".',
+        'Relation-bound table panels must use displayMode "table".',
       );
     }
 
@@ -784,7 +852,7 @@ export class ConfigObjectsService {
   private extractFieldKeysFromPanelLayout(
     panel: ConfigObjectViewPanelEntity,
   ): string[] {
-    if (panel.panelType === 'related') {
+    if (this.isRelationMembershipPanel(panel)) {
       return [];
     }
     if (
@@ -921,7 +989,7 @@ export class ConfigObjectsService {
 
     const coveredRelationKeys = new Set<string>();
     for (const panel of panels) {
-      if (panel.panelType !== 'related') {
+      if (!this.isRelationMembershipPanel(panel)) {
         continue;
       }
       if (panelKeys.includes(panel.panelKey)) {
@@ -1985,6 +2053,7 @@ export class ConfigObjectsService {
       description,
       status,
     } = params;
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(objectType);
 
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
@@ -2001,12 +2070,16 @@ export class ConfigObjectsService {
       );
     }
 
-    const existing = await this.configObjectRepository.findOne({
+    const existingRows = await this.configObjectRepository.find({
       where: {
         configTemplateSetId,
-        objectType,
       },
     });
+    const existing = existingRows.find(
+      (row) =>
+        this.normalizeCanonicalObjectTypeOrThrow(row.objectType) ===
+        canonicalObjectType,
+    );
 
     if (existing) {
       throw new RpcException(
@@ -2022,7 +2095,7 @@ export class ConfigObjectsService {
 
     const configObject = this.configObjectRepository.create({
       configTemplateSetId,
-      objectType,
+      objectType: canonicalObjectType,
       bindingMode: resolvedMode,
       sorTableName: resolvedSor,
       displayName,
@@ -2066,6 +2139,7 @@ export class ConfigObjectsService {
     status?: ConfigObjectStatus;
     bindingMode?: ConfigObjectBindingMode;
     sorTableName?: string | null;
+    objectType?: string;
   }): Promise<ConfigObjectEntity> {
     const {
       tenantId,
@@ -2076,6 +2150,7 @@ export class ConfigObjectsService {
       status,
       bindingMode,
       sorTableName,
+      objectType,
     } = params;
 
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
@@ -2104,6 +2179,7 @@ export class ConfigObjectsService {
     }
 
     const oldValue = {
+      objectType: existing.objectType,
       displayName: existing.displayName,
       description: existing.description ?? null,
       status: existing.status,
@@ -2113,6 +2189,10 @@ export class ConfigObjectsService {
 
     const nextMode =
       typeof bindingMode === 'string' ? bindingMode : existing.bindingMode;
+    const nextObjectType =
+      typeof objectType === 'string'
+        ? this.normalizeCanonicalObjectTypeOrThrow(objectType)
+        : this.normalizeCanonicalObjectTypeOrThrow(existing.objectType);
     let nextSor: string | null;
     if (typeof sorTableName !== 'undefined') {
       const trimmed = sorTableName === null ? '' : String(sorTableName).trim();
@@ -2142,6 +2222,23 @@ export class ConfigObjectsService {
       }
     }
 
+    if (nextObjectType !== this.normalizeCanonicalObjectTypeOrThrow(existing.objectType)) {
+      const siblingRows = await this.configObjectRepository.find({
+        where: { configTemplateSetId: existing.configTemplateSetId },
+      });
+      const duplicate = siblingRows.some(
+        (row) =>
+          row.configObjectId !== existing.configObjectId &&
+          this.normalizeCanonicalObjectTypeOrThrow(row.objectType) ===
+            nextObjectType,
+      );
+      if (duplicate) {
+        throw new RpcException(
+          `Config object with type "${nextObjectType}" already exists in template set.`,
+        );
+      }
+    }
+
     if (typeof displayName === 'string') {
       existing.displayName = displayName;
     }
@@ -2151,6 +2248,7 @@ export class ConfigObjectsService {
     if (typeof status === 'string') {
       existing.status = status as ConfigObjectStatus;
     }
+    existing.objectType = nextObjectType;
     existing.bindingMode = nextMode;
     existing.sorTableName = nextSor;
 
@@ -2164,6 +2262,7 @@ export class ConfigObjectsService {
       updatedBy,
       oldValue,
       {
+        objectType: saved.objectType,
         displayName: saved.displayName,
         description: saved.description ?? null,
         status: saved.status,
@@ -4665,10 +4764,14 @@ export class ConfigObjectsService {
     );
   }
 
-  private async resolveConfigObjectForEntityScope(params: {
+  /**
+   * Read-safe: returns a `config_object` visible in the tenant/global scope, or `null`
+   * when the type is unknown or not accessible (avoids 500s on list-only view reads).
+   */
+  private async tryResolveConfigObjectForEntityScope(params: {
     entityKey: string;
     effectiveTenantId: number | null;
-  }): Promise<ConfigObjectEntity> {
+  }): Promise<ConfigObjectEntity | null> {
     const { entityKey, effectiveTenantId } = params;
 
     const configObject = await this.configObjectRepository.findOne({
@@ -4678,7 +4781,7 @@ export class ConfigObjectsService {
     });
 
     if (!configObject) {
-      throw new RpcException(`Config object not found for entityKey "${entityKey}".`);
+      return null;
     }
 
     const templateSet = await this.templateSetRepository.findOne({
@@ -4689,6 +4792,27 @@ export class ConfigObjectsService {
     });
 
     if (!templateSet) {
+      return null;
+    }
+
+    return configObject;
+  }
+
+  /** Write / strict resolution; throws when the entity is unknown or tenant scope mismatches. */
+  private async resolveConfigObjectForEntityScope(params: {
+    entityKey: string;
+    effectiveTenantId: number | null;
+  }): Promise<ConfigObjectEntity> {
+    const { entityKey } = params;
+    const configObject = await this.tryResolveConfigObjectForEntityScope(params);
+
+    if (!configObject) {
+      const probe = await this.configObjectRepository.findOne({
+        where: { objectType: entityKey },
+      });
+      if (!probe) {
+        throw new RpcException(`Config object not found for entityKey "${entityKey}".`);
+      }
       throw new RpcException(
         'Config object does not belong to the specified tenant.',
       );
@@ -4748,10 +4872,18 @@ export class ConfigObjectsService {
       return cached.value;
     }
 
-    const configObject = await this.resolveConfigObjectForEntityScope({
+    const configObject = await this.tryResolveConfigObjectForEntityScope({
       entityKey,
       effectiveTenantId,
     });
+
+    if (!configObject) {
+      this.activeViewCache.set(cacheKey, {
+        expiresAt: Date.now() + this.runtimeCacheTtlMs,
+        value: null,
+      });
+      return null;
+    }
 
     if (effectiveTenantId !== null) {
       const tenantScoped = await this.viewRepository.findOne({
@@ -4800,10 +4932,14 @@ export class ConfigObjectsService {
     const { tenantId, entityKey } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
-    const configObject = await this.resolveConfigObjectForEntityScope({
+    const configObject = await this.tryResolveConfigObjectForEntityScope({
       entityKey,
       effectiveTenantId,
     });
+
+    if (!configObject) {
+      return [];
+    }
 
     if (effectiveTenantId === null) {
       return this.viewRepository.find({
@@ -5240,15 +5376,19 @@ export class ConfigObjectsService {
       schema.fieldRegistry.map((field) => [field.fieldKey, field] as const),
     );
     const tableColumns = normalizedList.table?.columns ?? [];
+    const tableColumnFieldKeys = listViewColumnFieldKeys(tableColumns);
+    const tableActionBindingKeys = listViewActionBindingKeys(
+      normalizedList.table?.actions,
+    );
     const boardGroupBy = normalizedList.board?.groupByField;
     const boardCardTitle = normalizedList.board?.cardTitleField;
     const boardCardSubtitleFields = normalizedList.board?.cardSubtitleFields ?? [];
 
-    const tableColumnDescriptors = tableColumns
+    const tableColumnDescriptors = tableColumnFieldKeys
       .map((fieldKey) => fieldByKey.get(fieldKey))
       .filter((descriptor): descriptor is CoreFieldDescriptor => Boolean(descriptor));
 
-    for (const fieldKey of tableColumns) {
+    for (const fieldKey of tableColumnFieldKeys) {
       if (!fieldByKey.has(fieldKey)) {
         diagnostics.push({
           code: RuntimeErrorCode.FieldKeyUnresolved,
@@ -5284,10 +5424,15 @@ export class ConfigObjectsService {
         defaultPresentation: normalizedList.defaultPresentation ?? 'table',
         table: {
           columns: tableColumns,
+          columnFieldKeys: tableColumnFieldKeys,
           columnDescriptors: tableColumnDescriptors,
           defaultSort: normalizedList.table?.defaultSort ?? null,
           rowActions: normalizedList.table?.rowActions ?? [],
           bulkActions: normalizedList.table?.bulkActions ?? [],
+          pagination: normalizedList.table?.pagination ?? null,
+          filters: normalizedList.table?.filters ?? [],
+          actions: normalizedList.table?.actions ?? [],
+          actionBindingKeys: tableActionBindingKeys,
         },
         board: {
           groupByField: boardGroupBy ?? null,
@@ -5367,7 +5512,7 @@ export class ConfigObjectsService {
           });
         }
       }
-      if (panel.panelType === 'related') {
+      if (this.isRelationMembershipPanel(panel)) {
         const relationKey = this.extractRelationKeyFromPanel(panel);
         if (relationKey && !((schema.relationManifestsByKey ?? {})[relationKey])) {
           diagnostics.push({
@@ -6012,7 +6157,7 @@ export class ConfigObjectsService {
     createdBy: number;
     panelKey: string;
     title: string;
-    panelType: 'summary' | 'section' | 'related' | 'custom';
+    panelType: PanelLayoutDisplayMode;
     layoutConfig?: Record<string, unknown> | null;
     orderIndex?: number;
   }): Promise<ConfigObjectViewPanelEntity> {
@@ -6084,6 +6229,7 @@ export class ConfigObjectsService {
     ) {
       finalLayoutConfig = this.normalizePanelLayoutConfigOrThrow(finalLayoutConfig);
     }
+    this.assertPanelTypeMatchesDisplayMode(panelType, finalLayoutConfig);
     this.assertRelationMembershipPanelLayoutOrThrow(panelType, finalLayoutConfig);
 
     const panel = this.panelRepository.create({
@@ -6125,7 +6271,7 @@ export class ConfigObjectsService {
     configObjectViewPanelId: number;
     updatedBy: number;
     title?: string;
-    panelType?: 'summary' | 'section' | 'related' | 'custom';
+    panelType?: PanelLayoutDisplayMode;
     layoutConfig?: Record<string, unknown> | null;
     orderIndex?: number;
   }): Promise<ConfigObjectViewPanelEntity> {
@@ -6206,15 +6352,23 @@ export class ConfigObjectsService {
       ) {
         nextLayoutConfig = this.normalizePanelLayoutConfigOrThrow(nextLayoutConfig);
       }
-      this.assertRelationMembershipPanelLayoutOrThrow(
-        typeof panelType === 'string' ? panelType : existing.panelType,
-        nextLayoutConfig,
-      );
       existing.layoutConfig = nextLayoutConfig;
     }
     if (typeof orderIndex === 'number') {
       existing.orderIndex = orderIndex;
     }
+
+    const effectiveLayout =
+      existing.layoutConfig &&
+      typeof existing.layoutConfig === 'object' &&
+      !Array.isArray(existing.layoutConfig)
+        ? (existing.layoutConfig as Record<string, unknown>)
+        : null;
+    this.assertPanelTypeMatchesDisplayMode(existing.panelType, effectiveLayout);
+    this.assertRelationMembershipPanelLayoutOrThrow(
+      existing.panelType,
+      effectiveLayout,
+    );
 
     const saved = await this.panelRepository.save(existing);
 

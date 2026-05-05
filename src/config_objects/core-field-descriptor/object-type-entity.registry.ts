@@ -197,14 +197,52 @@ const ENTITY_CLASSES: Function[] = [
 ];
 
 const OBJECT_TYPE_ALIASES: Record<string, string> = {
+  category: 'categories',
+  category_description: 'category_descriptions',
   customer: 'customers',
   customer_contact: 'customer_contact_info',
+  customer_invitation: 'customer_invitations',
+  event: 'events',
+  event_log: 'event_logs',
+  event_listener: 'event_listeners',
+  notification: 'notifications',
+  notification_channel: 'notification_channels',
+  notification_template: 'notification_templates',
+  notification_log: 'notification_logs',
   permission: 'permissions',
+  process_template: 'process_templates',
+  process_instance: 'process_instances',
+  process_instance_step: 'process_instance_steps',
   project: 'projects',
+  project_step_status_mapping: 'project_step_status_mappings',
+  project_task_status: 'project_task_statuses',
   resource: 'resources',
+  resource_assignment: 'resource_assignments',
+  resource_blackout_date: 'resource_blackout_dates',
   role: 'roles',
+  system_language: 'system_languages',
+  system_status: 'system_statuses',
   task: 'tasks',
+  task_attachment: 'task_attachments',
+  task_comment: 'task_comments',
+  task_mention: 'task_mentions',
+  tenant: 'tenants',
+  tenant_type: 'tenant_types',
+  tenant_configuration: 'tenant_configurations',
+  tenant_working_hour: 'tenant_working_hours',
+  tenant_subscription: 'tenant_subscriptions',
+  tenant_team: 'tenant_teams',
+  tenant_off_day: 'tenant_off_days',
+  tenant_user: 'tenant_users',
+  tenant_user_invitation: 'tenant_user_invitations',
+  user: 'users',
 };
+
+const CANONICAL_OBJECT_TYPE_BY_VARIANT = new Map<string, string>();
+for (const [singular, plural] of Object.entries(OBJECT_TYPE_ALIASES)) {
+  CANONICAL_OBJECT_TYPE_BY_VARIANT.set(singular, singular);
+  CANONICAL_OBJECT_TYPE_BY_VARIANT.set(plural, singular);
+}
 
 function resolveTableNameForEntityClass(entityClass: Function): string | null {
   const table = getMetadataArgsStorage().tables.find(
@@ -229,9 +267,19 @@ export function resolveEntityClassForObjectType(
   objectType: string,
 ): Function | null {
   return (
-    OBJECT_TYPE_ENTITY_REGISTRY.get(OBJECT_TYPE_ALIASES[objectType] ?? objectType) ??
-    null
+    OBJECT_TYPE_ENTITY_REGISTRY.get(
+      OBJECT_TYPE_ALIASES[objectType] ?? objectType,
+    ) ?? null
   );
+}
+
+/**
+ * Canonical object_type token used by config_objects row storage.
+ * Canonical format is singular (e.g. `category` instead of `categories`).
+ */
+export function canonicalizeObjectType(objectType: string): string {
+  const normalized = objectType.trim().toLowerCase();
+  return CANONICAL_OBJECT_TYPE_BY_VARIANT.get(normalized) ?? normalized;
 }
 
 export function resolveObjectTypeForEntityClass(

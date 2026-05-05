@@ -98,7 +98,9 @@ export class DeactivateScopedConfigViewDto extends ScopedConfigViewBaseDto {
   @IsOptional()
   configObjectViewId?: number;
 
+  /** When omitted, the handler uses the message `userId` (tenant user performing the action). */
   @IsInt()
   @Min(1)
-  updatedBy!: number;
+  @IsOptional()
+  updatedBy?: number;
 }

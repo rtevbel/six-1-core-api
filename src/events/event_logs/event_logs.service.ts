@@ -10,6 +10,11 @@ import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { EventsService } from '../events.service';
 import { plainToInstance } from 'class-transformer';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -71,9 +76,15 @@ export class EventLogsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: eventLogs,
       eventLogRecords: eventLogs,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -183,14 +194,15 @@ export class EventLogsService {
    * @returns An object containing total records, current page, and limit.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

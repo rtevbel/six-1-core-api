@@ -8,10 +8,14 @@ import { UpdateProcessTemplateStepDto } from './dto/update-process_template_step
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
-import {
-  NO_RECORD_FOUND_MESSAGE,
+import {  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 
 @Injectable()
 export class ProcessTemplateStepsService {
@@ -65,9 +69,15 @@ export class ProcessTemplateStepsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: steps,
       processTemplateStepRecords: steps,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -213,14 +223,15 @@ export class ProcessTemplateStepsService {
    * @returns The pagination object.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

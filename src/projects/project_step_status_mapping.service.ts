@@ -7,6 +7,11 @@ import { UpdateProjectStepStatusMappingDto } from './dto/update-project-step-sta
 import { StatusMappingFiltersDto } from './dto/status-mapping-filters.dto';
 import { FindAllStatusMappingResultInterface } from './interfaces/findall-status-mapping-result.interface';
 import { RpcException } from '@nestjs/microservices';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -59,9 +64,15 @@ export class ProjectStepStatusMappingService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: records,
       projectStepStatusMappingRecords: records,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -177,13 +188,14 @@ export class ProjectStepStatusMappingService {
    * @returns An object containing pagination details.
    */
   private buildPagination(
-    filtersDto: StatusMappingFiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

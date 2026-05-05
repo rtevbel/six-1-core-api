@@ -184,6 +184,27 @@ describe('ConfigObjectsController', () => {
     });
   });
 
+  it('deactivateScopedConfigView should fall back to userId when updatedBy is omitted', async () => {
+    configObjectsService.deactivateScopedConfigView.mockResolvedValueOnce({
+      deactivated: 1,
+    });
+
+    const result = await controller.deactivateScopedConfigView(999, {
+      tenantId: 50,
+      entityKey: 'categories',
+      viewType: 'list',
+    } as any);
+
+    expect(result).toEqual({ deactivated: 1 });
+    expect(configObjectsService.deactivateScopedConfigView).toHaveBeenCalledWith({
+      tenantId: 50,
+      entityKey: 'categories',
+      viewType: 'list',
+      configObjectViewId: undefined,
+      updatedBy: 999,
+    });
+  });
+
   it('getRuntimeManifest should delegate to service and pass diagnostics flag', async () => {
     const manifest = {
       entityKey: 'project',

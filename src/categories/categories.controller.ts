@@ -10,7 +10,7 @@ import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { CategoryEntity } from './entities/category.entity';
-import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { CategoryListResponseDto } from './dto/category-list-response.dto';
 import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
@@ -56,7 +56,7 @@ export class CategoriesController {
   findAllCategories(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') filtersDto: FiltersDto,
-  ): Promise<FindAllResultInterface | never> {
+  ): Promise<CategoryListResponseDto | never> {
     return this.categoriesService.findAll(userId, filtersDto);
   }
 

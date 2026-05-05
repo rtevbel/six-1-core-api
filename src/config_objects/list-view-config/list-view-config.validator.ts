@@ -4,8 +4,13 @@ import {
 } from './list-view-config.constants';
 import type {
   ListPresentationMode,
+  ListViewActionEntry,
+  ListViewActionSpec,
   ListViewBoardSection,
+  ListViewColumnEntry,
+  ListViewColumnSpec,
   ListViewConfig,
+  ListViewPaginationConfig,
   ListViewTableSection,
   ListViewSortDirection,
 } from './list-view-config.types';
@@ -50,6 +55,205 @@ function assertStringArray(value: unknown, field: string): string[] | undefined 
   return value as string[];
 }
 
+function parseColumnEntries(raw: unknown): ListViewColumnEntry[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    throw new ListViewConfigValidationError('table.columns must be an array');
+  }
+  const out: ListViewColumnEntry[] = [];
+  for (const [i, el] of raw.entries()) {
+    if (typeof el === 'string') {
+      const trimmed = el.trim();
+      if (!trimmed) {
+        throw new ListViewConfigValidationError(
+          `table.columns[${i}] must be a non-empty string`,
+        );
+      }
+      out.push(trimmed);
+      continue;
+    }
+    if (el !== null && typeof el === 'object' && !Array.isArray(el)) {
+      const o = el as Record<string, unknown>;
+      const allowedColKeys = new Set(['field', 'label']);
+      for (const k of Object.keys(o)) {
+        if (!allowedColKeys.has(k)) {
+          throw new ListViewConfigValidationError(
+            `table.columns[${i}]: unknown key "${k}"`,
+          );
+        }
+      }
+      if (typeof o.field !== 'string' || !o.field.trim()) {
+        throw new ListViewConfigValidationError(
+          `table.columns[${i}].field is required and must be a non-empty string`,
+        );
+      }
+      const spec: ListViewColumnSpec = { field: o.field.trim() };
+      if (o.label !== undefined && o.label !== null) {
+        if (typeof o.label !== 'string') {
+          throw new ListViewConfigValidationError(
+            `table.columns[${i}].label must be a string`,
+          );
+        }
+        const lt = o.label.trim();
+        if (lt) {
+          spec.label = lt;
+        }
+      }
+      out.push(spec);
+      continue;
+    }
+    throw new ListViewConfigValidationError(
+      `table.columns[${i}] must be a string or an object with field`,
+    );
+  }
+  return out.length ? out : undefined;
+}
+
+function parsePagination(raw: unknown): ListViewPaginationConfig | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  const o = assertPlainObject(raw, 'table.pagination');
+  const allowed = new Set(['defaultLimit', 'limitOptions']);
+  for (const k of Object.keys(o)) {
+    if (!allowed.has(k)) {
+      throw new ListViewConfigValidationError(
+        `table.pagination: unknown key "${k}"`,
+      );
+    }
+  }
+  const out: ListViewPaginationConfig = {};
+  if (o.defaultLimit !== undefined && o.defaultLimit !== null) {
+    if (
+      typeof o.defaultLimit !== 'number' ||
+      !Number.isInteger(o.defaultLimit) ||
+      o.defaultLimit < 1
+    ) {
+      throw new ListViewConfigValidationError(
+        'table.pagination.defaultLimit must be a positive integer',
+      );
+    }
+    out.defaultLimit = o.defaultLimit;
+  }
+  if (o.limitOptions !== undefined && o.limitOptions !== null) {
+    if (!Array.isArray(o.limitOptions)) {
+      throw new ListViewConfigValidationError(
+        'table.pagination.limitOptions must be an array of positive integers',
+      );
+    }
+    const opts: number[] = [];
+    for (const [i, el] of o.limitOptions.entries()) {
+      if (typeof el !== 'number' || !Number.isInteger(el) || el < 1) {
+        throw new ListViewConfigValidationError(
+          `table.pagination.limitOptions[${i}] must be a positive integer`,
+        );
+      }
+      opts.push(el);
+    }
+    out.limitOptions = opts;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+function parseActionEntries(raw: unknown): ListViewActionEntry[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    throw new ListViewConfigValidationError('table.actions must be an array');
+  }
+  const out: ListViewActionEntry[] = [];
+  for (const [i, el] of raw.entries()) {
+    if (typeof el === 'string') {
+      const trimmed = el.trim();
+      if (!trimmed) {
+        throw new ListViewConfigValidationError(
+          `table.actions[${i}] must be a non-empty string`,
+        );
+      }
+      out.push(trimmed);
+      continue;
+    }
+    if (el !== null && typeof el === 'object' && !Array.isArray(el)) {
+      const o = el as Record<string, unknown>;
+      const allowedActionKeys = new Set(['bindingKey', 'label', 'path', 'method']);
+      for (const k of Object.keys(o)) {
+        if (!allowedActionKeys.has(k)) {
+          throw new ListViewConfigValidationError(
+            `table.actions[${i}]: unknown key "${k}"`,
+          );
+        }
+      }
+      if (typeof o.bindingKey !== 'string' || !o.bindingKey.trim()) {
+        throw new ListViewConfigValidationError(
+          `table.actions[${i}].bindingKey is required and must be a non-empty string`,
+        );
+      }
+      const spec: ListViewActionSpec = { bindingKey: o.bindingKey.trim() };
+      if (o.label !== undefined && o.label !== null) {
+        if (typeof o.label !== 'string') {
+          throw new ListViewConfigValidationError(
+            `table.actions[${i}].label must be a string`,
+          );
+        }
+        const lt = o.label.trim();
+        if (lt) {
+          spec.label = lt;
+        }
+      }
+      if (o.path !== undefined && o.path !== null) {
+        if (typeof o.path !== 'string' || !o.path.trim()) {
+          throw new ListViewConfigValidationError(
+            `table.actions[${i}].path must be a non-empty string`,
+          );
+        }
+        spec.path = o.path.trim();
+      }
+      if (o.method !== undefined && o.method !== null) {
+        if (
+          o.method !== 'GET' &&
+          o.method !== 'POST' &&
+          o.method !== 'PUT' &&
+          o.method !== 'PATCH' &&
+          o.method !== 'DELETE'
+        ) {
+          throw new ListViewConfigValidationError(
+            `table.actions[${i}].method must be one of GET, POST, PUT, PATCH, DELETE`,
+          );
+        }
+        spec.method = o.method;
+      }
+      out.push(spec);
+      continue;
+    }
+    throw new ListViewConfigValidationError(
+      `table.actions[${i}] must be a string or an object with bindingKey`,
+    );
+  }
+  return out.length ? out : undefined;
+}
+
+function parseFilters(raw: unknown): Record<string, unknown>[] | undefined {
+  if (raw === undefined || raw === null) {
+    return undefined;
+  }
+  if (!Array.isArray(raw)) {
+    throw new ListViewConfigValidationError('table.filters must be an array');
+  }
+  const out: Record<string, unknown>[] = [];
+  for (const [i, el] of raw.entries()) {
+    if (el === null || typeof el !== 'object' || Array.isArray(el)) {
+      throw new ListViewConfigValidationError(
+        `table.filters[${i}] must be a plain object`,
+      );
+    }
+    out.push(el as Record<string, unknown>);
+  }
+  return out.length ? out : undefined;
+}
+
 function parseSort(
   raw: unknown,
   fieldPath: string,
@@ -77,7 +281,7 @@ function parseTableSection(raw: unknown): ListViewTableSection | undefined {
   }
   const o = assertPlainObject(raw, 'table');
   const section: ListViewTableSection = {};
-  const columns = assertStringArray(o.columns, 'table.columns');
+  const columns = parseColumnEntries(o.columns);
   if (columns) {
     section.columns = columns;
   }
@@ -90,8 +294,29 @@ function parseTableSection(raw: unknown): ListViewTableSection | undefined {
   if (bulkActions) {
     section.bulkActions = bulkActions;
   }
+  const pagination = parsePagination(o.pagination);
+  if (pagination) {
+    section.pagination = pagination;
+  }
+  const filters = parseFilters(o.filters);
+  if (filters) {
+    section.filters = filters;
+  }
+  const actions = parseActionEntries(o.actions);
+  if (actions) {
+    section.actions = actions;
+  }
   const unknownKeys = Object.keys(o).filter(
-    (k) => !['columns', 'defaultSort', 'rowActions', 'bulkActions'].includes(k),
+    (k) =>
+      ![
+        'columns',
+        'defaultSort',
+        'rowActions',
+        'bulkActions',
+        'pagination',
+        'filters',
+        'actions',
+      ].includes(k),
   );
   if (unknownKeys.length) {
     throw new ListViewConfigValidationError(
@@ -157,6 +382,9 @@ function parseBoardSection(raw: unknown): ListViewBoardSection | undefined {
  * - **`null` / `undefined`:** returns a minimal default (`schemaVersion` only) for new rows.
  * - **Empty object `{}`:** same default (legacy-friendly).
  * - **Non-empty:** enforces top-level allowlist, `schemaVersion === 1`, and nested shapes.
+ * - **`table`:** `columns` may be string field keys and/or `{ field, label? }` objects; optional
+ *   `pagination`, `filters` (array of plain objects), and `actions` (string tokens and/or
+ *   `{ bindingKey, label? }` objects).
  */
 export function validateAndNormalizeListViewConfigJson(
   value: unknown | null | undefined,

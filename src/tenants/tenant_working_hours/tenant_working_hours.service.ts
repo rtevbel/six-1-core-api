@@ -12,6 +12,8 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
 
+import { buildRuntimeV2ListPagination } from '../../common/runtime-v2-list-pagination';
+
 @Injectable()
 export class TenantWorkingHoursService {
   constructor(
@@ -62,13 +64,17 @@ export class TenantWorkingHoursService {
       );
     }
 
+    const total = workingHours.length;
+    const pagination = buildRuntimeV2ListPagination(1, total, total, 10);
+
     return {
+      items: workingHours,
       tenantWorkingHoursRecords: workingHours,
-      pagination: {
-        total: workingHours.length,
-        page: 1,
-        limit: workingHours.length,
-      },
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 

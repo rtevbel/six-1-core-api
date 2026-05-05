@@ -10,6 +10,11 @@ import { RpcException } from '@nestjs/microservices';
 import { ProcessTemplateStepsService } from '../../process_templates/process_template_steps/process_template_steps.service';
 import { ProjectTaskStatusesService } from '../project_task_statuses/project_task_statuses.service';
 import { ConfigLifecycleService } from '../../config_objects/config_lifecycle.service';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
+
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -70,9 +75,15 @@ export class TasksService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: tasks,
       taskRecords: tasks,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -203,14 +214,15 @@ export class TasksService {
    * @returns An object containing pagination details.
    */
   private buildPagination(
-    filtersDto: FiltersDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 
   /**

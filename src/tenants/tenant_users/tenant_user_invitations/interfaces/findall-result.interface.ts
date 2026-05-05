@@ -5,29 +5,21 @@ import { TenantUserInvitationsEntity } from '../entities/tenant_user_invitation.
  * @version 0.0.1
  * Represents the structure of the response containing roles and pagination details.
  */
+
+/**
+ * Runtime v2 list envelope (items + legacy array + top-level paging).
+ */
 export interface FindAllResultInterface {
-  /**
-   * Array of TenantUserInvitationsEntity objects representing the roles.
-   */
+  items: TenantUserInvitationsEntity[];
   tenantUserInvitationsRecords: TenantUserInvitationsEntity[];
-
-  /**
-   * Pagination details for the result set.
-   */
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
   pagination: {
-    /**
-     * Total number of records available.
-     */
     total: number;
-
-    /**
-     * Current page number.
-     */
     page: number;
-
-    /**
-     * Number of records per page.
-     */
     limit: number;
+    totalPages: number;
   };
 }

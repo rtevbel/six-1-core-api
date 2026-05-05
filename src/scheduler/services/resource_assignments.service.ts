@@ -6,14 +6,22 @@ import { ResourceAssignmentEntity } from '../entities/resource_assignment.entity
 import { CreateResourceAssignmentDto } from '../dto/create-resource-assignment.dto';
 import { UpdateResourceAssignmentDto } from '../dto/update-resource-assignment.dto';
 import { FiltersResourceAssignmentDto } from '../dto/filters-resource-assignment.dto';
-import {
-  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
+import {  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../../common/constants';
 
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../../common/runtime-v2-list-pagination';
 export interface FindAllResourceAssignmentsResultInterface {
+  items: ResourceAssignmentEntity[];
   resourceAssignmentRecords: ResourceAssignmentEntity[];
-  pagination: { total: number; page: number; limit: number };
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+  pagination: RuntimeV2ListPagination;
 }
 
 @Injectable()
@@ -59,9 +67,15 @@ export class ResourceAssignmentsService {
       );
     }
 
+    const pagination = this.buildPagination(filtersDto, total);
     return {
+      items: items,
       resourceAssignmentRecords: items,
-      pagination: this.buildPagination(filtersDto, total),
+      page: pagination.page,
+      limit: pagination.limit,
+      total: pagination.total,
+      totalPages: pagination.totalPages,
+      pagination,
     };
   }
 
@@ -193,13 +207,14 @@ export class ResourceAssignmentsService {
    * @returns An object containing pagination details.
    */
   private buildPagination(
-    filtersDto: FiltersResourceAssignmentDto,
+    filtersDto: any,
     total: number,
-  ): { total: number; page: number; limit: number } {
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit: filtersDto.limit || 10,
-    };
+      10,
+    );
   }
 }

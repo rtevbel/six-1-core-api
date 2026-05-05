@@ -1,4 +1,5 @@
 import {
+  IsIn,
   IsInt,
   IsNotEmpty,
   IsObject,
@@ -6,8 +7,8 @@ import {
   IsString,
   Min,
 } from 'class-validator';
-
-type PanelType = 'summary' | 'section' | 'related' | 'custom';
+import { PANEL_LAYOUT_DISPLAY_MODES } from '../panel-layout/panel-layout.constants';
+import type { PanelLayoutDisplayMode } from '../panel-layout/panel-layout.types';
 
 /**
  * Create DTO for configuration view panels.
@@ -40,7 +41,8 @@ export class CreateConfigViewPanelDto {
 
   @IsString()
   @IsNotEmpty()
-  panelType!: PanelType;
+  @IsIn([...PANEL_LAYOUT_DISPLAY_MODES])
+  panelType!: PanelLayoutDisplayMode;
 
   @IsObject()
   @IsOptional()

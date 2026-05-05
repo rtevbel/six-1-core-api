@@ -67,6 +67,27 @@ describe('validateAndNormalizePanelLayoutConfigJson', () => {
     expect(out?.layout).toEqual({ cardFields: ['title', 'subtitle'] });
   });
 
+  it('accepts cards with fieldLabelByKey map', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'cards',
+      layout: {
+        cardFields: ['name', 'description'],
+        fieldLabelByKey: {
+          name: 'Name',
+          description: 'Description',
+        },
+      },
+    });
+    expect(out?.layout).toEqual({
+      cardFields: ['name', 'description'],
+      fieldLabelByKey: {
+        name: 'Name',
+        description: 'Description',
+      },
+    });
+  });
+
   it('accepts summary with keyValueFields', () => {
     const out = validateAndNormalizePanelLayoutConfigJson({
       schemaVersion: 1,
@@ -118,6 +139,34 @@ describe('validateAndNormalizePanelLayoutConfigJson', () => {
     expect(out?.actions).toEqual({ row: ['edit'] });
     expect(out?.style).toEqual({ density: 'compact' });
     expect(out?.dataBinding).toBe('main');
+  });
+
+  it('treats top-level actions: [] as omitted (optional)', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'cards',
+      dataBinding: 'main',
+      layout: {
+        cardFields: ['name', 'groupName', 'languageId', 'statusId', 'description'],
+      },
+      actions: [],
+    });
+    expect(out?.actions).toBeUndefined();
+    expect(out?.layout).toEqual({
+      cardFields: ['name', 'groupName', 'languageId', 'statusId', 'description'],
+    });
+    expect(out?.dataBinding).toBe('main');
+  });
+
+  it('rejects non-empty actions array', () => {
+    expect(() =>
+      validateAndNormalizePanelLayoutConfigJson({
+        schemaVersion: 1,
+        displayMode: 'table',
+        layout: { columns: ['x'] },
+        actions: ['edit'],
+      }),
+    ).toThrow(PanelLayoutConfigValidationError);
   });
 
   it('accepts table membership metadata keys in layout', () => {

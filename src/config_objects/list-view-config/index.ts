@@ -4,11 +4,20 @@ export {
 } from './list-view-config.constants';
 export type {
   ListPresentationMode,
+  ListViewActionEntry,
+  ListViewActionSpec,
   ListViewBoardSection,
+  ListViewColumnEntry,
+  ListViewColumnSpec,
   ListViewConfig,
+  ListViewPaginationConfig,
   ListViewSortDirection,
   ListViewTableSection,
   ListViewTableSort,
+} from './list-view-config.types';
+export {
+  listViewActionBindingKeys,
+  listViewColumnFieldKeys,
 } from './list-view-config.types';
 export {
   ListViewConfigValidationError,

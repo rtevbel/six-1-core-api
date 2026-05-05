@@ -74,6 +74,30 @@ function assertOptionalPlainObject(
   return value as Record<string, unknown>;
 }
 
+/**
+ * Optional object field where clients may send `[]` meaning "no config" (omit from output).
+ */
+function assertOptionalPlainObjectOrAbsentEmptyArray(
+  value: unknown,
+  field: string,
+): Record<string, unknown> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return undefined;
+    }
+    throw new PanelLayoutConfigValidationError(
+      `${field} must be a plain object when provided (empty array omits actions)`,
+    );
+  }
+  if (typeof value !== 'object') {
+    throw new PanelLayoutConfigValidationError(`${field} must be a plain object`);
+  }
+  return value as Record<string, unknown>;
+}
+
 function assertOptionalPassthrough(
   value: unknown,
   field: string,
@@ -201,7 +225,7 @@ function validateLayoutForMode(
       return out;
     }
     case 'cards': {
-      const allowed = new Set(['cardFields', 'groupBy', 'badges']);
+      const allowed = new Set(['cardFields', 'groupBy', 'badges', 'fieldLabelByKey']);
       const unknownKeys = Object.keys(layout).filter((k) => !allowed.has(k));
       if (unknownKeys.length) {
         throw new PanelLayoutConfigValidationError(
@@ -223,6 +247,31 @@ function validateLayoutForMode(
       }
       if (layout.badges !== undefined && layout.badges !== null) {
         out.badges = assertPlainObject(layout.badges, 'layout.badges');
+      }
+      if (
+        layout.fieldLabelByKey !== undefined &&
+        layout.fieldLabelByKey !== null
+      ) {
+        const labels = assertPlainObject(
+          layout.fieldLabelByKey,
+          'layout.fieldLabelByKey',
+        );
+        const normalizedLabels: Record<string, string> = {};
+        for (const [key, value] of Object.entries(labels)) {
+          const normalizedKey = key.trim();
+          if (!normalizedKey) {
+            throw new PanelLayoutConfigValidationError(
+              'layout.fieldLabelByKey keys must be non-empty strings',
+            );
+          }
+          if (typeof value !== 'string' || !value.trim()) {
+            throw new PanelLayoutConfigValidationError(
+              `layout.fieldLabelByKey.${normalizedKey} must be a non-empty string`,
+            );
+          }
+          normalizedLabels[normalizedKey] = value.trim();
+        }
+        out.fieldLabelByKey = normalizedLabels;
       }
       return out;
     }
@@ -453,7 +502,7 @@ export function validateAndNormalizePanelLayoutConfigJson(
   const layoutIn = assertPlainObject(layoutRaw, 'layout');
   const layout = validateLayoutForMode(displayMode, layoutIn);
 
-  const actions = assertOptionalPlainObject(obj.actions, 'actions');
+  const actions = assertOptionalPlainObjectOrAbsentEmptyArray(obj.actions, 'actions');
   const style = assertOptionalPlainObject(obj.style, 'style');
   const permissions = assertOptionalPlainObject(obj.permissions, 'permissions');
   const pagination = assertOptionalPlainObject(obj.pagination, 'pagination');

@@ -10,7 +10,7 @@ export interface FindAllResultInterface {
   items: RoleEntity[];
 
   /** Backward-compatible alias of `items`. */
-  roles?: RoleEntity[];
+  roles: RoleEntity[];
 
   page: number;
   limit: number;

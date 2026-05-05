@@ -93,16 +93,29 @@ export interface ObjectTypeDtoPair {
 }
 
 const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
+  category: { createDto: CreateCategoryDto, updateDto: UpdateCategoryDto },
   categories: { createDto: CreateCategoryDto, updateDto: UpdateCategoryDto },
+  category_description: {
+    createDto: CreateCategoryDescriptionDto,
+    updateDto: UpdateCategoryDescriptionDto,
+  },
   category_descriptions: {
     createDto: CreateCategoryDescriptionDto,
     updateDto: UpdateCategoryDescriptionDto,
   },
   project: { createDto: CreateProjectDto, updateDto: UpdateProjectDto },
   projects: { createDto: CreateProjectDto, updateDto: UpdateProjectDto },
+  project_step_status_mapping: {
+    createDto: CreateProjectStepStatusMappingDto,
+    updateDto: UpdateProjectStepStatusMappingDto,
+  },
   project_step_status_mappings: {
     createDto: CreateProjectStepStatusMappingDto,
     updateDto: UpdateProjectStepStatusMappingDto,
+  },
+  project_task_status: {
+    createDto: CreateProjectTaskStatusDto,
+    updateDto: UpdateProjectTaskStatusDto,
   },
   project_task_statuses: {
     createDto: CreateProjectTaskStatusDto,
@@ -110,13 +123,25 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
   },
   task: { createDto: CreateTaskDto, updateDto: UpdateTaskDto },
   tasks: { createDto: CreateTaskDto, updateDto: UpdateTaskDto },
+  task_comment: {
+    createDto: CreateTaskCommentDto,
+    updateDto: UpdateTaskCommentDto,
+  },
   task_comments: {
     createDto: CreateTaskCommentDto,
     updateDto: UpdateTaskCommentDto,
   },
+  task_attachment: {
+    createDto: CreateTaskAttachmentDto,
+    updateDto: UpdateTaskAttachmentDto,
+  },
   task_attachments: {
     createDto: CreateTaskAttachmentDto,
     updateDto: UpdateTaskAttachmentDto,
+  },
+  task_mention: {
+    createDto: CreateTaskMentionDto,
+    updateDto: UpdateTaskMentionDto,
   },
   task_mentions: {
     createDto: CreateTaskMentionDto,
@@ -132,12 +157,20 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
     createDto: CreateCustomerContactInfoDto,
     updateDto: UpdateCustomerContactInfoDto,
   },
+  customer_invitation: {
+    createDto: CreateCustomerInvitationDto,
+    updateDto: UpdateCustomerInvitationDto,
+  },
   customer_invitations: {
     createDto: CreateCustomerInvitationDto,
     updateDto: UpdateCustomerInvitationDto,
   },
   resource: { createDto: CreateResourceDto, updateDto: UpdateResourceDto },
   resources: { createDto: CreateResourceDto, updateDto: UpdateResourceDto },
+  resource_assignment: {
+    createDto: CreateResourceAssignmentDto,
+    updateDto: UpdateResourceAssignmentDto,
+  },
   resource_assignments: {
     createDto: CreateResourceAssignmentDto,
     updateDto: UpdateResourceAssignmentDto,
@@ -146,48 +179,91 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
     createDto: CreateResourceAvailabilityDto,
     updateDto: UpdateResourceAvailabilityDto,
   },
+  resource_blackout_date: {
+    createDto: CreateResourceBlackoutDateDto,
+    updateDto: UpdateResourceBlackoutDateDto,
+  },
   resource_blackout_dates: {
     createDto: CreateResourceBlackoutDateDto,
     updateDto: UpdateResourceBlackoutDateDto,
+  },
+  notification: {
+    createDto: CreateNotificationDto,
+    updateDto: UpdateNotificationDto,
   },
   notifications: {
     createDto: CreateNotificationDto,
     updateDto: UpdateNotificationDto,
   },
+  notification_channel: {
+    createDto: CreateNotificationChannelDto,
+    updateDto: UpdateNotificationChannelDto,
+  },
   notification_channels: {
     createDto: CreateNotificationChannelDto,
     updateDto: UpdateNotificationChannelDto,
+  },
+  notification_template: {
+    createDto: CreateNotificationTemplateDto,
+    updateDto: UpdateNotificationTemplateDto,
   },
   notification_templates: {
     createDto: CreateNotificationTemplateDto,
     updateDto: UpdateNotificationTemplateDto,
   },
+  notification_log: {
+    createDto: CreateNotificationLogDto,
+    updateDto: UpdateNotificationLogDto,
+  },
   notification_logs: {
     createDto: CreateNotificationLogDto,
     updateDto: UpdateNotificationLogDto,
   },
+  event: { createDto: CreateEventDto, updateDto: UpdateEventDto },
   events: { createDto: CreateEventDto, updateDto: UpdateEventDto },
+  event_log: {
+    createDto: CreateEventLogDto,
+    updateDto: UpdateEventLogDto,
+  },
   event_logs: {
     createDto: CreateEventLogDto,
     updateDto: UpdateEventLogDto,
+  },
+  event_listener: {
+    createDto: CreateEventListenerDto,
+    updateDto: UpdateEventListenerDto,
   },
   event_listeners: {
     createDto: CreateEventListenerDto,
     updateDto: UpdateEventListenerDto,
   },
+  user: { createDto: CreateUserDto, updateDto: UpdateUserDto },
   users: { createDto: CreateUserDto, updateDto: UpdateUserDto },
   roles: { createDto: CreateRoleDto, updateDto: UpdateRoleDto },
   role: { createDto: CreateRoleDto, updateDto: UpdateRoleDto },
   permissions: { createDto: CreatePermissionDto, updateDto: UpdatePermissionDto },
   permission: { createDto: CreatePermissionDto, updateDto: UpdatePermissionDto },
+  tenant: { createDto: CreateTenantDto, updateDto: UpdateTenantDto },
   tenants: { createDto: CreateTenantDto, updateDto: UpdateTenantDto },
+  tenant_type: {
+    createDto: CreateTenantTypeDto,
+    updateDto: UpdateTenantTypeDto,
+  },
   tenant_types: {
     createDto: CreateTenantTypeDto,
     updateDto: UpdateTenantTypeDto,
   },
+  tenant_configuration: {
+    createDto: CreateTenantConfigurationsDto,
+    updateDto: UpdateTenantConfigurationsDto,
+  },
   tenant_configurations: {
     createDto: CreateTenantConfigurationsDto,
     updateDto: UpdateTenantConfigurationsDto,
+  },
+  tenant_working_hour: {
+    createDto: CreateTenantWorkingHoursDto,
+    updateDto: UpdateTenantWorkingHoursDto,
   },
   tenant_working_hours: {
     createDto: CreateTenantWorkingHoursDto,
@@ -201,46 +277,87 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
     createDto: CreateTenantBillingInfoDto,
     updateDto: UpdateTenantBillingInfoDto,
   },
+  tenant_subscription: {
+    createDto: CreateTenantSubscriptionDto,
+    updateDto: UpdateTenantSubscriptionDto,
+  },
   tenant_subscriptions: {
     createDto: CreateTenantSubscriptionDto,
     updateDto: UpdateTenantSubscriptionDto,
+  },
+  tenant_team: {
+    createDto: CreateTenantTeamDto,
+    updateDto: UpdateTenantTeamDto,
   },
   tenant_teams: {
     createDto: CreateTenantTeamDto,
     updateDto: UpdateTenantTeamDto,
   },
+  tenant_off_day: {
+    createDto: CreateTenantOffDaysDto,
+    updateDto: UpdateTenantOffDaysDto,
+  },
   tenant_off_days: {
     createDto: CreateTenantOffDaysDto,
     updateDto: UpdateTenantOffDaysDto,
   },
+  tenant_user: { createDto: CreateTenantUserDto, updateDto: UpdateTenantUserDto },
   tenant_users: { createDto: CreateTenantUserDto, updateDto: UpdateTenantUserDto },
   tenant_user_meta: {
     createDto: CreateTenantUserMetaDto,
     updateDto: UpdateTenantUserMetaDto,
   },
+  tenant_user_invitation: {
+    createDto: CreateTenantUserInvitationDto,
+    updateDto: UpdateTenantUserInvitationDto,
+  },
   tenant_user_invitations: {
     createDto: CreateTenantUserInvitationDto,
     updateDto: UpdateTenantUserInvitationDto,
+  },
+  user_notification_preference: {
+    createDto: CreateUserNotificationPreferenceDto,
+    updateDto: UpdateUserNotificationPreferenceDto,
   },
   user_notification_preferences: {
     createDto: CreateUserNotificationPreferenceDto,
     updateDto: UpdateUserNotificationPreferenceDto,
   },
+  system_status: {
+    createDto: CreateSystemStatusDto,
+    updateDto: UpdateSystemStatusDto,
+  },
   system_statuses: {
     createDto: CreateSystemStatusDto,
     updateDto: UpdateSystemStatusDto,
+  },
+  system_language: {
+    createDto: CreateSystemLanguageDto,
+    updateDto: UpdateSystemLanguageDto,
   },
   system_languages: {
     createDto: CreateSystemLanguageDto,
     updateDto: UpdateSystemLanguageDto,
   },
+  process_template: {
+    createDto: CreateProcessTemplateDto,
+    updateDto: UpdateProcessTemplateDto,
+  },
   process_templates: {
     createDto: CreateProcessTemplateDto,
     updateDto: UpdateProcessTemplateDto,
   },
+  process_instance: {
+    createDto: CreateProcessInstanceDto,
+    updateDto: UpdateProcessInstanceDto,
+  },
   process_instances: {
     createDto: CreateProcessInstanceDto,
     updateDto: UpdateProcessInstanceDto,
+  },
+  process_instance_step: {
+    createDto: CreateProcessInstanceStepDto,
+    updateDto: UpdateProcessInstanceStepDto,
   },
   process_instance_steps: {
     createDto: CreateProcessInstanceStepDto,

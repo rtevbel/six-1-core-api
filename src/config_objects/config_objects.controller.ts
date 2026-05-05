@@ -635,6 +635,8 @@ export class ConfigObjectsController {
       description:
         typeof dto.description === 'undefined' ? undefined : dto.description,
       status: typeof dto.status === 'undefined' ? undefined : dto.status,
+      objectType:
+        typeof dto.objectType === 'undefined' ? undefined : dto.objectType,
       bindingMode: dto.bindingMode,
       sorTableName:
         typeof dto.sorTableName === 'undefined' ? undefined : dto.sorTableName,
@@ -1178,7 +1180,7 @@ export class ConfigObjectsController {
       entityKey: dto.entityKey,
       viewType: dto.viewType,
       configObjectViewId: dto.configObjectViewId,
-      updatedBy: dto.updatedBy,
+      updatedBy: dto.updatedBy ?? userId,
     });
   }
 
