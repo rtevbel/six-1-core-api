@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PermissionEntity } from './entities/permission.entity';
 import { PermissionDescriptionEntity } from './entities/permission_description.entity';
@@ -12,14 +12,43 @@ import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class PermissionsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'permission_id',
+    'status_id',
+    'created_by',
+    'updated_by',
+    'created_at',
+    'updated_at',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    permission_id: 'p.permission_id',
+    status_id: 'p.status_id',
+    created_by: 'p.created_by',
+    updated_by: 'p.updated_by',
+    created_at: 'p.created_at',
+    updated_at: 'p.updated_at',
+  };
+
   constructor(
     @InjectRepository(PermissionEntity)
     private readonly permissionRepository: Repository<PermissionEntity>,
     @InjectRepository(PermissionDescriptionEntity)
     private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -48,12 +77,44 @@ export class PermissionsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [permissions, total] =
-      await this.permissionRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(PermissionEntity);
 
-    if (permissions.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<PermissionEntity> = {
+      repository: this.permissionRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'p',
+      rootEntityClass: PermissionEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [],
+      fallbackCoreFields: PermissionsService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: PermissionsService.FALLBACK_EXPR,
+      defaultSortCoreField: 'permission_id',
+      tieBreakOrderBySql: 'p.permission_id',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'Permission configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: permissions, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!permissions.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -75,43 +136,16 @@ export class PermissionsService {
     };
   }
 
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    if (filtersDto.search) {
-      query.where = [
-        { descriptions: { name: Like(`%${filtersDto.search}%`) } },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
-  ): { total: number; page: number; limit: number; totalPages: number } {
-    const limit = filtersDto.limit || 10;
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
-    };
+      10,
+    );
   }
 
   /**
@@ -155,7 +189,7 @@ export class PermissionsService {
       permission_id: id,
     });
 
-    updatePermissionDto.updated_by = userId; // Set the updated_by field to the current user
+    updatePermissionDto.updated_by = userId;
 
     if (!permission) {
       throw new RpcException(
@@ -168,18 +202,15 @@ export class PermissionsService {
 
     const { descriptions, ...updatePermissionDtoCopy } = updatePermissionDto;
 
-    // Handle descriptions update
     if (descriptions) {
       for (const description of descriptions) {
         if (description.permission_description_id) {
-          // Update existing description
           await this.permissionDescriptionRepository.update(
             description.permission_description_id,
             description,
           );
         } else {
-          // Create new description
-          description.permission_id = id; // Ensure the permission_id is set for new descriptions
+          description.permission_id = id;
           await this.permissionDescriptionRepository.save(
             this.permissionDescriptionRepository.create(description),
           );

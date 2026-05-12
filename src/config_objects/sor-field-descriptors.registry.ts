@@ -231,6 +231,116 @@ const CUSTOMER_CONTACT_SOR_FIELDS: SorFieldDescriptor[] = [
   },
 ];
 
+const CUSTOMER_INVITATION_SOR_FIELDS: SorFieldDescriptor[] = [
+  {
+    fieldKey: 'invitationId',
+    label: 'Invitation ID',
+    fieldType: 'number',
+    orderIndex: 0,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'projectId',
+    label: 'Project',
+    fieldType: 'number',
+    orderIndex: 10,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'taskId',
+    label: 'Task',
+    fieldType: 'number',
+    orderIndex: 20,
+    readOnly: true,
+  },
+  { fieldKey: 'email', label: 'Email', fieldType: 'text', orderIndex: 30 },
+  {
+    fieldKey: 'token',
+    label: 'Token',
+    fieldType: 'text',
+    orderIndex: 35,
+    readOnly: true,
+  },
+  { fieldKey: 'status', label: 'Status', fieldType: 'select', orderIndex: 40 },
+  {
+    fieldKey: 'customerRoleId',
+    label: 'Role',
+    fieldType: 'number',
+    orderIndex: 50,
+  },
+  {
+    fieldKey: 'invitedBy',
+    label: 'Invited by',
+    fieldType: 'number',
+    orderIndex: 55,
+    readOnly: true,
+  },
+];
+
+const CUSTOMER_PROJECT_MEMBER_SOR_FIELDS: SorFieldDescriptor[] = [
+  {
+    fieldKey: 'customerProjectMemberId',
+    label: 'Membership ID',
+    fieldType: 'number',
+    orderIndex: 0,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'projectId',
+    label: 'Project',
+    fieldType: 'number',
+    orderIndex: 10,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'customerId',
+    label: 'Customer',
+    fieldType: 'number',
+    orderIndex: 20,
+    readOnly: true,
+  },
+  { fieldKey: 'roleId', label: 'Role', fieldType: 'number', orderIndex: 30 },
+  {
+    fieldKey: 'joinedAt',
+    label: 'Joined at',
+    fieldType: 'date',
+    orderIndex: 40,
+    readOnly: true,
+  },
+];
+
+const CUSTOMER_TASK_MEMBER_SOR_FIELDS: SorFieldDescriptor[] = [
+  {
+    fieldKey: 'customerTaskMemberId',
+    label: 'Membership ID',
+    fieldType: 'number',
+    orderIndex: 0,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'taskId',
+    label: 'Task',
+    fieldType: 'number',
+    orderIndex: 10,
+    readOnly: true,
+  },
+  {
+    fieldKey: 'customerId',
+    label: 'Customer',
+    fieldType: 'number',
+    orderIndex: 20,
+    readOnly: true,
+  },
+  { fieldKey: 'roleId', label: 'Role', fieldType: 'number', orderIndex: 30 },
+  {
+    fieldKey: 'joinedAt',
+    label: 'Joined at',
+    fieldType: 'date',
+    orderIndex: 40,
+    readOnly: true,
+  },
+];
+
 const RESOURCE_SOR_FIELDS: SorFieldDescriptor[] = [
   { fieldKey: 'name', label: 'Name', fieldType: 'text', orderIndex: 10 },
   {
@@ -279,6 +389,9 @@ const byObjectType: Record<string, SorFieldDescriptor[]> = {
   customer: CUSTOMER_SOR_FIELDS,
   customer_contact: CUSTOMER_CONTACT_SOR_FIELDS,
   resource: RESOURCE_SOR_FIELDS,
+  customer_invitation: CUSTOMER_INVITATION_SOR_FIELDS,
+  customer_project_member: CUSTOMER_PROJECT_MEMBER_SOR_FIELDS,
+  customer_task_member: CUSTOMER_TASK_MEMBER_SOR_FIELDS,
 };
 
 export function getSorFieldDescriptors(objectType: string): SorFieldDescriptor[] {

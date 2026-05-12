@@ -22,6 +22,12 @@ export class CustomerTaskMembersController {
     private readonly customerTaskMembersService: CustomerTaskMembersService,
   ) {}
 
+  /**
+   * Creates a customer-task member record.
+   * @param userId - ID of the authenticated user.
+   * @param createDto - Membership creation payload.
+   * @returns The created membership entity.
+   */
   @MessagePattern(MICROSERVICE_CREATE_CUSTOMER_TASK_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createCustomerTaskMember(
@@ -31,6 +37,12 @@ export class CustomerTaskMembersController {
     return this.customerTaskMembersService.create(userId, createDto);
   }
 
+  /**
+   * Retrieves customer-task member records.
+   * @param userId - ID of the authenticated user.
+   * @param filtersDto - Query filters and pagination options.
+   * @returns Paginated membership list payload.
+   */
   @MessagePattern(MICROSERVICE_FIND_ALL_CUSTOMER_TASK_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllCustomerTaskMembers(
@@ -40,6 +52,12 @@ export class CustomerTaskMembersController {
     return this.customerTaskMembersService.findAll(userId, filtersDto);
   }
 
+  /**
+   * Retrieves one customer-task member record.
+   * @param userId - ID of the authenticated user.
+   * @param id - Membership identifier.
+   * @returns The matched membership entity.
+   */
   @MessagePattern(MICROSERVICE_FIND_ONE_CUSTOMER_TASK_MEMBER_PATTERN)
   findOneCustomerTaskMember(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -48,6 +66,12 @@ export class CustomerTaskMembersController {
     return this.customerTaskMembersService.findOne(userId, id);
   }
 
+  /**
+   * Updates one customer-task member record.
+   * @param userId - ID of the authenticated user.
+   * @param updateDto - Membership update payload.
+   * @returns TypeORM update result.
+   */
   @MessagePattern(MICROSERVICE_UPDATE_CUSTOMER_TASK_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   updateCustomerTaskMember(
@@ -61,6 +85,12 @@ export class CustomerTaskMembersController {
     );
   }
 
+  /**
+   * Deletes one customer-task member record.
+   * @param userId - ID of the authenticated user.
+   * @param id - Membership identifier.
+   * @returns TypeORM delete result.
+   */
   @MessagePattern(MICROSERVICE_REMOVE_CUSTOMER_TASK_MEMBER_PATTERN)
   removeCustomerTaskMember(
     @Payload('userId', ParseIntPipe) userId: number,

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceStepRequirementSubmissionEntity } from './entities/process_instance_step_requirement_submission.entity';
 import { CreateProcessInstanceStepRequirementSubmissionDto } from './dto/create-process_instance_step_requirement_submission.dto';
@@ -16,15 +16,41 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessInstanceStepRequirementSubmissionsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'requirementSubmissionId',
+    'requirementInstanceId',
+    'isValid',
+    'status',
+    'reviewedBy',
+    'createdBy',
+    'createdAt',
+    'reviewedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    requirementSubmissionId: 'pisrs.requirementSubmissionId',
+    requirementInstanceId: 'pisrs.requirementInstanceId',
+    isValid: 'pisrs.isValid',
+    status: 'pisrs.status',
+    reviewedBy: 'pisrs.reviewedBy',
+    createdBy: 'pisrs.createdBy',
+    createdAt: 'pisrs.createdAt',
+    reviewedAt: 'pisrs.reviewedAt',
+  };
+
   constructor(
     @InjectRepository(ProcessInstanceStepRequirementSubmissionEntity)
     private readonly submissionRepository: Repository<ProcessInstanceStepRequirementSubmissionEntity>,
@@ -32,6 +58,7 @@ export class ProcessInstanceStepRequirementSubmissionsService {
     private readonly orchestrator: StepOrchestratorService,
     private readonly events: EventsService,
     private readonly requirementService: ProcessInstanceStepRequirementsService,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -143,10 +170,52 @@ export class ProcessInstanceStepRequirementSubmissionsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [submissions, total] =
-      await this.submissionRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      ProcessInstanceStepRequirementSubmissionEntity,
+    );
+
+    const ctx: CatalogBackedDynamicListContext<ProcessInstanceStepRequirementSubmissionEntity> =
+      {
+        repository: this.submissionRepository,
+        configObjectsService: this.configObjectsService,
+        canonicalObjectType: canonical,
+        rootAlias: 'pisrs',
+        rootEntityClass: ProcessInstanceStepRequirementSubmissionEntity,
+        denyCatalogCanonicalType: canonical,
+        searchCorePropertyNames: ['status'],
+        fallbackCoreFields:
+          ProcessInstanceStepRequirementSubmissionsService.FALLBACK_FIELDS,
+        fallbackCoreColumnExpressions:
+          ProcessInstanceStepRequirementSubmissionsService.FALLBACK_EXPR,
+        defaultSortCoreField: 'requirementSubmissionId',
+        tieBreakOrderBySql: 'pisrs.requirementSubmissionId',
+        catalogTenantResolver: (f) => {
+          const row = f as FiltersDto;
+          return typeof row.catalogTenantId === 'number' &&
+            row.catalogTenantId > 0
+            ? row.catalogTenantId
+            : null;
+        },
+        applyMandatoryScope: (qb, filters) => {
+          const row = filters as FiltersDto;
+          qb.andWhere('pisrs.requirementInstanceId = :pisrsReqInstanceId', {
+            pisrsReqInstanceId: row.requirementInstanceId,
+          });
+        },
+        schemaMissingForRelatedFiltersMessage:
+          'Process instance step requirement submission configuration schema is required for related list filters.',
+        maxPageSize: 10,
+      };
+
+    const { rows: submissions, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
 
     if (submissions.length === 0) {
       throw new RpcException(
@@ -284,52 +353,13 @@ export class ProcessInstanceStepRequirementSubmissionsService {
   }
 
   /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters, pagination, and sorting options.
-   * @returns The query object to be used with the repository.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['processInstanceStepRequirement', 'reviewedByUser'],
-    };
-
-    // Mandatory filter for requirementInstanceId
-    query.where = {
-      requirementInstanceId: filtersDto.requirementInstanceId,
-    };
-
-    // Optional search filter
-    if (filtersDto.search) {
-      query.where = [{ submittedData: Like(`%${filtersDto.search}%`) }];
-    }
-
-    // Optional sorting
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Optional pagination
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
    * Builds the pagination object for the response.
    * @param filtersDto - Filters, pagination, and sorting options.
    * @param total - Total number of records matching the filters.
    * @returns The pagination details.
    */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

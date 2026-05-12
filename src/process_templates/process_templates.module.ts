@@ -6,6 +6,7 @@ import { ProcessTemplateStepsModule } from './process_template_steps/process_tem
 import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
 import { ProcessTemplateCategoryEntity } from './entities/process_template_category.entity';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
 /**
  * ProcessTemplatesModule is responsible for managing process templates.
@@ -23,6 +24,7 @@ import { ProcessTemplateCategoryEntity } from './entities/process_template_categ
       ProcessTemplateCategoryEntity,
     ]),
     ProcessTemplateStepsModule, // Module for managing process template steps
+    ConfigObjectsModule,
   ],
   controllers: [ProcessTemplatesController],
   providers: [ProcessTemplatesService],

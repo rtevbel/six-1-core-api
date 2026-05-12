@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantConfigurationsEntity } from './entities/tenant_configuration.entity';
 import { CreateTenantConfigurationsDto } from './dto/create-tenant_configuration.dto';
@@ -11,24 +11,64 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantConfigurationsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantConfigId',
+    'tenantId',
+    'timezone',
+    'languageId',
+    'defaultCurrency',
+    'weekStartDay',
+    'dateFormat',
+    'timeFormat',
+    'defaultTaskStatus',
+    'notificationPreferences',
+    'twoFactorAuthEnabled',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantConfigId: 'tc.tenantConfigId',
+    tenantId: 'tc.tenantId',
+    timezone: 'tc.timezone',
+    languageId: 'tc.languageId',
+    defaultCurrency: 'tc.defaultCurrency',
+    weekStartDay: 'tc.weekStartDay',
+    dateFormat: 'tc.dateFormat',
+    timeFormat: 'tc.timeFormat',
+    defaultTaskStatus: 'tc.defaultTaskStatus',
+    notificationPreferences: 'tc.notificationPreferences',
+    twoFactorAuthEnabled: 'tc.twoFactorAuthEnabled',
+    createdBy: 'tc.createdBy',
+    updatedBy: 'tc.updatedBy',
+    createdAt: 'tc.createdAt',
+    updatedAt: 'tc.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantConfigurationsEntity)
     private readonly tenantConfigurationsRepository: Repository<TenantConfigurationsEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new tenant configuration.
    * @param userId - ID of the user making the request (used for auditing).
-   * @param tenantId - ID of the tenant to associate the configuration with.
    * @param createTenantConfigurationsDto - Data transfer object containing configuration details.
    * @returns The newly created tenant configuration entity.
    */
@@ -54,12 +94,62 @@ export class TenantConfigurationsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [configurations, total] =
-      await this.tenantConfigurationsRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      TenantConfigurationsEntity,
+    );
 
-    if (configurations.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantConfigurationsEntity> = {
+      repository: this.tenantConfigurationsRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tc',
+      rootEntityClass: TenantConfigurationsEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [
+        'timezone',
+        'defaultCurrency',
+        'weekStartDay',
+        'dateFormat',
+        'timeFormat',
+        'defaultTaskStatus',
+        'notificationPreferences',
+      ],
+      fallbackCoreFields: TenantConfigurationsService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantConfigurationsService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantConfigId',
+      tieBreakOrderBySql: 'tc.tenantConfigId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tc.tenantId = :tcTenantId', { tcTenantId: row.tenantId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: configurations, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!configurations.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -176,42 +266,8 @@ export class TenantConfigurationsService {
     });
   }
 
-  /**
-   * Builds a query object for filtering configurations.
-   * @param filtersDto - Filters for searching, sorting, and pagination.
-   * @returns A query object for the repository.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Ensure tenantId is always included in the query
-    query.where = { tenantId: filtersDto.tenantId };
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for filtered results.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of matching records.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

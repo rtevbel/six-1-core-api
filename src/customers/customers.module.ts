@@ -7,6 +7,7 @@ import { CustomerContactInfoModule } from './customer_contact_info/customer_cont
 import { CustomerInvitationsModule } from './customer_invitations/customer_invitations.module';
 import { CustomerProjectMembersModule } from './customer_project_members/customer_project_members.module';
 import { CustomerTaskMembersModule } from './customer_task_members/customer_task_members.module';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { CustomerTaskMembersModule } from './customer_task_members/customer_task
     CustomerInvitationsModule,
     CustomerProjectMembersModule,
     CustomerTaskMembersModule,
+    ConfigObjectsModule,
   ],
   controllers: [CustomersController],
   providers: [CustomersService],

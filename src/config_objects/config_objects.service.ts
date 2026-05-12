@@ -83,7 +83,11 @@ import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/
 import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
 import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
 import type { CoreFieldDerivedRuntimeConfig } from './core-field-descriptor/core-field-descriptor.runtime-metadata.types';
-import { canonicalizeObjectType } from './core-field-descriptor/object-type-entity.registry';
+import {
+  canonicalizeObjectType,
+  resolveEntityClassForObjectType,
+  resolveObjectTypeForEntityClass,
+} from './core-field-descriptor/object-type-entity.registry';
 import type { PanelLayoutDisplayMode } from './panel-layout/panel-layout.types';
 import {
   ConfigCustomObjectInstanceEntity,
@@ -107,6 +111,16 @@ import type {
   RuntimeRelationActionValidationResult,
   RuntimeManifestViewSection,
 } from './interfaces/runtime-manifest.interface';
+import { deniedCoreFieldKeysForObjectListCatalog } from './list-field-catalog/list-field-catalog-core-deny.registry';
+import {
+  assertPersistableConfigObjectFieldKey,
+  normalizeConfigObjectFieldKey,
+} from './utils/normalize-config-object-field-key';
+import { resolveFilterOperatorsForListFieldType } from './list-field-catalog/list-field-catalog.operator-map';
+import type {
+  ObjectListFieldCatalogEntry,
+  ObjectListFieldCatalogView,
+} from './list-field-catalog/object-list-field-catalog.interface';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -336,7 +350,9 @@ export class ConfigObjectsService {
     configObject: ConfigObjectEntity,
   ): void {
     if (configObject.bindingMode === 'system_table') {
-      throw new RpcException(CONFIG_OBJECT_SYSTEM_TABLE_FIELDS_FORBIDDEN_MESSAGE);
+      throw new RpcException(
+        CONFIG_OBJECT_SYSTEM_TABLE_FIELDS_FORBIDDEN_MESSAGE,
+      );
     }
   }
 
@@ -379,7 +395,10 @@ export class ConfigObjectsService {
     return dynamicFields;
   }
 
-  private normalizeDerivedInputValue(value: unknown, trim: boolean): string | null {
+  private normalizeDerivedInputValue(
+    value: unknown,
+    trim: boolean,
+  ): string | null {
     if (value === null || value === undefined) {
       return null;
     }
@@ -430,7 +449,10 @@ export class ConfigObjectsService {
       if (Object.prototype.hasOwnProperty.call(target, descriptor.fieldKey)) {
         continue;
       }
-      target[descriptor.fieldKey] = this.evaluateDerivedRuntimeValue(cfg, target);
+      target[descriptor.fieldKey] = this.evaluateDerivedRuntimeValue(
+        cfg,
+        target,
+      );
     }
   }
 
@@ -453,7 +475,9 @@ export class ConfigObjectsService {
       const nextSeg = segments[i + 1];
       const idx = Number(seg);
       const isArrayIndex = Number.isInteger(idx) && String(idx) === seg;
-      const nextIsArray = Number.isInteger(Number(nextSeg)) && String(Number(nextSeg)) === nextSeg;
+      const nextIsArray =
+        Number.isInteger(Number(nextSeg)) &&
+        String(Number(nextSeg)) === nextSeg;
       if (isArrayIndex) {
         if (!Array.isArray(cursor)) {
           return;
@@ -472,7 +496,8 @@ export class ConfigObjectsService {
     }
     const last = segments[segments.length - 1];
     const lastIdx = Number(last);
-    const lastIsArrayIndex = Number.isInteger(lastIdx) && String(lastIdx) === last;
+    const lastIsArrayIndex =
+      Number.isInteger(lastIdx) && String(lastIdx) === last;
     if (lastIsArrayIndex) {
       if (Array.isArray(cursor)) {
         cursor[lastIdx] = value;
@@ -516,7 +541,9 @@ export class ConfigObjectsService {
     ) {
       return false;
     }
-    return (inlineRelation as Record<string, unknown>).mode === 'inline_required';
+    return (
+      (inlineRelation as Record<string, unknown>).mode === 'inline_required'
+    );
   }
 
   private normalizeCustomInstancePayload(
@@ -556,7 +583,10 @@ export class ConfigObjectsService {
       const obj = node as Record<string, unknown>;
 
       const directFieldKey = obj.fieldKey;
-      if (typeof directFieldKey === 'string' && directFieldKey.trim().length > 0) {
+      if (
+        typeof directFieldKey === 'string' &&
+        directFieldKey.trim().length > 0
+      ) {
         discovered.add(directFieldKey.trim());
       }
 
@@ -673,7 +703,9 @@ export class ConfigObjectsService {
    * Relation/membership grids: `panel_type` `table` + `layout_config.dataBinding` `relation`
    * (replaces legacy `panel_type` `related`).
    */
-  private isRelationMembershipPanel(panel: ConfigObjectViewPanelEntity): boolean {
+  private isRelationMembershipPanel(
+    panel: ConfigObjectViewPanelEntity,
+  ): boolean {
     return (
       panel.panelType === 'table' &&
       this.getLayoutConfigDataBinding(panel.layoutConfig) === 'relation'
@@ -764,7 +796,8 @@ export class ConfigObjectsService {
       );
     }
 
-    const selectionControl = (layout as Record<string, unknown>).selectionControl;
+    const selectionControl = (layout as Record<string, unknown>)
+      .selectionControl;
     if (selectionControl !== 'checkbox' && selectionControl !== 'radio') {
       throw authoringRpcException(
         AuthoringErrorCode.PanelLayoutInvalid,
@@ -873,7 +906,9 @@ export class ConfigObjectsService {
       if (!node || typeof node !== 'object') {
         return;
       }
-      for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      for (const [key, value] of Object.entries(
+        node as Record<string, unknown>,
+      )) {
         if (
           ['field', 'fieldKey', 'timeField', 'groupBy'].includes(key) &&
           typeof value === 'string' &&
@@ -881,9 +916,13 @@ export class ConfigObjectsService {
         ) {
           out.add(value.trim());
         } else if (
-          ['columns', 'cardFields', 'keyValueFields', 'fieldOrder', 'eventFields'].includes(
-            key,
-          ) &&
+          [
+            'columns',
+            'cardFields',
+            'keyValueFields',
+            'fieldOrder',
+            'eventFields',
+          ].includes(key) &&
           Array.isArray(value)
         ) {
           for (const entry of value) {
@@ -905,11 +944,16 @@ export class ConfigObjectsService {
     configObjectViewId: number;
     configJson: Record<string, unknown> | null;
   }): Promise<void> {
-    const panelKeys = this.extractDetailFormPanelKeysFromConfigJson(params.configJson);
+    const panelKeys = this.extractDetailFormPanelKeysFromConfigJson(
+      params.configJson,
+    );
     if (!panelKeys.length) {
       return;
     }
-    const schema = await this.getObjectSchema(params.tenantId, params.entityKey);
+    const schema = await this.getObjectSchema(
+      params.tenantId,
+      params.entityKey,
+    );
     if (!schema) {
       throw authoringRpcException(
         AuthoringErrorCode.ViewSchemaUnavailable,
@@ -950,7 +994,8 @@ export class ConfigObjectsService {
     const requiredFields = schema.fieldRegistry
       .filter(
         (field) =>
-          (field.requiredOnCreate === true || field.requiredOnUpdate === true) &&
+          (field.requiredOnCreate === true ||
+            field.requiredOnUpdate === true) &&
           !(field.canCreate === false && field.canUpdate === false),
       )
       .map((field) => field.fieldKey);
@@ -1000,7 +1045,8 @@ export class ConfigObjectsService {
         typeof panel.layoutConfig === 'object' &&
         !Array.isArray(panel.layoutConfig)
       ) {
-        const relationKey = (panel.layoutConfig as Record<string, unknown>).relationKey;
+        const relationKey = (panel.layoutConfig as Record<string, unknown>)
+          .relationKey;
         if (typeof relationKey === 'string' && relationKey.trim().length > 0) {
           coveredRelationKeys.add(relationKey.trim());
         }
@@ -1061,7 +1107,9 @@ export class ConfigObjectsService {
     }
     const configured = new Set(
       panels
-        .filter((p): p is string => typeof p === 'string' && p.trim().length > 0)
+        .filter(
+          (p): p is string => typeof p === 'string' && p.trim().length > 0,
+        )
         .map((p) => p.trim()),
     );
     const rows = await this.panelRepository.find({
@@ -1244,8 +1292,10 @@ export class ConfigObjectsService {
     const {
       relatedFieldRegistryByRelationKey,
       relatedFieldRegistrySourceByRelationKey,
-    } =
-      await this.buildRelatedFieldRegistryByRelationKey(relations, templateSetId);
+    } = await this.buildRelatedFieldRegistryByRelationKey(
+      relations,
+      templateSetId,
+    );
     const relationManifestsByKey = Object.fromEntries(
       relations.map((rel) => [
         rel.relationshipKey,
@@ -1338,9 +1388,7 @@ export class ConfigObjectsService {
     }
 
     const writableSor = getWritableSorFieldKeys(objectType);
-    const allowedMetaKeys = new Set(
-      schema.fields.map((f) => f.field.fieldKey),
-    );
+    const allowedMetaKeys = new Set(schema.fields.map((f) => f.field.fieldKey));
 
     const filteredCore: Record<string, unknown> = {};
     for (const key of Object.keys(corePatch)) {
@@ -1356,7 +1404,10 @@ export class ConfigObjectsService {
       }
     }
 
-    if (!Object.keys(filteredCore).length && !Object.keys(filteredMeta).length) {
+    if (
+      !Object.keys(filteredCore).length &&
+      !Object.keys(filteredMeta).length
+    ) {
       throw new RpcException(
         'No patch entries matched allowed SoR or custom field keys.',
       );
@@ -1442,10 +1493,7 @@ export class ConfigObjectsService {
     for (const [key, value] of Object.entries(filteredCore)) {
       if (objectType === 'resource' && key === 'isShared') {
         entity[key] =
-          value === true ||
-          value === 1 ||
-          value === '1' ||
-          value === 'true'
+          value === true || value === 1 || value === '1' || value === 'true'
             ? 1
             : 0;
         continue;
@@ -1468,7 +1516,9 @@ export class ConfigObjectsService {
       throw new RpcException('Project not found.');
     }
     if (project.tenantId !== tenantId) {
-      throw new RpcException('Project does not belong to the specified tenant.');
+      throw new RpcException(
+        'Project does not belong to the specified tenant.',
+      );
     }
 
     if (Object.keys(filteredCore).length) {
@@ -1696,7 +1746,9 @@ export class ConfigObjectsService {
       throw new RpcException('Resource not found.');
     }
     if (resource.tenantId !== tenantId) {
-      throw new RpcException('Resource does not belong to the specified tenant.');
+      throw new RpcException(
+        'Resource does not belong to the specified tenant.',
+      );
     }
 
     if (Object.keys(filteredCore).length) {
@@ -1753,9 +1805,27 @@ export class ConfigObjectsService {
     tenantId: number | null | undefined,
     objectType: string,
   ): Promise<ConfigObjectRunnerSchemaView | null> {
+    const canonicalObjectType =
+      this.normalizeCanonicalObjectTypeOrThrow(objectType);
+    const sorEntityClass = resolveEntityClassForObjectType(canonicalObjectType);
+    const sorTableObjectType = sorEntityClass
+      ? resolveObjectTypeForEntityClass(sorEntityClass)
+      : null;
+    const candidateObjectTypes = Array.from(
+      new Set(
+        [
+          canonicalObjectType,
+          objectType?.trim().toLowerCase(),
+          sorTableObjectType?.trim().toLowerCase(),
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    );
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     this.clearExpiredRuntimeCaches();
-    const cacheKey = this.getSchemaCacheKey(effectiveTenantId, objectType);
+    const cacheKey = this.getSchemaCacheKey(
+      effectiveTenantId,
+      canonicalObjectType,
+    );
     const cached = this.schemaCache.get(cacheKey);
     if (cached && this.isFresh(cached.expiresAt)) {
       return cached.value;
@@ -1766,10 +1836,17 @@ export class ConfigObjectsService {
         ? { status: 'PUBLISHED' as const }
         : { tenantId: effectiveTenantId, status: 'PUBLISHED' as const };
 
-    const templateSet = await this.templateSetRepository.findOne({
+    let templateSet = await this.templateSetRepository.findOne({
       where,
       order: { configTemplateSetId: 'ASC' },
     });
+
+    if (!templateSet && effectiveTenantId !== null) {
+      templateSet = await this.templateSetRepository.findOne({
+        where: { tenantId: IsNull(), status: 'PUBLISHED' as const },
+        order: { configTemplateSetId: 'ASC' },
+      });
+    }
 
     if (!templateSet) {
       this.schemaCache.set(cacheKey, {
@@ -1782,7 +1859,7 @@ export class ConfigObjectsService {
     const configObject = await this.configObjectRepository.findOne({
       where: {
         configTemplateSetId: templateSet.configTemplateSetId,
-        objectType,
+        objectType: In(candidateObjectTypes),
       },
     });
 
@@ -1802,12 +1879,176 @@ export class ConfigObjectsService {
       configObject,
       fields: fieldViews,
     });
-    const schema = await this.attachRelationCatalog(base, templateSet.configTemplateSetId);
+    const schema = await this.attachRelationCatalog(
+      base,
+      templateSet.configTemplateSetId,
+    );
     this.schemaCache.set(cacheKey, {
       expiresAt: Date.now() + this.runtimeCacheTtlMs,
       value: schema,
     });
     return schema;
+  }
+
+  /**
+   * Published-schema list filter/sort catalog for Object Designer and domain APIs.
+   * Omits sensitive core columns per deny registry; meta keys come from configured fields.
+   *
+   * @param params.tenantId - Tenant scope (omit for global resolved template-set).
+   * @param params.objectType - Logical object type (canonicalized internally).
+   */
+  async getObjectListFieldCatalog(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+  }): Promise<ObjectListFieldCatalogView> {
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      params.objectType,
+    );
+    const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
+    const deniedCore =
+      deniedCoreFieldKeysForObjectListCatalog(canonicalObjectType);
+
+    const schema = await this.getObjectSchema(
+      effectiveTenantId,
+      canonicalObjectType,
+    );
+
+    const entityClass = resolveEntityClassForObjectType(canonicalObjectType);
+    const coreKeySet = new Set<string>();
+    const metaKeySet = new Set<string>();
+
+    if (schema) {
+      for (const d of schema.fieldRegistry ?? []) {
+        if (
+          this.canResolveListCatalogCoreColumn(d.fieldKey, entityClass) &&
+          !deniedCore.has(d.fieldKey)
+        ) {
+          coreKeySet.add(d.fieldKey);
+        }
+      }
+      for (const fv of schema.fields ?? []) {
+        const key = fv?.field?.fieldKey;
+        if (typeof key === 'string' && /^[A-Za-z0-9_]+$/.test(key)) {
+          metaKeySet.add(key);
+        }
+      }
+    }
+
+    const registryByKey = new Map(
+      (schema?.fieldRegistry ?? []).map((d) => [d.fieldKey, d]),
+    );
+
+    const fields: ObjectListFieldCatalogEntry[] = [];
+
+    for (const key of Array.from(coreKeySet).sort()) {
+      const descriptor = registryByKey.get(key);
+      const fieldType = descriptor?.fieldType ?? 'text';
+      const label = descriptor?.label ?? key;
+      fields.push({
+        fieldKey: key,
+        source: 'core',
+        label,
+        fieldType,
+        filterable: true,
+        sortable: true,
+        filterOperators: resolveFilterOperatorsForListFieldType(fieldType),
+      });
+    }
+
+    const seenKeys = new Set(fields.map((f) => f.fieldKey));
+
+    for (const key of Array.from(metaKeySet).sort()) {
+      if (seenKeys.has(key)) {
+        continue;
+      }
+      const fieldView = schema?.fields?.find((f) => f.field.fieldKey === key);
+      const fieldType = fieldView?.field.fieldType ?? 'text';
+      const label = fieldView?.field.label ?? key;
+      fields.push({
+        fieldKey: key,
+        source: 'meta',
+        label,
+        fieldType,
+        filterable: true,
+        sortable: true,
+        filterOperators: resolveFilterOperatorsForListFieldType(fieldType),
+      });
+    }
+
+    /** Related core columns (`relatedFieldRegistryByRelationKey`), aligned with Object Runner schema (designer parity). */
+    const relatedCompoundSeen = new Set<string>();
+    for (const rel of schema?.relations ?? []) {
+      if (rel.cardinality === 'many_to_many') {
+        continue;
+      }
+      const descriptors =
+        schema?.relatedFieldRegistryByRelationKey?.[rel.relationshipKey] ?? [];
+      const toCanon = canonicalizeObjectType(rel.toObjectType);
+      const relatedEntityClass = resolveEntityClassForObjectType(
+        rel.toObjectType,
+      );
+
+      if (!relatedEntityClass || !descriptors.length) {
+        continue;
+      }
+
+      const deniedRelated = deniedCoreFieldKeysForObjectListCatalog(toCanon);
+
+      for (const d of descriptors) {
+        const compoundKey = `${rel.relationshipKey}::${d.fieldKey}`;
+        if (relatedCompoundSeen.has(compoundKey)) {
+          continue;
+        }
+
+        if (
+          deniedRelated.has(d.fieldKey) ||
+          !this.canResolveListCatalogCoreColumn(d.fieldKey, relatedEntityClass)
+        ) {
+          continue;
+        }
+
+        relatedCompoundSeen.add(compoundKey);
+        fields.push({
+          fieldKey: d.fieldKey,
+          source: 'related',
+          relationshipKey: rel.relationshipKey,
+          label: d.label,
+          fieldType: d.fieldType,
+          filterable: true,
+          sortable: false,
+          filterOperators: resolveFilterOperatorsForListFieldType(d.fieldType),
+        });
+      }
+    }
+
+    return {
+      objectType: canonicalObjectType,
+      tenantId: effectiveTenantId,
+      schemaFound: Boolean(schema),
+      fields,
+      catalogVersion: 2,
+    };
+  }
+
+  private canResolveListCatalogCoreColumn(
+    fieldKey: string,
+    entityClass: Function | null | undefined,
+  ): boolean {
+    if (typeof fieldKey !== 'string' || !/^[A-Za-z0-9_]+$/.test(fieldKey)) {
+      return false;
+    }
+    if (!entityClass) {
+      return false;
+    }
+    try {
+      return Boolean(
+        this.dataSource
+          .getMetadata(entityClass)
+          .findColumnWithPropertyName(fieldKey),
+      );
+    } catch {
+      return false;
+    }
   }
 
   /**
@@ -2053,7 +2294,8 @@ export class ConfigObjectsService {
       description,
       status,
     } = params;
-    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(objectType);
+    const canonicalObjectType =
+      this.normalizeCanonicalObjectTypeOrThrow(objectType);
 
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
@@ -2222,7 +2464,10 @@ export class ConfigObjectsService {
       }
     }
 
-    if (nextObjectType !== this.normalizeCanonicalObjectTypeOrThrow(existing.objectType)) {
+    if (
+      nextObjectType !==
+      this.normalizeCanonicalObjectTypeOrThrow(existing.objectType)
+    ) {
       const siblingRows = await this.configObjectRepository.find({
         where: { configTemplateSetId: existing.configTemplateSetId },
       });
@@ -2682,22 +2927,25 @@ export class ConfigObjectsService {
 
     this.assertConfigObjectAllowsDesignerFields(configObject);
 
+    const normalizedFieldKey = normalizeConfigObjectFieldKey(fieldKey);
+    assertPersistableConfigObjectFieldKey(normalizedFieldKey);
+
     const existing = await this.configObjectFieldRepository.findOne({
       where: {
         configObjectId,
-        fieldKey,
+        fieldKey: normalizedFieldKey,
       },
     });
 
     if (existing) {
       throw new RpcException(
-        `Config field with key "${fieldKey}" already exists on object.`,
+        `Config field with key "${normalizedFieldKey}" already exists on object.`,
       );
     }
 
     const field = this.configObjectFieldRepository.create({
       configObjectId,
-      fieldKey,
+      fieldKey: normalizedFieldKey,
       label,
       description: typeof description === 'undefined' ? null : description,
       fieldType,
@@ -2831,9 +3079,8 @@ export class ConfigObjectsService {
       existing.fieldType = fieldType;
     }
     if (typeof validationJson !== 'undefined') {
-      existing.validationJson = this.applyDerivedDisplayAuthoringInValidationJson(
-        validationJson,
-      );
+      existing.validationJson =
+        this.applyDerivedDisplayAuthoringInValidationJson(validationJson);
     }
     if (typeof defaultValue !== 'undefined') {
       existing.defaultValue = defaultValue;
@@ -3469,7 +3716,9 @@ export class ConfigObjectsService {
   }): Promise<ConfigObjectStatusMappingEntity> {
     const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
     const mapping = await this.configObjectStatusMappingRepository.findOne({
-      where: { configObjectStatusMappingId: params.configObjectStatusMappingId },
+      where: {
+        configObjectStatusMappingId: params.configObjectStatusMappingId,
+      },
     });
 
     if (!mapping) {
@@ -3566,7 +3815,9 @@ export class ConfigObjectsService {
   }): Promise<void> {
     const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
     const mapping = await this.configObjectStatusMappingRepository.findOne({
-      where: { configObjectStatusMappingId: params.configObjectStatusMappingId },
+      where: {
+        configObjectStatusMappingId: params.configObjectStatusMappingId,
+      },
     });
 
     if (!mapping) {
@@ -3704,23 +3955,33 @@ export class ConfigObjectsService {
     try {
       const next = { ...validationJson };
       if (
-        Object.prototype.hasOwnProperty.call(next, '_six1DerivedDisplayAuthoring')
+        Object.prototype.hasOwnProperty.call(
+          next,
+          '_six1DerivedDisplayAuthoring',
+        )
       ) {
-        next._six1DerivedDisplayAuthoring = validateDerivedDisplayAuthoringMetadata(
-          next._six1DerivedDisplayAuthoring,
-        );
+        next._six1DerivedDisplayAuthoring =
+          validateDerivedDisplayAuthoringMetadata(
+            next._six1DerivedDisplayAuthoring,
+          );
       }
-      if (Object.prototype.hasOwnProperty.call(next, '_six1LookupSelectAuthoring')) {
+      if (
+        Object.prototype.hasOwnProperty.call(next, '_six1LookupSelectAuthoring')
+      ) {
         next._six1LookupSelectAuthoring = validateLookupSelectAuthoringMetadata(
           next._six1LookupSelectAuthoring,
         );
       }
       if (
-        Object.prototype.hasOwnProperty.call(next, '_six1DerivedRuntimeAuthoring')
+        Object.prototype.hasOwnProperty.call(
+          next,
+          '_six1DerivedRuntimeAuthoring',
+        )
       ) {
-        next._six1DerivedRuntimeAuthoring = validateDerivedRuntimeAuthoringMetadata(
-          next._six1DerivedRuntimeAuthoring,
-        );
+        next._six1DerivedRuntimeAuthoring =
+          validateDerivedRuntimeAuthoringMetadata(
+            next._six1DerivedRuntimeAuthoring,
+          );
       }
       return next;
     } catch (error) {
@@ -3887,7 +4148,10 @@ export class ConfigObjectsService {
       );
     }
     const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
-    const schema = await this.getObjectSchema(effectiveTenantId, rel.toObjectType);
+    const schema = await this.getObjectSchema(
+      effectiveTenantId,
+      rel.toObjectType,
+    );
     const fieldKeys = schema?.fields.map((v) => v.field.fieldKey) ?? [];
     return {
       fromObjectType: rel.fromObjectType,
@@ -4804,14 +5068,17 @@ export class ConfigObjectsService {
     effectiveTenantId: number | null;
   }): Promise<ConfigObjectEntity> {
     const { entityKey } = params;
-    const configObject = await this.tryResolveConfigObjectForEntityScope(params);
+    const configObject =
+      await this.tryResolveConfigObjectForEntityScope(params);
 
     if (!configObject) {
       const probe = await this.configObjectRepository.findOne({
         where: { objectType: entityKey },
       });
       if (!probe) {
-        throw new RpcException(`Config object not found for entityKey "${entityKey}".`);
+        throw new RpcException(
+          `Config object not found for entityKey "${entityKey}".`,
+        );
       }
       throw new RpcException(
         'Config object does not belong to the specified tenant.',
@@ -4827,7 +5094,8 @@ export class ConfigObjectsService {
     tenantId: number | null;
     exceptConfigObjectViewId?: number;
   }): Promise<void> {
-    const { configObjectId, viewType, tenantId, exceptConfigObjectViewId } = params;
+    const { configObjectId, viewType, tenantId, exceptConfigObjectViewId } =
+      params;
 
     const qb = this.viewRepository
       .createQueryBuilder()
@@ -5116,7 +5384,9 @@ export class ConfigObjectsService {
     includeManifestCache?: boolean;
   }): Promise<RuntimeCacheInvalidationResult> {
     const effectiveTenantId =
-      typeof params.tenantId === 'number' ? this.getEffectiveTenantId(params.tenantId) : null;
+      typeof params.tenantId === 'number'
+        ? this.getEffectiveTenantId(params.tenantId)
+        : null;
     const includeSchemaCache = params.includeSchemaCache ?? true;
     const includeViewCache = params.includeViewCache ?? true;
     const includeManifestCache = params.includeManifestCache ?? true;
@@ -5125,7 +5395,9 @@ export class ConfigObjectsService {
     const matches = (key: string): boolean => {
       const tenantMatch =
         typeof params.tenantId === 'number' ? key.startsWith(tenantPart) : true;
-      const entityMatch = params.entityKey ? key.includes(entityPart as string) : true;
+      const entityMatch = params.entityKey
+        ? key.includes(entityPart as string)
+        : true;
       return tenantMatch && entityMatch;
     };
 
@@ -5200,7 +5472,10 @@ export class ConfigObjectsService {
       if (!required) {
         continue;
       }
-      const exists = Object.prototype.hasOwnProperty.call(fieldValues ?? {}, descriptor.fieldKey);
+      const exists = Object.prototype.hasOwnProperty.call(
+        fieldValues ?? {},
+        descriptor.fieldKey,
+      );
       if (!exists) {
         missingRequiredFields.push(descriptor.fieldKey);
       }
@@ -5223,7 +5498,11 @@ export class ConfigObjectsService {
     for (const rel of schema.relations ?? []) {
       const relationValue = relationBlocks[rel.relationshipKey];
       if (relationValue !== undefined) {
-        this.setValueAtPath(payload, this.getInlineRelationPath(rel), relationValue);
+        this.setValueAtPath(
+          payload,
+          this.getInlineRelationPath(rel),
+          relationValue,
+        );
       }
       if (this.isInlineRequiredRelation(rel) && relationValue === undefined) {
         missingRequiredRelations.push(rel.relationshipKey);
@@ -5262,7 +5541,11 @@ export class ConfigObjectsService {
       });
     }
     const manifestRaw = (schema.relationManifestsByKey ?? {})[relationKey];
-    if (!manifestRaw || typeof manifestRaw !== 'object' || Array.isArray(manifestRaw)) {
+    if (
+      !manifestRaw ||
+      typeof manifestRaw !== 'object' ||
+      Array.isArray(manifestRaw)
+    ) {
       throw new RpcException({
         code: RuntimeErrorCode.RelationActionUnknown,
         message: `Relation manifest not found for relationKey "${relationKey}".`,
@@ -5270,7 +5553,9 @@ export class ConfigObjectsService {
     }
     const manifest = manifestRaw as Record<string, unknown>;
     const actions =
-      manifest.actions && typeof manifest.actions === 'object' && !Array.isArray(manifest.actions)
+      manifest.actions &&
+      typeof manifest.actions === 'object' &&
+      !Array.isArray(manifest.actions)
         ? (manifest.actions as Record<string, unknown>)
         : {};
     const knownActionRefs = Object.values(actions).filter(
@@ -5287,14 +5572,18 @@ export class ConfigObjectsService {
       manifest.requiredPermissionsByActionRef &&
       typeof manifest.requiredPermissionsByActionRef === 'object' &&
       !Array.isArray(manifest.requiredPermissionsByActionRef)
-        ? (manifest.requiredPermissionsByActionRef as Record<string, unknown>)[actionRef]
+        ? (manifest.requiredPermissionsByActionRef as Record<string, unknown>)[
+            actionRef
+          ]
         : [];
     const requiredPermissions = Array.isArray(requiredPermissionsRaw)
       ? requiredPermissionsRaw.filter(
           (p): p is string => typeof p === 'string' && p.trim().length > 0,
         )
       : [];
-    const missingPermissions = requiredPermissions.filter((p) => !grantedPermissions.has(p));
+    const missingPermissions = requiredPermissions.filter(
+      (p) => !grantedPermissions.has(p),
+    );
     const allowed = missingPermissions.length === 0;
     if (!allowed) {
       throw new RpcException({
@@ -5320,7 +5609,8 @@ export class ConfigObjectsService {
     return {
       fieldRegistry: schema.fieldRegistry,
       relations: schema.relations ?? [],
-      relatedFieldRegistryByRelationKey: schema.relatedFieldRegistryByRelationKey ?? {},
+      relatedFieldRegistryByRelationKey:
+        schema.relatedFieldRegistryByRelationKey ?? {},
       relationManifestsByKey: schema.relationManifestsByKey ?? {},
       derivedRuntime,
     };
@@ -5334,8 +5624,12 @@ export class ConfigObjectsService {
     );
     const baseSource: Record<string, unknown> = {};
     for (const fieldView of schema.fields) {
-      if (fieldView.field.defaultValue !== null && fieldView.field.defaultValue !== undefined) {
-        baseSource[fieldView.field.fieldKey] = fieldView.field.defaultValue as unknown;
+      if (
+        fieldView.field.defaultValue !== null &&
+        fieldView.field.defaultValue !== undefined
+      ) {
+        baseSource[fieldView.field.fieldKey] = fieldView.field
+          .defaultValue as unknown;
       }
     }
 
@@ -5382,11 +5676,14 @@ export class ConfigObjectsService {
     );
     const boardGroupBy = normalizedList.board?.groupByField;
     const boardCardTitle = normalizedList.board?.cardTitleField;
-    const boardCardSubtitleFields = normalizedList.board?.cardSubtitleFields ?? [];
+    const boardCardSubtitleFields =
+      normalizedList.board?.cardSubtitleFields ?? [];
 
     const tableColumnDescriptors = tableColumnFieldKeys
       .map((fieldKey) => fieldByKey.get(fieldKey))
-      .filter((descriptor): descriptor is CoreFieldDescriptor => Boolean(descriptor));
+      .filter((descriptor): descriptor is CoreFieldDescriptor =>
+        Boolean(descriptor),
+      );
 
     for (const fieldKey of tableColumnFieldKeys) {
       if (!fieldByKey.has(fieldKey)) {
@@ -5445,7 +5742,7 @@ export class ConfigObjectsService {
   }
 
   private async buildRuntimeDetailFormSection(params: {
-    viewType: ConfigObjectViewType,
+    viewType: ConfigObjectViewType;
     view: ConfigObjectViewEntity | null;
     schema: ConfigObjectRunnerSchemaView;
     diagnostics: RuntimeManifestDiagnostic[];
@@ -5498,7 +5795,9 @@ export class ConfigObjectsService {
       orderedPanels.push(panel);
     }
 
-    const fieldRegistryByKey = new Set(schema.fieldRegistry.map((f) => f.fieldKey));
+    const fieldRegistryByKey = new Set(
+      schema.fieldRegistry.map((f) => f.fieldKey),
+    );
     for (const panel of orderedPanels) {
       const panelFieldKeys = this.extractFieldKeysFromPanelLayout(panel);
       for (const fieldKey of panelFieldKeys) {
@@ -5514,7 +5813,10 @@ export class ConfigObjectsService {
       }
       if (this.isRelationMembershipPanel(panel)) {
         const relationKey = this.extractRelationKeyFromPanel(panel);
-        if (relationKey && !((schema.relationManifestsByKey ?? {})[relationKey])) {
+        if (
+          relationKey &&
+          !(schema.relationManifestsByKey ?? {})[relationKey]
+        ) {
           diagnostics.push({
             code: RuntimeErrorCode.RelationKeyUnresolved,
             message: `${viewType} panel "${panel.panelKey}" references relation "${relationKey}" without relation manifest metadata.`,
@@ -5531,14 +5833,17 @@ export class ConfigObjectsService {
       schema.relationManifestsByKey ?? {},
     )) {
       const block =
-        manifestBlock && typeof manifestBlock === 'object' && !Array.isArray(manifestBlock)
+        manifestBlock &&
+        typeof manifestBlock === 'object' &&
+        !Array.isArray(manifestBlock)
           ? (manifestBlock as Record<string, unknown>)
           : {};
-      relationQueryDefaultsByKey[relationKey] = this.normalizeRuntimeRelationQueryDefaults(
-        block.queryDefaults,
-        diagnostics,
-        relationKey,
-      );
+      relationQueryDefaultsByKey[relationKey] =
+        this.normalizeRuntimeRelationQueryDefaults(
+          block.queryDefaults,
+          diagnostics,
+          relationKey,
+        );
     }
 
     return {
@@ -5634,7 +5939,13 @@ export class ConfigObjectsService {
     value: unknown,
     diagnostics: RuntimeManifestDiagnostic[],
     relationKey: string,
-  ): { page: number; limit: number; depth: number; sort: unknown; filters: unknown } {
+  ): {
+    page: number;
+    limit: number;
+    depth: number;
+    sort: unknown;
+    filters: unknown;
+  } {
     const obj =
       value && typeof value === 'object' && !Array.isArray(value)
         ? (value as Record<string, unknown>)
@@ -5644,7 +5955,9 @@ export class ConfigObjectsService {
     const depthRaw = Number(obj.depth);
     let page = Number.isInteger(pageRaw) && pageRaw >= 1 ? pageRaw : 1;
     let limit =
-      Number.isInteger(limitRaw) && limitRaw >= 1 ? limitRaw : this.runtimeRelationMaxPageSize;
+      Number.isInteger(limitRaw) && limitRaw >= 1
+        ? limitRaw
+        : this.runtimeRelationMaxPageSize;
     let depth = Number.isInteger(depthRaw) && depthRaw >= 0 ? depthRaw : 1;
 
     if (limit > this.runtimeRelationMaxPageSize) {
@@ -5761,7 +6074,9 @@ export class ConfigObjectsService {
         typeof nextConfigJson === 'object' &&
         !Array.isArray(nextConfigJson)
       ) {
-        this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(nextConfigJson);
+        this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(
+          nextConfigJson,
+        );
       }
       if (
         viewType === 'list' &&
@@ -5769,7 +6084,8 @@ export class ConfigObjectsService {
         typeof nextConfigJson === 'object' &&
         !Array.isArray(nextConfigJson)
       ) {
-        nextConfigJson = this.normalizeListViewConfigJsonOrThrow(nextConfigJson);
+        nextConfigJson =
+          this.normalizeListViewConfigJsonOrThrow(nextConfigJson);
       }
       if (
         (viewType === 'detail' || viewType === 'form') &&
@@ -5777,7 +6093,8 @@ export class ConfigObjectsService {
         typeof nextConfigJson === 'object' &&
         !Array.isArray(nextConfigJson)
       ) {
-        nextConfigJson = this.normalizeDetailFormViewConfigJsonOrThrow(nextConfigJson);
+        nextConfigJson =
+          this.normalizeDetailFormViewConfigJsonOrThrow(nextConfigJson);
       }
       await this.assertScopedViewConfigFieldKeysExist({
         tenantId: effectiveTenantId,
@@ -5815,7 +6132,8 @@ export class ConfigObjectsService {
       existing.name = viewNameValue;
       existing.description =
         typeof description === 'undefined' ? existing.description : description;
-      existing.roleKey = typeof roleKey === 'undefined' ? existing.roleKey : roleKey;
+      existing.roleKey =
+        typeof roleKey === 'undefined' ? existing.roleKey : roleKey;
       existing.isDefault =
         typeof isDefault === 'boolean' ? isDefault : existing.isDefault;
       existing.isActive = shouldActivate;
@@ -5863,7 +6181,9 @@ export class ConfigObjectsService {
       typeof finalConfigJson === 'object' &&
       !Array.isArray(finalConfigJson)
     ) {
-      this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(finalConfigJson);
+      this.assertNoForbiddenInlineFieldAuthoringKeysInViewConfig(
+        finalConfigJson,
+      );
     }
     if (
       viewType === 'list' &&
@@ -5871,7 +6191,8 @@ export class ConfigObjectsService {
       typeof finalConfigJson === 'object' &&
       !Array.isArray(finalConfigJson)
     ) {
-      finalConfigJson = this.normalizeListViewConfigJsonOrThrow(finalConfigJson);
+      finalConfigJson =
+        this.normalizeListViewConfigJsonOrThrow(finalConfigJson);
     }
     if (
       (viewType === 'detail' || viewType === 'form') &&
@@ -5879,7 +6200,8 @@ export class ConfigObjectsService {
       typeof finalConfigJson === 'object' &&
       !Array.isArray(finalConfigJson)
     ) {
-      finalConfigJson = this.normalizeDetailFormViewConfigJsonOrThrow(finalConfigJson);
+      finalConfigJson =
+        this.normalizeDetailFormViewConfigJsonOrThrow(finalConfigJson);
     }
 
     await this.assertScopedViewConfigFieldKeysExist({
@@ -5967,7 +6289,8 @@ export class ConfigObjectsService {
     configObjectViewId: number;
     updatedBy: number;
   }): Promise<ConfigObjectViewEntity> {
-    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } = params;
+    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } =
+      params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
     const configObject = await this.resolveConfigObjectForEntityScope({
@@ -6029,7 +6352,8 @@ export class ConfigObjectsService {
     configObjectViewId?: number;
     updatedBy: number;
   }): Promise<{ deactivated: number }> {
-    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } = params;
+    const { tenantId, entityKey, viewType, configObjectViewId, updatedBy } =
+      params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
     const configObject = await this.resolveConfigObjectForEntityScope({
@@ -6227,10 +6551,14 @@ export class ConfigObjectsService {
       typeof finalLayoutConfig === 'object' &&
       !Array.isArray(finalLayoutConfig)
     ) {
-      finalLayoutConfig = this.normalizePanelLayoutConfigOrThrow(finalLayoutConfig);
+      finalLayoutConfig =
+        this.normalizePanelLayoutConfigOrThrow(finalLayoutConfig);
     }
     this.assertPanelTypeMatchesDisplayMode(panelType, finalLayoutConfig);
-    this.assertRelationMembershipPanelLayoutOrThrow(panelType, finalLayoutConfig);
+    this.assertRelationMembershipPanelLayoutOrThrow(
+      panelType,
+      finalLayoutConfig,
+    );
 
     const panel = this.panelRepository.create({
       configObjectViewId,
@@ -6350,7 +6678,8 @@ export class ConfigObjectsService {
         typeof nextLayoutConfig === 'object' &&
         !Array.isArray(nextLayoutConfig)
       ) {
-        nextLayoutConfig = this.normalizePanelLayoutConfigOrThrow(nextLayoutConfig);
+        nextLayoutConfig =
+          this.normalizePanelLayoutConfigOrThrow(nextLayoutConfig);
       }
       existing.layoutConfig = nextLayoutConfig;
     }

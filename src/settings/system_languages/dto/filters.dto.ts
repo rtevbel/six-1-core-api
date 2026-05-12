@@ -1,67 +1,14 @@
-import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { CatalogDynamicListFiltersMixin } from '../../../common/dto/catalog-dynamic-list-filter.dto';
 
 /**
- * FiltersDto class for handling query parameters.
- * @version 0.0.1
- * This class validates and transforms query parameters
- * used for filtering, sorting, and pagination.
+ * Filters for system languages listing
+ * (system_table catalog: `system_languages` / canonical `system_language`).
  */
-export class FiltersDto {
-  /**
-   * Search keyword for filtering results.
-   * Optional field with a maximum length of 100 characters.
-   */
+export class FiltersDto extends CatalogDynamicListFiltersMixin {
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  search?: string;
-
-  /**
-   * Page number for pagination.
-   * Optional field, defaults to 1.
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  page: number = 1;
-
-  /**
-   * Limit for the number of results per page.
-   * Optional field, defaults to 10.
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  limit: number = 10;
-
-  /**
-   * Field to sort the results by.
-   * Optional field, defaults to 'role_id'.
-   * Must be one of 'role_id', 'name', or 'description'.
-   */
-  @IsOptional()
-  @IsIn(['languageId', 'name', 'langCode'], {
-    message: 'sortBy key must be from this list (languageId, name, langCode)',
-  })
-  @IsString()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9_]+$/)
   sortBy: string = 'languageId';
-
-  /**
-   * Sort order for the results.
-   * Optional field, defaults to 'DESC'.
-   * Must be one of 'ASC' or 'DESC'.
-   */
-  @IsOptional()
-  @IsIn(['ASC', 'DESC'], {
-    message: "SortOrder key must be from this list ('ASC', 'DESC')",
-  })
-  @IsString()
-  sortOrder: string = 'DESC';
 }

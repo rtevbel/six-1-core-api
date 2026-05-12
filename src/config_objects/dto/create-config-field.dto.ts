@@ -29,6 +29,10 @@ export class CreateConfigFieldDto {
   @Min(1)
   createdBy!: number;
 
+  /**
+   * Logical storage key for meta JSON paths and manifests.
+   * Persisted normalized: trimmed, lowercased, whitespace replaced with underscores.
+   */
   @IsString()
   @IsNotEmpty()
   fieldKey!: string;

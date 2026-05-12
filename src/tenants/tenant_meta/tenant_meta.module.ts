@@ -10,6 +10,7 @@ import { TenantMetaController } from './tenant_meta.controller';
 // Importing TypeORM module and entity for tenant metadata
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * TenantMetaModule is responsible for managing tenant metadata.
@@ -23,6 +24,7 @@ import { TenantMetaEntity } from './entities/tenant_meta.entity';
   imports: [
     // Registers the TenantMetaEntity for TypeORM.
     TypeOrmModule.forFeature([TenantMetaEntity]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantMetaController],

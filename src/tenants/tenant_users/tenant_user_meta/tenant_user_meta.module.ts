@@ -3,6 +3,7 @@ import { TenantUserMetaService } from './tenant_user_meta.service';
 import { TenantUserMetaController } from './tenant_user_meta.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUserMetaEntity } from './entities/tenant_user_meta.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * TenantUserMetaModule is responsible for managing tenant user metadata.
@@ -14,6 +15,7 @@ import { TenantUserMetaEntity } from './entities/tenant_user_meta.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserMetaEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [TenantUserMetaController],
   providers: [TenantUserMetaService],

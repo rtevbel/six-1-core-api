@@ -5,7 +5,9 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   Index,
+  OneToOne,
 } from 'typeorm';
+import { CustomerMetaEntity } from './customer_meta.entity';
 
 /**
  * Entity representing the `customers` table.
@@ -79,4 +81,9 @@ export class CustomerEntity {
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
   updatedAt!: Date;
+
+  @OneToOne(() => CustomerMetaEntity, (meta) => meta.customer, {
+    nullable: true,
+  })
+  meta?: CustomerMetaEntity | null;
 }

@@ -1,12 +1,17 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  IsEnum,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
-  IsEnum,
   MaxLength,
+  Matches,
+  ValidateNested,
 } from 'class-validator';
+import { SorStructuredFilterConditionDto } from '../../common/dto/sor-structured-filter-condition.dto';
 
 export class FiltersResourceDto {
   @IsOptional()
@@ -39,12 +44,29 @@ export class FiltersResourceDto {
   limit?: number;
 
   @IsOptional()
-  @IsIn(['resourceId', 'name', 'tenantId', 'type'])
   @IsString()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9_]+$/)
   sortBy?: string;
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
   @IsString()
   sortOrder?: 'ASC' | 'DESC';
+
+  @IsOptional()
+  @IsIn(['core', 'meta'])
+  @IsString()
+  sortSource?: 'core' | 'meta';
+
+  @IsOptional()
+  @Type(() => Boolean)
+  includeMeta?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => SorStructuredFilterConditionDto)
+  filters?: SorStructuredFilterConditionDto[];
 }

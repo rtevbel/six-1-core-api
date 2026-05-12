@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, In, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TaskEntity } from './entities/task.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -10,11 +10,16 @@ import { RpcException } from '@nestjs/microservices';
 import { ProcessTemplateStepsService } from '../../process_templates/process_template_steps/process_template_steps.service';
 import { ProjectTaskStatusesService } from '../project_task_statuses/project_task_statuses.service';
 import { ConfigLifecycleService } from '../../config_objects/config_lifecycle.service';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { TaskMetaEntity } from './entities/task_meta.entity';
+import {
+  executeSorBoundDynamicListQuery,
+  type SorBoundDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -23,12 +28,40 @@ import {
 
 @Injectable()
 export class TasksService {
+  private static readonly FALLBACK_CORE_FIELDS = new Set([
+    'taskId',
+    'projectId',
+    'tenantId',
+    'taskIdentifier',
+    'name',
+    'description',
+    'taskStatusId',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_CORE_FIELD_TO_COLUMN: Record<
+    string,
+    string
+  > = {
+    taskId: 't.taskId',
+    projectId: 't.projectId',
+    tenantId: 't.tenantId',
+    taskIdentifier: 't.taskIdentifier',
+    name: 't.name',
+    description: 't.description',
+    taskStatusId: 't.taskStatusId',
+    createdAt: 't.createdAt',
+    updatedAt: 't.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TaskEntity)
     private readonly taskRepository: Repository<TaskEntity>,
     private readonly processTemplateStepsService: ProcessTemplateStepsService,
     private readonly projectTaskStatusesService: ProjectTaskStatusesService,
     private readonly configLifecycleService: ConfigLifecycleService,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -62,11 +95,48 @@ export class TasksService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [tasks, total] = await this.taskRepository.findAndCount(findQuery);
+    const ctx: SorBoundDynamicListContext<TaskEntity> = {
+      repository: this.taskRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: 'task',
+      rootAlias: 't',
+      rootEntityClass: TaskEntity,
+      denyCatalogCanonicalType: 'task',
+      meta: {
+        entity: TaskMetaEntity,
+        alias: 'tm',
+        joinConditionSql: 'tm.taskId = t.taskId',
+      },
+      searchCorePropertyNames: ['name', 'description', 'taskIdentifier'],
+      fallbackCoreFields: TasksService.FALLBACK_CORE_FIELDS,
+      fallbackCoreColumnExpressions: TasksService.FALLBACK_CORE_FIELD_TO_COLUMN,
+      defaultSortCoreField: 'taskId',
+      tieBreakOrderBySql: 't.taskId',
+      catalogTenantResolver: (f) =>
+        typeof f.tenantId === 'number' && f.tenantId > 0 ? f.tenantId : null,
+      applyMandatoryScope: (qb, filters) => {
+        const f = filters as FiltersDto;
+        qb.andWhere('t.projectId = :projectId', { projectId: f.projectId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Task configuration schema is required for related list filters.',
+      maxPageSize: 10,
+      hydrateRoots: (roots) => this.hydrateTasksForList(roots),
+    };
 
-    if (tasks.length === 0) {
+    const { rows: tasks, total } = await executeSorBoundDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!tasks.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -85,6 +155,21 @@ export class TasksService {
       totalPages: pagination.totalPages,
       pagination,
     };
+  }
+
+  private async hydrateTasksForList(
+    roots: TaskEntity[],
+  ): Promise<TaskEntity[]> {
+    const ids = roots.map((r) => r.taskId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.taskRepository.find({
+      where: { taskId: In(ids) },
+      relations: ['project', 'taskStatus'],
+    });
+    const byId = new Map(loaded.map((t) => [t.taskId, t]));
+    return ids.map((id) => byId.get(id)!).filter(Boolean) as TaskEntity[];
   }
 
   /**
@@ -168,43 +253,6 @@ export class TasksService {
       taskId: id,
       projectId: projectId,
     });
-  }
-
-  /**
-   * Builds a TypeORM find query based on provided filters and project ID.
-   * @param projectId - ID of the project the tasks belong to.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns A query object for TypeORM.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    query.relations = ['project', 'taskStatus'];
-    query.where = { projectId: filtersDto.projectId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-        { description: Like(`%${filtersDto.search}%`) },
-        { taskIdentifier: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
   }
 
   /**

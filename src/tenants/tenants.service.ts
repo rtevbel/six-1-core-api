@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantEntity } from './entities/tenant.entity';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -11,20 +11,45 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
-
-//import { v4 as uuidv4 } from 'uuid';
-import { time } from 'console';
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantId',
+    'name',
+    'tenantTypeId',
+    'tenantIdentifier',
+    'userId',
+    'statusId',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantId: 't.tenantId',
+    name: 't.name',
+    tenantTypeId: 't.tenantTypeId',
+    tenantIdentifier: 't.tenantIdentifier',
+    userId: 't.userId',
+    statusId: 't.statusId',
+    createdAt: 't.createdAt',
+    updatedAt: 't.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantEntity)
     private readonly tenantRepository: Repository<TenantEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -37,10 +62,7 @@ export class TenantsService {
     userId: number,
     createTenantDto: CreateTenantDto,
   ): Promise<TenantEntity> {
-    // Generate a unique tenant identifier using UUID
-    //createTenantDto.tenantIdentifier = `TENANT-${uuidv4()}`;
-    // Generate a short unique identifier (e.g., timestamp in milliseconds)
-    const uniqueId = Date.now().toString(36); // Converts timestamp to a base-36 string
+    const uniqueId = Date.now().toString(36);
     createTenantDto.tenantIdentifier = `TENANT-${uniqueId}`;
 
     return await this.tenantRepository.save(
@@ -59,12 +81,46 @@ export class TenantsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [tenants, total] =
-      await this.tenantRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantEntity);
 
-    if (tenants.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantEntity> = {
+      repository: this.tenantRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 't',
+      rootEntityClass: TenantEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['name', 'tenantIdentifier'],
+      fallbackCoreFields: TenantsService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantsService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantId',
+      tieBreakOrderBySql: 't.tenantId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: tenants, total } = await executeCatalogBackedDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!tenants.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -76,7 +132,7 @@ export class TenantsService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: tenants,
-      tenants: tenants,
+      tenants,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -85,32 +141,8 @@ export class TenantsService {
     };
   }
 
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    if (filtersDto.search) {
-      query.where = [{ name: Like(`%${filtersDto.search}%`) }];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

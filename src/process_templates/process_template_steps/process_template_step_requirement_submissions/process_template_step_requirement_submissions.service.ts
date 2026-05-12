@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateStepRequirementSubmissionEntity } from './entities/process_template_step_requirement_submission.entity';
 import { CreateProcessTemplateStepRequirementSubmissionDto } from './dto/create-process_template_step_requirement_submission.dto';
@@ -7,27 +7,51 @@ import { UpdateProcessTemplateStepRequirementSubmissionDto } from './dto/update-
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessTemplateStepRequirementSubmissionsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'stepRequirementSubmissionId',
+    'processTemplateStepRequirementId',
+    'status',
+    'reviewedBy',
+    'createdBy',
+    'createdAt',
+    'reviewedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    stepRequirementSubmissionId: 'ptsrs.stepRequirementSubmissionId',
+    processTemplateStepRequirementId: 'ptsrs.processTemplateStepRequirementId',
+    status: 'ptsrs.status',
+    reviewedBy: 'ptsrs.reviewedBy',
+    createdBy: 'ptsrs.createdBy',
+    createdAt: 'ptsrs.createdAt',
+    reviewedAt: 'ptsrs.reviewedAt',
+  };
+
   constructor(
     @InjectRepository(ProcessTemplateStepRequirementSubmissionEntity)
     private readonly submissionRepository: Repository<ProcessTemplateStepRequirementSubmissionEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new submission record.
-   * @param userId - ID of the user creating the record.
-   * @param CreateProcessTemplateStepRequirementSubmissionDto - Data Transfer Object containing submission details.
-   * @returns The created ProcessTemplateStepRequirementSubmissionEntity.
    */
   async create(
     userId: number,
@@ -39,19 +63,57 @@ export class ProcessTemplateStepRequirementSubmissionsService {
 
   /**
    * Retrieves all submissions with optional filters, pagination, and sorting.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An object containing the list of submissions and pagination details.
-   * @throws RpcException if no records match the filters.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [submissions, total] =
-      await this.submissionRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      ProcessTemplateStepRequirementSubmissionEntity,
+    );
+
+    const ctx: CatalogBackedDynamicListContext<ProcessTemplateStepRequirementSubmissionEntity> =
+      {
+        repository: this.submissionRepository,
+        configObjectsService: this.configObjectsService,
+        canonicalObjectType: canonical,
+        rootAlias: 'ptsrs',
+        rootEntityClass: ProcessTemplateStepRequirementSubmissionEntity,
+        denyCatalogCanonicalType: canonical,
+        searchCorePropertyNames: ['status'],
+        fallbackCoreFields:
+          ProcessTemplateStepRequirementSubmissionsService.FALLBACK_FIELDS,
+        fallbackCoreColumnExpressions:
+          ProcessTemplateStepRequirementSubmissionsService.FALLBACK_EXPR,
+        defaultSortCoreField: 'stepRequirementSubmissionId',
+        tieBreakOrderBySql: 'ptsrs.stepRequirementSubmissionId',
+        catalogTenantResolver: (f) => {
+          const row = f as FiltersDto;
+          return typeof row.catalogTenantId === 'number' &&
+            row.catalogTenantId > 0
+            ? row.catalogTenantId
+            : null;
+        },
+        applyMandatoryScope: (qb, filters) => {
+          const row = filters as FiltersDto;
+          qb.andWhere('ptsrs.processTemplateStepRequirementId = :ptsrsReqId', {
+            ptsrsReqId: row.processTemplateStepRequirementId,
+          });
+        },
+        schemaMissingForRelatedFiltersMessage:
+          'Process template step requirement submission configuration schema is required for related list filters.',
+        maxPageSize: 10,
+      };
+
+    const { rows: submissions, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
 
     if (submissions.length === 0) {
       throw new RpcException(
@@ -77,10 +139,6 @@ export class ProcessTemplateStepRequirementSubmissionsService {
 
   /**
    * Retrieves a single submission by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the submission to retrieve.
-   * @returns The ProcessTemplateStepRequirementSubmissionEntity matching the ID.
-   * @throws RpcException if no record is found.
    */
   async findOne(
     userId: number,
@@ -105,11 +163,6 @@ export class ProcessTemplateStepRequirementSubmissionsService {
 
   /**
    * Updates an existing submission record.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the submission to update.
-   * @param UpdateProcessTemplateStepRequirementSubmissionDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
    */
   async update(
     userId: number,
@@ -134,9 +187,6 @@ export class ProcessTemplateStepRequirementSubmissionsService {
 
   /**
    * Deletes a submission record by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the submission to delete.
-   * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.submissionRepository.delete({
@@ -144,51 +194,8 @@ export class ProcessTemplateStepRequirementSubmissionsService {
     });
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['processTemplateStepRequirement', 'reviewedByUser'],
-    };
-
-    // Mandatory filter
-    query.where = {
-      processTemplateStepRequirementId:
-        filtersDto.processTemplateStepRequirementId,
-    };
-
-    if (filtersDto.search) {
-      query.where = [{ submittedData: Like(`%${filtersDto.search}%`) }];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

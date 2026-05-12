@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import {  Repository,
-  Like,
+import {
+  Repository,
+  In,
   UpdateResult,
   DeleteResult,
   DataSource,
@@ -23,6 +24,12 @@ import { EventsService } from '../events/events.service';
 import { ProcessInstantiationService } from '../automation/process-instantiation.service';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
 import { ConfigLifecycleService } from '../config_objects/config_lifecycle.service';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { ProjectMetaEntity } from './entities/project_meta.entity';
+import {
+  executeSorBoundDynamicListQuery,
+  type SorBoundDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -31,6 +38,31 @@ import {
 
 @Injectable()
 export class ProjectsService {
+  private static readonly FALLBACK_CORE_FIELDS = new Set([
+    'projectId',
+    'tenantId',
+    'name',
+    'description',
+    'projectIdentifier',
+    'parentProjectId',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_CORE_FIELD_TO_COLUMN: Record<
+    string,
+    string
+  > = {
+    projectId: 'p.projectId',
+    tenantId: 'p.tenantId',
+    name: 'p.name',
+    description: 'p.description',
+    projectIdentifier: 'p.projectIdentifier',
+    parentProjectId: 'p.parentProjectId',
+    createdAt: 'p.createdAt',
+    updatedAt: 'p.updatedAt',
+  };
+
   constructor(
     @InjectRepository(ProjectEntity)
     private readonly projectRepository: Repository<ProjectEntity>,
@@ -40,6 +72,7 @@ export class ProjectsService {
     private readonly processes: ProcessInstantiationService,
     private readonly orchestrator: StepOrchestratorService,
     private readonly configLifecycleService: ConfigLifecycleService,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -333,12 +366,48 @@ export class ProjectsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [projects, total] =
-      await this.projectRepository.findAndCount(findQuery);
+    const ctx: SorBoundDynamicListContext<ProjectEntity> = {
+      repository: this.projectRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: 'project',
+      rootAlias: 'p',
+      rootEntityClass: ProjectEntity,
+      denyCatalogCanonicalType: 'project',
+      meta: {
+        entity: ProjectMetaEntity,
+        alias: 'pm',
+        joinConditionSql: 'pm.projectId = p.projectId',
+      },
+      searchCorePropertyNames: ['name', 'description', 'projectIdentifier'],
+      fallbackCoreFields: ProjectsService.FALLBACK_CORE_FIELDS,
+      fallbackCoreColumnExpressions:
+        ProjectsService.FALLBACK_CORE_FIELD_TO_COLUMN,
+      defaultSortCoreField: 'projectId',
+      tieBreakOrderBySql: 'p.projectId',
+      catalogTenantResolver: (f) =>
+        typeof f.tenantId === 'number' && f.tenantId > 0 ? f.tenantId : null,
+      applyMandatoryScope: (qb, filters) => {
+        qb.andWhere('p.tenantId = :tenantId', { tenantId: filters.tenantId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Project configuration schema is required for related list filters.',
+      maxPageSize: 10,
+      hydrateRoots: (roots) => this.hydrateProjectsForList(roots),
+    };
 
-    if (projects.length === 0) {
+    const { rows: projects, total } = await executeSorBoundDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!projects.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -357,6 +426,25 @@ export class ProjectsService {
       totalPages: pagination.totalPages,
       pagination,
     };
+  }
+
+  private async hydrateProjectsForList(
+    roots: ProjectEntity[],
+  ): Promise<ProjectEntity[]> {
+    const ids = roots.map((r) => r.projectId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.projectRepository.find({
+      where: { projectId: In(ids) },
+      relations: [
+        'processInstance.processTemplates.descriptions',
+        'tasks.linkedStepInstance',
+        'taskStatuses',
+      ],
+    });
+    const byId = new Map(loaded.map((p) => [p.projectId, p]));
+    return ids.map((id) => byId.get(id)!).filter(Boolean) as ProjectEntity[];
   }
 
   /**
@@ -472,49 +560,6 @@ export class ProjectsService {
     */
 
     return await this.projectRepository.delete({ projectId: id });
-  }
-
-  /**
-   * Builds a TypeORM find query based on provided filters.
-   *
-   * @private
-   * @param {FiltersDto} filtersDto
-   * @returns {Record<string, any>}
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    query.relations = [
-      'processInstance.processTemplates.descriptions',
-      'tasks.linkedStepInstance',
-      'taskStatuses',
-    ];
-
-    query.where = { tenantId: filtersDto.tenantId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-        { description: Like(`%${filtersDto.search}%`) },
-        { projectIdentifier: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
   }
 
   /**

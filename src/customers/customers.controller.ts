@@ -21,6 +21,12 @@ import { DeleteResult, UpdateResult } from 'typeorm';
 export class CustomersController {
   constructor(private readonly customersService: CustomersService) {}
 
+  /**
+   * Creates a customer record.
+   * @param userId - ID of the authenticated user.
+   * @param createCustomerDto - Customer creation payload.
+   * @returns The created customer entity.
+   */
   @MessagePattern(MICROSERVICE_CREATE_CUSTOMER_PATTERN)
   @RequirePermissions('customers.create')
   @UsePipes(AppRpcValidationPipe)
@@ -31,6 +37,12 @@ export class CustomersController {
     return this.customersService.create(userId, createCustomerDto);
   }
 
+  /**
+   * Retrieves customers with filters, sorting, and pagination.
+   * @param userId - ID of the authenticated user.
+   * @param filtersDto - Query filters and pagination options.
+   * @returns Paginated customer list payload.
+   */
   @MessagePattern(MICROSERVICE_FIND_ALL_CUSTOMER_PATTERN)
   @RequirePermissions('customers.read')
   @UsePipes(AppRpcValidationPipe)
@@ -41,6 +53,12 @@ export class CustomersController {
     return this.customersService.findAll(userId, filtersDto);
   }
 
+  /**
+   * Retrieves one customer by identifier.
+   * @param userId - ID of the authenticated user.
+   * @param id - Customer identifier.
+   * @returns The matched customer entity.
+   */
   @MessagePattern(MICROSERVICE_FIND_ONE_CUSTOMER_PATTERN)
   @RequirePermissions('customers.read')
   findOneCustomer(
@@ -50,6 +68,12 @@ export class CustomersController {
     return this.customersService.findOne(userId, id);
   }
 
+  /**
+   * Updates one customer by identifier.
+   * @param userId - ID of the authenticated user.
+   * @param updateCustomerDto - Customer update payload.
+   * @returns TypeORM update result.
+   */
   @MessagePattern(MICROSERVICE_UPDATE_CUSTOMER_PATTERN)
   @RequirePermissions('customers.update')
   @UsePipes(AppRpcValidationPipe)
@@ -64,6 +88,12 @@ export class CustomersController {
     );
   }
 
+  /**
+   * Deletes one customer by identifier.
+   * @param userId - ID of the authenticated user.
+   * @param id - Customer identifier.
+   * @returns TypeORM delete result.
+   */
   @MessagePattern(MICROSERVICE_REMOVE_CUSTOMER_PATTERN)
   @RequirePermissions('customers.delete')
   removeCustomer(

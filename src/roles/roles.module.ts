@@ -5,6 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
 import { RoleDescriptionEntity } from './entities/role-description.entity';
 import { RolePermissionEntity } from './entities/role-permission.entity';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
 /**
  * RolesModule is responsible for managing roles.
@@ -22,6 +23,7 @@ import { RolePermissionEntity } from './entities/role-permission.entity';
       RoleDescriptionEntity,
       RolePermissionEntity,
     ]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [RolesController],

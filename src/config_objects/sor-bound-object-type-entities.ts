@@ -1,4 +1,7 @@
 import { CustomerContactInfoEntity } from '../customers/customer_contact_info/entities/customer_contact_info.entity';
+import { CustomerInvitationEntity } from '../customers/customer_invitations/entities/customer_invitation.entity';
+import { CustomerProjectMemberEntity } from '../customers/customer_project_members/entities/customer_project_member.entity';
+import { CustomerTaskMemberEntity } from '../customers/customer_task_members/entities/customer_task_member.entity';
 import { CustomerEntity } from '../customers/entities/customer.entity';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
@@ -15,4 +18,7 @@ export const SOR_BOUND_OBJECT_TYPE_ENTITIES: Record<string, Function> = {
   customer: CustomerEntity,
   customer_contact: CustomerContactInfoEntity,
   resource: ResourceEntity,
+  customer_invitation: CustomerInvitationEntity,
+  customer_project_member: CustomerProjectMemberEntity,
+  customer_task_member: CustomerTaskMemberEntity,
 };

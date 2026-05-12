@@ -22,6 +22,13 @@ export class CustomerContactInfoController {
     private readonly customerContactInfoService: CustomerContactInfoService,
   ) {}
 
+  /**
+   * Creates a customer contact-info record.
+   * @param userId - ID of the authenticated user.
+   * @param customerId - Owning customer identifier.
+   * @param createDto - Contact-info creation payload.
+   * @returns The created contact-info entity.
+   */
   @MessagePattern(MICROSERVICE_CREATE_CUSTOMER_CONTACT_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createCustomerContactInfo(
@@ -36,6 +43,12 @@ export class CustomerContactInfoController {
     );
   }
 
+  /**
+   * Retrieves customer contact-info list for a customer.
+   * @param userId - ID of the authenticated user.
+   * @param filtersDto - Query filters and pagination options.
+   * @returns Paginated contact-info list payload.
+   */
   @MessagePattern(MICROSERVICE_FIND_ALL_CUSTOMER_CONTACT_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllCustomerContactInfo(
@@ -45,6 +58,13 @@ export class CustomerContactInfoController {
     return this.customerContactInfoService.findAllByFilters(userId, filtersDto);
   }
 
+  /**
+   * Retrieves one customer contact-info record.
+   * @param userId - ID of the authenticated user.
+   * @param customerId - Owning customer identifier.
+   * @param id - Contact-info identifier.
+   * @returns The matched contact-info entity.
+   */
   @MessagePattern(MICROSERVICE_FIND_ONE_CUSTOMER_CONTACT_INFO_PATTERN)
   findOneCustomerContactInfo(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -54,6 +74,13 @@ export class CustomerContactInfoController {
     return this.customerContactInfoService.findOne(userId, customerId, id);
   }
 
+  /**
+   * Updates one customer contact-info record.
+   * @param userId - ID of the authenticated user.
+   * @param customerId - Owning customer identifier.
+   * @param updateDto - Contact-info update payload.
+   * @returns TypeORM update result.
+   */
   @MessagePattern(MICROSERVICE_UPDATE_CUSTOMER_CONTACT_INFO_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   updateCustomerContactInfo(
@@ -69,6 +96,13 @@ export class CustomerContactInfoController {
     );
   }
 
+  /**
+   * Deletes one customer contact-info record.
+   * @param userId - ID of the authenticated user.
+   * @param customerId - Owning customer identifier.
+   * @param id - Contact-info identifier.
+   * @returns TypeORM delete result.
+   */
   @MessagePattern(MICROSERVICE_REMOVE_CUSTOMER_CONTACT_INFO_PATTERN)
   removeCustomerContactInfo(
     @Payload('userId', ParseIntPipe) userId: number,

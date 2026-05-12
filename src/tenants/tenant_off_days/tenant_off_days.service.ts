@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantOffDaysEntity } from './entities/tenant_off_day.entity';
 import { CreateTenantOffDaysDto } from './dto/create-tenant_off_day.dto';
@@ -11,18 +11,45 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantOffDaysService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantOffDayId',
+    'tenantId',
+    'offDate',
+    'description',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantOffDayId: 'tod.tenantOffDayId',
+    tenantId: 'tod.tenantId',
+    offDate: 'tod.offDate',
+    description: 'tod.description',
+    createdBy: 'tod.createdBy',
+    updatedBy: 'tod.updatedBy',
+    createdAt: 'tod.createdAt',
+    updatedAt: 'tod.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantOffDaysEntity)
     private readonly tenantOffDaysRepository: Repository<TenantOffDaysEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -37,11 +64,8 @@ export class TenantOffDaysService {
     tenantId: number,
     createTenantOffDaysDto: CreateTenantOffDaysDto,
   ): Promise<TenantOffDaysEntity> {
-    // Set the createdBy field for auditing purposes
     createTenantOffDaysDto.createdBy = userId;
-    console.log(createTenantOffDaysDto, 'createTenantOffDaysDto');
 
-    // Save the new record to the database
     return await this.tenantOffDaysRepository.save(
       this.tenantOffDaysRepository.create(createTenantOffDaysDto),
     );
@@ -57,10 +81,8 @@ export class TenantOffDaysService {
     userId: number,
     tenantId: number,
   ): Promise<TenantOffDaysEntity[]> {
-    // Fetch records
     const offDays = await this.tenantOffDaysRepository.findBy({ tenantId });
 
-    // Throw an exception if no records are found
     if (offDays.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
@@ -83,14 +105,54 @@ export class TenantOffDaysService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch records based on filters
-    const [offDaysRecords, total] =
-      await this.tenantOffDaysRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantOffDaysEntity);
 
-    // Throw an exception if no records are found
-    if (offDaysRecords.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantOffDaysEntity> = {
+      repository: this.tenantOffDaysRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tod',
+      rootEntityClass: TenantOffDaysEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['description'],
+      fallbackCoreFields: TenantOffDaysService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantOffDaysService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantOffDayId',
+      tieBreakOrderBySql: 'tod.tenantOffDayId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tod.tenantId = :todTenantId', {
+          todTenantId: row.tenantId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant off day configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: offDaysRecords, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!offDaysRecords.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -123,12 +185,10 @@ export class TenantOffDaysService {
     tenantId: number,
     id: number,
   ): Promise<TenantOffDaysEntity> {
-    // Find the record by ID and tenant ID
     const offDay = await this.tenantOffDaysRepository.findOne({
       where: { tenantOffDayId: id, tenantId },
     });
 
-    // Throw an exception if the record is not found
     if (!offDay) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll(
@@ -154,12 +214,10 @@ export class TenantOffDaysService {
     id: number,
     updateTenantOffDaysDto: UpdateTenantOffDaysDto,
   ): Promise<UpdateResult> {
-    // Find the record by ID and tenant ID
     const offDay = await this.tenantOffDaysRepository.findOne({
       where: { tenantOffDayId: id, tenantId },
     });
 
-    // Throw an exception if the record is not found
     if (!offDay) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll(
@@ -169,10 +227,8 @@ export class TenantOffDaysService {
       );
     }
 
-    // Set the updatedBy field for auditing purposes
     updateTenantOffDaysDto.updatedBy = userId;
 
-    // Perform the update operation
     return await this.tenantOffDaysRepository.update(
       id,
       updateTenantOffDaysDto,
@@ -191,12 +247,10 @@ export class TenantOffDaysService {
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
-    // Find the record by ID and tenant ID
     const offDay = await this.tenantOffDaysRepository.findOne({
       where: { tenantOffDayId: id, tenantId },
     });
 
-    // Throw an exception if the record is not found
     if (!offDay) {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll(
@@ -206,58 +260,14 @@ export class TenantOffDaysService {
       );
     }
 
-    // Perform the delete operation
     return await this.tenantOffDaysRepository.delete({
       tenantOffDayId: id,
       tenantId,
     });
   }
 
-  /**
-   * Builds a query object for filtering records.
-   * @param filtersDto - DTO containing filter criteria.
-   * @returns The query object.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Add tenantId criteria
-    if (filtersDto.tenantId) {
-      query.where = [{ tenantId: filtersDto.tenantId }];
-    }
-
-    // Add search criteria
-    if (filtersDto.search) {
-      query.where = [{ description: Like(`%${filtersDto.search}%`) }];
-    }
-
-    // Add sorting criteria
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Add pagination criteria
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for the response.
-   * @param filtersDto - DTO containing pagination criteria.
-   * @param total - Total number of records.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

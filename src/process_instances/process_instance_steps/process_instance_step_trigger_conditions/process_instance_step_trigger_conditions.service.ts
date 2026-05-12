@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceStepTriggerEntity } from './entities/process_instance_step_trigger_condition.entity';
 import { CreateProcessInstanceStepTriggerDto } from './dto/create-process_instance_step_trigger_condition.dto';
@@ -7,27 +7,54 @@ import { UpdateProcessInstanceStepTriggerDto } from './dto/update-process_instan
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessInstanceStepTriggersService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'triggerInstanceId',
+    'stepInstanceId',
+    'processTemplateStepTriggerConditionId',
+    'conditionType',
+    'conditionKey',
+    'status',
+    'metAt',
+    'lastEvalAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    triggerInstanceId: 'pist.triggerInstanceId',
+    stepInstanceId: 'pist.stepInstanceId',
+    processTemplateStepTriggerConditionId:
+      'pist.processTemplateStepTriggerConditionId',
+    conditionType: 'pist.conditionType',
+    conditionKey: 'pist.conditionKey',
+    status: 'pist.status',
+    metAt: 'pist.metAt',
+    lastEvalAt: 'pist.lastEvalAt',
+  };
+
   constructor(
     @InjectRepository(ProcessInstanceStepTriggerEntity)
     private readonly triggerRepository: Repository<ProcessInstanceStepTriggerEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new process instance step trigger.
-   * @param userId - ID of the user creating the record.
-   * @param createDto - Data Transfer Object containing trigger details.
-   * @returns The created ProcessInstanceStepTriggerEntity.
    */
   async create(
     userId: number,
@@ -39,19 +66,56 @@ export class ProcessInstanceStepTriggersService {
 
   /**
    * Retrieves all triggers with optional filters, pagination, and sorting.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An object containing the list of triggers and pagination details.
-   * @throws RpcException if no records match the filters.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [triggers, total] =
-      await this.triggerRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      ProcessInstanceStepTriggerEntity,
+    );
+
+    const ctx: CatalogBackedDynamicListContext<ProcessInstanceStepTriggerEntity> =
+      {
+        repository: this.triggerRepository,
+        configObjectsService: this.configObjectsService,
+        canonicalObjectType: canonical,
+        rootAlias: 'pist',
+        rootEntityClass: ProcessInstanceStepTriggerEntity,
+        denyCatalogCanonicalType: canonical,
+        searchCorePropertyNames: ['conditionType', 'conditionKey', 'status'],
+        fallbackCoreFields: ProcessInstanceStepTriggersService.FALLBACK_FIELDS,
+        fallbackCoreColumnExpressions:
+          ProcessInstanceStepTriggersService.FALLBACK_EXPR,
+        defaultSortCoreField: 'triggerInstanceId',
+        tieBreakOrderBySql: 'pist.triggerInstanceId',
+        catalogTenantResolver: (f) => {
+          const row = f as FiltersDto;
+          return typeof row.catalogTenantId === 'number' &&
+            row.catalogTenantId > 0
+            ? row.catalogTenantId
+            : null;
+        },
+        applyMandatoryScope: (qb, filters) => {
+          const row = filters as FiltersDto;
+          qb.andWhere('pist.stepInstanceId = :pistStepInstanceId', {
+            pistStepInstanceId: row.stepInstanceId,
+          });
+        },
+        schemaMissingForRelatedFiltersMessage:
+          'Process instance step trigger configuration schema is required for related list filters.',
+        maxPageSize: 10,
+      };
+
+    const { rows: triggers, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
 
     if (triggers.length === 0) {
       throw new RpcException(
@@ -76,10 +140,6 @@ export class ProcessInstanceStepTriggersService {
 
   /**
    * Retrieves a single trigger by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the trigger to retrieve.
-   * @returns The ProcessInstanceStepTriggerEntity matching the ID.
-   * @throws RpcException if no record is found.
    */
   async findOne(
     userId: number,
@@ -103,11 +163,6 @@ export class ProcessInstanceStepTriggersService {
 
   /**
    * Updates an existing trigger record.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the trigger to update.
-   * @param updateDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
    */
   async update(
     userId: number,
@@ -132,9 +187,6 @@ export class ProcessInstanceStepTriggersService {
 
   /**
    * Deletes a trigger record by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the trigger to delete.
-   * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.triggerRepository.delete({
@@ -142,49 +194,8 @@ export class ProcessInstanceStepTriggersService {
     });
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Ensure processInstanceStepId is provided for filtering
-    query.where = { processInstanceStepId: filtersDto.stepInstanceId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { conditionType: Like(`%${filtersDto.search}%`) },
-        { conditionKey: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

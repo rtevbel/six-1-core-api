@@ -4,6 +4,7 @@ import { SystemLanguagesService } from './system_languages.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SystemLanguageEntity } from './entities/system-language.entity';
 import { RoleDescriptionEntity } from '../../roles/entities/role-description.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * Module for managing system languages.
@@ -19,6 +20,7 @@ import { RoleDescriptionEntity } from '../../roles/entities/role-description.ent
   imports: [
     // Registers the SystemLanguageEntity , RoleDescriptionEntity for TypeORM.
     TypeOrmModule.forFeature([SystemLanguageEntity, RoleDescriptionEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [
     /**

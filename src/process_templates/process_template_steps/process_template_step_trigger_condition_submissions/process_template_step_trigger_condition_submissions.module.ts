@@ -5,6 +5,7 @@ import { ProcessTemplateStepTriggerConditionSubmissionsService } from './process
 import { ProcessTemplateStepTriggerConditionSubmissionsController } from './process_template_step_trigger_condition_submissions.controller';
 
 import { ProcessTemplateStepTriggerConditionSubmissionEntity } from './entities/process_template_step_trigger_condition_submission.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * ProcessTemplateStepTriggerConditionSubmissionsModule is responsible for managing
@@ -19,6 +20,7 @@ import { ProcessTemplateStepTriggerConditionSubmissionEntity } from './entities/
     TypeOrmModule.forFeature([
       ProcessTemplateStepTriggerConditionSubmissionEntity,
     ]),
+    ConfigObjectsModule,
   ],
   controllers: [ProcessTemplateStepTriggerConditionSubmissionsController],
   providers: [ProcessTemplateStepTriggerConditionSubmissionsService],

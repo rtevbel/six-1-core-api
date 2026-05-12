@@ -3,6 +3,7 @@ import { TenantUserOffDaysService } from './tenant_user_off_days.service';
 import { TenantUserOffDaysController } from './tenant_user_off_days.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUserOffDaysEntity } from './entities/tenant_user_off_day.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * TenantUserOffDaysModule is responsible for managing tenant user off days.
@@ -14,6 +15,7 @@ import { TenantUserOffDaysEntity } from './entities/tenant_user_off_day.entity';
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserOffDaysEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [TenantUserOffDaysController],
   providers: [TenantUserOffDaysService],

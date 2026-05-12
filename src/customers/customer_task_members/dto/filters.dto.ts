@@ -1,13 +1,8 @@
 import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { CatalogDynamicListFiltersMixin } from '../../../common/dto/catalog-dynamic-list-filter.dto';
 
-export class FiltersDto {
+export class FiltersDto extends CatalogDynamicListFiltersMixin {
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -20,26 +15,7 @@ export class FiltersDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(100)
-  search?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  page: number = 1;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  limit: number = 10;
-
-  @IsOptional()
-  @IsIn(['customerTaskMemberId', 'joinedAt'])
-  @IsString()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9_]+$/)
   sortBy: string = 'customerTaskMemberId';
-
-  @IsOptional()
-  @IsIn(['ASC', 'DESC'])
-  @IsString()
-  sortOrder: string = 'DESC';
 }

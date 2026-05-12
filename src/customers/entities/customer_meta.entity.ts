@@ -55,7 +55,7 @@ export class CustomerMetaEntity {
   })
   updatedAt!: Date;
 
-  @OneToOne(() => CustomerEntity, {
+  @OneToOne(() => CustomerEntity, (customer) => customer.meta, {
     onDelete: 'CASCADE',
   })
   @JoinColumn({ name: 'customer_id' })

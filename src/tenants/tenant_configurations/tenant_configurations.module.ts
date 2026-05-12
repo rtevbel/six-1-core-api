@@ -10,6 +10,7 @@ import { TenantConfigurationsController } from './tenant_configurations.controll
 // Importing TypeORM module for database entity management
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantConfigurationsEntity } from './entities/tenant_configuration.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 
 /**
@@ -24,6 +25,7 @@ import { TenantConfigurationsEntity } from './entities/tenant_configuration.enti
   imports: [
     // Registers the TenantConfigurationsEntity for TypeORM.
     TypeOrmModule.forFeature([TenantConfigurationsEntity]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantConfigurationsController],

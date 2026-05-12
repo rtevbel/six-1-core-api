@@ -1,11 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {  Repository,
-  UpdateResult,
-  DeleteResult,
-  Like,
-  SelectQueryBuilder,
-  Brackets,
-} from 'typeorm';
+import { Repository, UpdateResult, DeleteResult, In } from 'typeorm';
 
 import {
   buildRuntimeV2ListPagination,
@@ -23,21 +17,45 @@ import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { UserEntity } from '../../users/entities/user.entity';
+import { SystemStatusEntity } from '../../settings/system_statuses/entities/system-status.entity';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantUsersService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantUserId',
+    'tenantId',
+    'userId',
+    'statusId',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantUserId: 'tu.tenantUserId',
+    tenantId: 'tu.tenantId',
+    userId: 'tu.userId',
+    statusId: 'tu.statusId',
+    createdBy: 'tu.createdBy',
+    updatedBy: 'tu.updatedBy',
+    createdAt: 'tu.createdAt',
+    updatedAt: 'tu.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantUsersEntity)
     private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
-  /**
-   * Creates a new tenant user record.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @param CreateTenantUserDto - Data transfer object containing tenant user details.
-   * @returns The created tenant user entity.
-   */
   async create(
     userId: number,
     tenantId: number,
@@ -51,20 +69,76 @@ export class TenantUsersService {
     );
   }
 
-  /**
-   * Retrieves tenant user records based on filters.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for querying tenant user records.
-   * @returns Object containing tenant user records and pagination details.
-   */
   async findAllByFilter(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
-    const [tenantUsers, total] = await findQuery.getManyAndCount();
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    if (tenantUsers.length === 0) {
+    const canonical = canonicalListObjectTypeForEntity(TenantUsersEntity);
+
+    const ctx: CatalogBackedDynamicListContext<TenantUsersEntity> = {
+      repository: this.tenantUsersRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tu',
+      rootEntityClass: TenantUsersEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [
+        'tenantUserId',
+        'tenantId',
+        'userId',
+        'statusId',
+      ],
+      fallbackCoreFields: TenantUsersService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantUsersService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantUserId',
+      tieBreakOrderBySql: 'tu.tenantUserId',
+      augmentSearchExpressions: (qb, filters) => {
+        if (!filters.search?.trim()) {
+          return [];
+        }
+        qb.leftJoin(UserEntity, 'tu_s_u', 'tu_s_u.userId = tu.userId');
+        qb.leftJoin(
+          SystemStatusEntity,
+          'tu_s_st',
+          'tu_s_st.status_id = tu.statusId',
+        );
+        return [
+          'tu_s_u.email',
+          'tu_s_u.username',
+          'tu_s_u.firstName',
+          'tu_s_u.lastName',
+          'tu_s_st.name',
+        ];
+      },
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : typeof row.catalogTenantId === 'number' && row.catalogTenantId > 0
+            ? row.catalogTenantId!
+            : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const f = filters as FiltersDto;
+        qb.andWhere('tu.tenantId = :tenantId', { tenantId: f.tenantId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant user configuration schema is required for related list filters.',
+      maxPageSize: 10,
+      hydrateRoots: (roots) => this.hydrateTenantUsersRows(roots),
+    };
+
+    const { rows: tenantUsers, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!tenantUsers.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -85,13 +159,23 @@ export class TenantUsersService {
     };
   }
 
-  /**
-   * Retrieves a single tenant user record by ID and tenant ID.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @param id - ID of the tenant user.
-   * @returns The tenant user entity.
-   */
+  private async hydrateTenantUsersRows(
+    roots: TenantUsersEntity[],
+  ): Promise<TenantUsersEntity[]> {
+    const ids = roots.map((r) => r.tenantUserId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.tenantUsersRepository.find({
+      where: { tenantUserId: In(ids) },
+      relations: ['user', 'status'],
+    });
+    const byId = new Map(loaded.map((t) => [t.tenantUserId, t]));
+    return ids
+      .map((id) => byId.get(id)!)
+      .filter(Boolean) as TenantUsersEntity[];
+  }
+
   async findOne(
     userId: number,
     tenantId: number,
@@ -112,14 +196,6 @@ export class TenantUsersService {
     return tenantUser;
   }
 
-  /**
-   * Updates a tenant user record.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @param id - ID of the tenant user.
-   * @param updateTenantUsersDto - Data transfer object containing updated tenant user details.
-   * @returns The result of the update operation.
-   */
   async update(
     userId: number,
     tenantId: number,
@@ -141,16 +217,12 @@ export class TenantUsersService {
 
     updateTenantUsersDto.updatedBy = userId;
 
-    return await this.tenantUsersRepository.update(id, updateTenantUsersDto);
+    return await this.tenantUsersRepository.update(
+      tenantUser.tenantUserId,
+      updateTenantUsersDto,
+    );
   }
 
-  /**
-   * Deletes a tenant user record.
-   * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
-   * @param id - ID of the tenant user.
-   * @returns The result of the delete operation.
-   */
   async remove(
     userId: number,
     tenantId: number,
@@ -175,60 +247,8 @@ export class TenantUsersService {
     });
   }
 
-  /**
-   * Builds a query object for filtering tenant user records.
-   * Applies LIKE queries on tenant user fields and user entity fields.
-   * @param filtersDto - Filters for querying tenant user records.
-   * @returns Query object for filtering.
-   */
-  private buildFindQuery(
-    filtersDto: FiltersDto,
-  ): SelectQueryBuilder<TenantUsersEntity> {
-    console.log(filtersDto, 'filtersDto');
-    const qb = this.tenantUsersRepository
-      .createQueryBuilder('tu')
-      .leftJoinAndSelect('tu.user', 'u')
-      .leftJoinAndSelect('tu.status', 's');
-
-    qb.andWhere('tu.tenantId = :tenantId', { tenantId: filtersDto.tenantId });
-
-    if (filtersDto.search) {
-      qb.andWhere(
-        new Brackets((q) => {
-          q.where('u.first_name LIKE :k', { k: `%${filtersDto.search}%` })
-            .orWhere('u.last_name  LIKE :k', { k: `%${filtersDto.search}%` })
-            .orWhere('u.username   LIKE :k', { k: `%${filtersDto.search}%` })
-            .orWhere('u.email      LIKE :k', { k: `%${filtersDto.search}%` })
-            .orWhere('s.name       LIKE :k', { k: `%${filtersDto.search}%` });
-        }),
-      );
-    }
-
-    // ---- ordering & pagination ---------------------------------------------
-    if (filtersDto.sortBy) {
-      qb.orderBy(
-        `tu.${filtersDto.sortBy}`,
-        (filtersDto.sortOrder ?? 'ASC') as 'ASC' | 'DESC',
-      );
-    }
-
-    if (filtersDto.limit) {
-      const limit = Math.min(filtersDto.limit, 10);
-      const page = filtersDto.page ?? 1;
-      qb.take(limit).skip((page - 1) * limit);
-    }
-
-    return qb;
-  }
-
-  /**
-   * Builds pagination details for the filtered records.
-   * @param filtersDto - Filters for querying tenant user records.
-   * @param total - Total number of records matching the filters.
-   * @returns Pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

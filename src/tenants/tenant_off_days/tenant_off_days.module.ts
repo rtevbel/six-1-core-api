@@ -10,6 +10,7 @@ import { TenantOffDaysController } from './tenant_off_days.controller';
 // Importing TypeORM module for database entity management
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantOffDaysEntity } from './entities/tenant_off_day.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 
 /**
@@ -24,6 +25,7 @@ import { TenantOffDaysEntity } from './entities/tenant_off_day.entity';
   imports: [
     // Registers the TenantOffDaysEntity for TypeORM.
     TypeOrmModule.forFeature([TenantOffDaysEntity]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantOffDaysController],

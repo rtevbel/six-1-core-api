@@ -5,6 +5,7 @@ import { ProcessInstanceStepRequirementSubmissionsController } from './process_i
 import { ProcessInstanceStepRequirementSubmissionEntity } from './entities/process_instance_step_requirement_submission.entity';
 import { ProcessInstanceStepRequirementsModule } from '../process_instance_step_requirements/process_instance_step_requirements.module';
 import { AutomationModule } from '../../../automation/automation.module';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * ProcessInstanceStepRequirementSubmissionsModule is responsible for managing
@@ -19,6 +20,7 @@ import { AutomationModule } from '../../../automation/automation.module';
     TypeOrmModule.forFeature([ProcessInstanceStepRequirementSubmissionEntity]),
     ProcessInstanceStepRequirementsModule,
     AutomationModule,
+    ConfigObjectsModule,
   ],
   controllers: [ProcessInstanceStepRequirementSubmissionsController],
   providers: [ProcessInstanceStepRequirementSubmissionsService],

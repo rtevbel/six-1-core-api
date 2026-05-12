@@ -8,6 +8,7 @@ import { TenantEmailVerificationService } from './services/tenant-email-verifica
 import { NotificationUrlBuilderService } from '../notifications/services/notification-url-builder.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserEntity } from './entities/user.entity';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
 /**
  * UsersModule is the main module responsible for managing user-related functionality.
@@ -22,6 +23,7 @@ import { UserEntity } from './entities/user.entity';
   imports: [
     // Registers the UserEntity for TypeORM.
     TypeOrmModule.forFeature([UserEntity]),
+    ConfigObjectsModule,
     UserMetaModule,
     UserNotificationPreferencesModule,
     UserRolesModule,

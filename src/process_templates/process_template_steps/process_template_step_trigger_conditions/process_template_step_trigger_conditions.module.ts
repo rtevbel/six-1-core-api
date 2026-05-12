@@ -5,6 +5,7 @@ import { ProcessTemplateStepTriggerConditionsService } from './process_template_
 import { ProcessTemplateStepTriggerConditionsController } from './process_template_step_trigger_conditions.controller';
 
 import { ProcessTemplateStepTriggerConditionEntity } from './entities/process_template_step_trigger_condition.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * ProcessTemplateStepTriggerConditionsModule is responsible for managing
@@ -17,6 +18,7 @@ import { ProcessTemplateStepTriggerConditionEntity } from './entities/process_te
   imports: [
     // Registers the ProcessTemplateStepTriggerConditionEntity for TypeORM.
     TypeOrmModule.forFeature([ProcessTemplateStepTriggerConditionEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [ProcessTemplateStepTriggerConditionsController],
   providers: [ProcessTemplateStepTriggerConditionsService],

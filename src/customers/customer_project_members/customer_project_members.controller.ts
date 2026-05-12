@@ -22,6 +22,12 @@ export class CustomerProjectMembersController {
     private readonly customerProjectMembersService: CustomerProjectMembersService,
   ) {}
 
+  /**
+   * Creates a customer-project member record.
+   * @param userId - ID of the authenticated user.
+   * @param createDto - Membership creation payload.
+   * @returns The created membership entity.
+   */
   @MessagePattern(MICROSERVICE_CREATE_CUSTOMER_PROJECT_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createCustomerProjectMember(
@@ -31,6 +37,12 @@ export class CustomerProjectMembersController {
     return this.customerProjectMembersService.create(userId, createDto);
   }
 
+  /**
+   * Retrieves customer-project member records.
+   * @param userId - ID of the authenticated user.
+   * @param filtersDto - Query filters and pagination options.
+   * @returns Paginated membership list payload.
+   */
   @MessagePattern(MICROSERVICE_FIND_ALL_CUSTOMER_PROJECT_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllCustomerProjectMembers(
@@ -40,6 +52,12 @@ export class CustomerProjectMembersController {
     return this.customerProjectMembersService.findAll(userId, filtersDto);
   }
 
+  /**
+   * Retrieves one customer-project member record.
+   * @param userId - ID of the authenticated user.
+   * @param id - Membership identifier.
+   * @returns The matched membership entity.
+   */
   @MessagePattern(MICROSERVICE_FIND_ONE_CUSTOMER_PROJECT_MEMBER_PATTERN)
   findOneCustomerProjectMember(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -48,6 +66,12 @@ export class CustomerProjectMembersController {
     return this.customerProjectMembersService.findOne(userId, id);
   }
 
+  /**
+   * Updates one customer-project member record.
+   * @param userId - ID of the authenticated user.
+   * @param updateDto - Membership update payload.
+   * @returns TypeORM update result.
+   */
   @MessagePattern(MICROSERVICE_UPDATE_CUSTOMER_PROJECT_MEMBER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   updateCustomerProjectMember(
@@ -61,6 +85,12 @@ export class CustomerProjectMembersController {
     );
   }
 
+  /**
+   * Deletes one customer-project member record.
+   * @param userId - ID of the authenticated user.
+   * @param id - Membership identifier.
+   * @returns TypeORM delete result.
+   */
   @MessagePattern(MICROSERVICE_REMOVE_CUSTOMER_PROJECT_MEMBER_PATTERN)
   removeCustomerProjectMember(
     @Payload('userId', ParseIntPipe) userId: number,

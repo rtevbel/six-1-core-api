@@ -22,6 +22,12 @@ export class CustomerInvitationsController {
     private readonly customerInvitationsService: CustomerInvitationsService,
   ) {}
 
+  /**
+   * Creates a customer invitation.
+   * @param userId - ID of the authenticated user.
+   * @param createDto - Invitation creation payload.
+   * @returns The created invitation entity.
+   */
   @MessagePattern(MICROSERVICE_CREATE_CUSTOMER_INVITATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createCustomerInvitation(
@@ -31,6 +37,12 @@ export class CustomerInvitationsController {
     return this.customerInvitationsService.create(userId, createDto);
   }
 
+  /**
+   * Retrieves customer invitations with filters.
+   * @param userId - ID of the authenticated user.
+   * @param filtersDto - Query filters and pagination options.
+   * @returns Paginated invitation list payload.
+   */
   @MessagePattern(MICROSERVICE_FIND_ALL_CUSTOMER_INVITATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllCustomerInvitations(
@@ -40,6 +52,12 @@ export class CustomerInvitationsController {
     return this.customerInvitationsService.findAll(userId, filtersDto);
   }
 
+  /**
+   * Retrieves one customer invitation.
+   * @param userId - ID of the authenticated user.
+   * @param id - Invitation identifier.
+   * @returns The matched invitation entity.
+   */
   @MessagePattern(MICROSERVICE_FIND_ONE_CUSTOMER_INVITATION_PATTERN)
   findOneCustomerInvitation(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -48,6 +66,12 @@ export class CustomerInvitationsController {
     return this.customerInvitationsService.findOne(userId, id);
   }
 
+  /**
+   * Updates one customer invitation.
+   * @param userId - ID of the authenticated user.
+   * @param updateDto - Invitation update payload.
+   * @returns TypeORM update result.
+   */
   @MessagePattern(MICROSERVICE_UPDATE_CUSTOMER_INVITATION_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   updateCustomerInvitation(
@@ -61,6 +85,12 @@ export class CustomerInvitationsController {
     );
   }
 
+  /**
+   * Deletes one customer invitation.
+   * @param userId - ID of the authenticated user.
+   * @param id - Invitation identifier.
+   * @returns TypeORM delete result.
+   */
   @MessagePattern(MICROSERVICE_REMOVE_CUSTOMER_INVITATION_PATTERN)
   removeCustomerInvitation(
     @Payload('userId', ParseIntPipe) userId: number,

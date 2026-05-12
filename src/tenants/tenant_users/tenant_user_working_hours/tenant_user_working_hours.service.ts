@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUserWorkingHoursEntity } from './entities/tenant_user_working_hour.entity';
 import { CreateTenantUserWorkingHoursDto } from './dto/create-tenant_user_working_hour.dto';
@@ -7,28 +7,55 @@ import { UpdateTenantUserWorkingHoursDto } from './dto/update-tenant_user_workin
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantUserWorkingHoursService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantUserWorkingHourId',
+    'tenantUserId',
+    'dayOfWeek',
+    'startTime',
+    'endTime',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantUserWorkingHourId: 'tuwh.tenantUserWorkingHourId',
+    tenantUserId: 'tuwh.tenantUserId',
+    dayOfWeek: 'tuwh.dayOfWeek',
+    startTime: 'tuwh.startTime',
+    endTime: 'tuwh.endTime',
+    createdBy: 'tuwh.createdBy',
+    updatedBy: 'tuwh.updatedBy',
+    createdAt: 'tuwh.createdAt',
+    updatedAt: 'tuwh.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantUserWorkingHoursEntity)
     private readonly tenantUserWorkingHoursRepository: Repository<TenantUserWorkingHoursEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new TenantUserWorkingHours record.
-   * @param userId - The ID of the user making the request.
-   * @param tenantId - The ID of the tenant.
-   * @param createTenantUserWorkingHoursDto - DTO containing the data to create the record.
-   * @returns The created TenantUserWorkingHoursEntity.
    */
   async create(
     userId: number,
@@ -43,22 +70,57 @@ export class TenantUserWorkingHoursService {
 
   /**
    * Finds all working hours based on filters.
-   * @param userId - The ID of the user making the request.
-   * @param tenantId - The ID of the tenant.
-   * @param filtersDto - DTO containing filter options.
-   * @returns An object containing filtered records and pagination details.
    */
   async findAllByFilter(
     userId: number,
     tenantId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [workingHours, total] =
-      await this.tenantUserWorkingHoursRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      TenantUserWorkingHoursEntity,
+    );
 
-    if (workingHours.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantUserWorkingHoursEntity> = {
+      repository: this.tenantUserWorkingHoursRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tuwh',
+      rootEntityClass: TenantUserWorkingHoursEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['dayOfWeek', 'startTime', 'endTime'],
+      fallbackCoreFields: TenantUserWorkingHoursService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantUserWorkingHoursService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantUserWorkingHourId',
+      tieBreakOrderBySql: 'tuwh.tenantUserWorkingHourId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tuwh.tenantUserId = :tuwhTenantUserId', {
+          tuwhTenantUserId: row.tenantUserId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant user working hour configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: workingHours, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!workingHours.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -80,47 +142,7 @@ export class TenantUserWorkingHoursService {
   }
 
   /**
-   * Builds the query object for filtering records.
-   * @param filtersDto - DTO containing filter options.
-   * @returns The query object.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      where: { tenantUserId: filtersDto.tenantUserId },
-    };
-
-    if (filtersDto.search) {
-      query.where = [
-        { ...query.where, dayOfWeek: Like(`%${filtersDto.search}%`) },
-        { ...query.where, startTime: Like(`%${filtersDto.search}%`) },
-        { ...query.where, endTime: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
    * Finds a specific working hour record by ID.
-   * @param userId - The ID of the user making the request.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The ID of the tenant user.
-   * @param id - The ID of the working hour record.
-   * @returns The TenantUserWorkingHoursEntity.
    */
   async findOne(
     userId: number,
@@ -146,12 +168,6 @@ export class TenantUserWorkingHoursService {
 
   /**
    * Updates a specific working hour record by ID.
-   * @param userId - The ID of the user making the request.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The ID of the tenant user.
-   * @param id - The ID of the working hour record.
-   * @param updateTenantUserWorkingHoursDto - DTO containing the updated data.
-   * @returns The result of the update operation.
    */
   async update(
     userId: number,
@@ -181,11 +197,6 @@ export class TenantUserWorkingHoursService {
 
   /**
    * Deletes a specific working hour record by ID.
-   * @param userId - The ID of the user making the request.
-   * @param tenantId - The ID of the tenant.
-   * @param tenantUserId - The ID of the tenant user.
-   * @param id - The ID of the working hour record.
-   * @returns The result of the delete operation.
    */
   async remove(
     userId: number,
@@ -212,14 +223,8 @@ export class TenantUserWorkingHoursService {
     });
   }
 
-  /**
-   * Builds pagination details for the response.
-   * @param filtersDto - DTO containing filter options.
-   * @param total - Total number of records.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

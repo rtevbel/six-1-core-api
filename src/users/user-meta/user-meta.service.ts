@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, DeleteResult, UpdateResult, Like } from 'typeorm';
+import { Repository, DeleteResult, UpdateResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserMetaEntity } from './entities/user-meta.entity';
 import { CreateUserMetaDto } from './dto/create-user-meta.dto';
@@ -11,12 +11,16 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 /**
  * UserMetaService
@@ -28,9 +32,26 @@ import {
  */
 @Injectable()
 export class UserMetaService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'userMetaId',
+    'userId',
+    'metaKey',
+    'metaValue',
+    'createdAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    userMetaId: 'um.userMetaId',
+    userId: 'um.userId',
+    metaKey: 'um.metaKey',
+    metaValue: 'um.metaValue',
+    createdAt: 'um.createdAt',
+  };
+
   constructor(
     @InjectRepository(UserMetaEntity)
     private readonly userMetaRepository: Repository<UserMetaEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -52,20 +73,57 @@ export class UserMetaService {
    * Retrieves all user metadata records for a specific user.
    *
    * @param userId - ID of the user making the request.
-   * @returns An array of UserMetaEntity objects.
+   * @param filtersDto - Filters for searching, sorting, and pagination.
+   * @returns An object containing the filtered records and pagination details.
    * @throws RpcException if no records are found.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch user meta and count total records
-    const [metas, total] =
-      await this.userMetaRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(UserMetaEntity);
 
-    if (metas.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<UserMetaEntity> = {
+      repository: this.userMetaRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'um',
+      rootEntityClass: UserMetaEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['metaKey', 'metaValue'],
+      fallbackCoreFields: UserMetaService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: UserMetaService.FALLBACK_EXPR,
+      defaultSortCoreField: 'userMetaId',
+      tieBreakOrderBySql: 'um.userMetaId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('um.userId = :umUserId', { umUserId: row.userId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'User meta configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: metas, total } = await executeCatalogBackedDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!metas.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replaceAll(
           '{entity_name}',
@@ -73,6 +131,7 @@ export class UserMetaService {
         ),
       );
     }
+
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: metas,
@@ -101,7 +160,7 @@ export class UserMetaService {
   ): Promise<UserMetaEntity> {
     const meta = await this.userMetaRepository.findOneBy({
       userMetaId: id,
-      userId: userId,
+      userId,
     });
     if (!meta) {
       throw new RpcException(
@@ -128,7 +187,6 @@ export class UserMetaService {
     id: number,
     updateUserMetaDto: UpdateUserMetaDto,
   ): Promise<UpdateResult> {
-    console.log(updateUserMetaDto, 'updateUserMetaDtoupdateUserMetaDto');
     const meta = await this.userMetaRepository.findOneBy({
       userMetaId: id,
       userId: updateUserMetaDto.userId,
@@ -159,7 +217,7 @@ export class UserMetaService {
   ): Promise<DeleteResult> {
     const meta = await this.userMetaRepository.findOneBy({
       userMetaId: id,
-      userId: userId,
+      userId,
     });
     if (!meta) {
       throw new RpcException(
@@ -187,7 +245,7 @@ export class UserMetaService {
     metaKey: string,
   ): Promise<string> {
     const meta = await this.userMetaRepository.findOne({
-      where: { userId: userId, metaKey: metaKey },
+      where: { userId, metaKey },
     });
     if (!meta) {
       throw new RpcException(
@@ -200,51 +258,8 @@ export class UserMetaService {
     return meta.metaValue;
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    query.where = { userId: filtersDto.userId };
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [
-        { metaKey: Like(`%${filtersDto.search}%`) },
-        { metaValue: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

@@ -18,6 +18,7 @@ import { TenantUsersModule } from './tenant_users/tenant_users.module'; // Manag
 import { TenantTeamsModule } from './tenant_teams/tenant_teams.module'; // Handles tenant teams
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantEntity } from './entities/tenant.entity';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
 /**
  * TenantsModule is responsible for managing tenants.
@@ -31,6 +32,7 @@ import { TenantEntity } from './entities/tenant.entity';
   imports: [
     // Registers the TenantEntity for TypeORM.
     TypeOrmModule.forFeature([TenantEntity]),
+    ConfigObjectsModule,
     TenantTypesModule, // Module for managing tenant types
     TenantMetaModule, // Module for managing tenant metadata
     TenantWorkingHoursModule, // Module for managing tenant working hours

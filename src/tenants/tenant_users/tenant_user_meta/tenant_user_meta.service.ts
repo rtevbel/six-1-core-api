@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUserMetaEntity } from './entities/tenant_user_meta.entity';
 import { CreateTenantUserMetaDto } from './dto/create-tenant_user_meta.dto';
@@ -11,18 +11,41 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantUserMetaService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantUserMetaId',
+    'tenantUserId',
+    'metaKey',
+    'metaValue',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantUserMetaId: 'tum.tenantUserMetaId',
+    tenantUserId: 'tum.tenantUserId',
+    metaKey: 'tum.metaKey',
+    metaValue: 'tum.metaValue',
+    createdAt: 'tum.createdAt',
+    updatedAt: 'tum.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantUserMetaEntity)
     private readonly tenantUserMetaRepository: Repository<TenantUserMetaEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -54,12 +77,49 @@ export class TenantUserMetaService {
     tenantId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [tenantUserMetadata, total] =
-      await this.tenantUserMetaRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantUserMetaEntity);
 
-    if (tenantUserMetadata.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantUserMetaEntity> = {
+      repository: this.tenantUserMetaRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tum',
+      rootEntityClass: TenantUserMetaEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['metaKey', 'metaValue'],
+      fallbackCoreFields: TenantUserMetaService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantUserMetaService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantUserMetaId',
+      tieBreakOrderBySql: 'tum.tenantUserMetaId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tum.tenantUserId = :tumTenantUserId', {
+          tumTenantUserId: row.tenantUserId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant user meta configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: tenantUserMetadata, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!tenantUserMetadata.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -178,51 +238,8 @@ export class TenantUserMetaService {
     });
   }
 
-  /**
-   * Builds a query object for filtering tenant user metadata records.
-   * Applies LIKE queries on metadata fields.
-   * @param tenantId - ID of the tenant.
-   * @param tenantUserId - ID of the tenant user.
-   * @param filtersDto - Filters for querying tenant user metadata records.
-   * @returns Query object for filtering.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      where: { tenantUserId: filtersDto.tenantUserId },
-    };
-
-    if (filtersDto.search) {
-      query.where = [
-        { metaKey: Like(`%${filtersDto.search}%`) },
-        { metaValue: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for the filtered records.
-   * @param filtersDto - Filters for querying tenant user metadata records.
-   * @param total - Total number of records matching the filters.
-   * @returns Pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

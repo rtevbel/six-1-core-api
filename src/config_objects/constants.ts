@@ -8,6 +8,12 @@ export const MICROSERVICE_GET_CONFIG_SCHEMA_PATTERN =
   'v0.1_get_config_schema';
 
 /**
+ * List filter/sort field catalog for a configurable object type (Object Designer / gateway).
+ */
+export const MICROSERVICE_GET_OBJECT_LIST_FIELD_CATALOG_PATTERN =
+  'v0.1_get_object_list_field_catalog';
+
+/**
  * Message pattern used to list configuration objects for a tenant and
  * optional template set.
  */

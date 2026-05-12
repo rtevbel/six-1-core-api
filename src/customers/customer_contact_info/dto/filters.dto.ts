@@ -1,18 +1,28 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsIn,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Matches,
+  ValidateNested,
 } from 'class-validator';
+import { SorStructuredFilterConditionDto } from '../../../common/dto/sor-structured-filter-condition.dto';
 
 export class FiltersDto {
   @Type(() => Number)
   @IsNumber()
   @IsNotEmpty()
   customerId!: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  tenantId?: number;
 
   @IsOptional()
   @IsString()
@@ -30,12 +40,29 @@ export class FiltersDto {
   limit: number = 10;
 
   @IsOptional()
-  @IsIn(['customerContactId', 'secondaryEmail', 'createdAt'])
   @IsString()
+  @MaxLength(64)
+  @Matches(/^[A-Za-z0-9_]+$/)
   sortBy: string = 'customerContactId';
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
   @IsString()
   sortOrder: string = 'DESC';
+
+  @IsOptional()
+  @IsIn(['core', 'meta'])
+  @IsString()
+  sortSource: 'core' | 'meta' = 'core';
+
+  @IsOptional()
+  @Type(() => Boolean)
+  includeMeta?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @ValidateNested({ each: true })
+  @Type(() => SorStructuredFilterConditionDto)
+  filters?: SorStructuredFilterConditionDto[];
 }

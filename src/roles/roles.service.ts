@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
 import { RoleDescriptionEntity } from './entities/role-description.entity';
@@ -13,9 +13,41 @@ import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
+import {
+  buildRuntimeV2ListPagination,
+  type RuntimeV2ListPagination,
+} from '../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class RolesService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'roleId',
+    'statusId',
+    'tenantId',
+    'isTenantRole',
+    'isTenantTeamRole',
+    'isCustomerRole',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    roleId: 'r.roleId',
+    statusId: 'r.statusId',
+    tenantId: 'r.tenantId',
+    isTenantRole: 'r.isTenantRole',
+    isTenantTeamRole: 'r.isTenantTeamRole',
+    isCustomerRole: 'r.isCustomerRole',
+    createdAt: 'r.createdAt',
+    updatedAt: 'r.updatedAt',
+  };
+
   constructor(
     @InjectRepository(RoleEntity)
     private readonly roleRepository: Repository<RoleEntity>,
@@ -23,6 +55,7 @@ export class RolesService {
     private readonly roleDescriptionRepository: Repository<RoleDescriptionEntity>,
     @InjectRepository(RolePermissionEntity)
     private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -51,13 +84,46 @@ export class RolesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch roles and count total records
-    const [roles, total] = await this.roleRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(RoleEntity);
 
-    // Throw exception if no records are found
-    if (roles.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<RoleEntity> = {
+      repository: this.roleRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'r',
+      rootEntityClass: RoleEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [],
+      fallbackCoreFields: RolesService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: RolesService.FALLBACK_EXPR,
+      defaultSortCoreField: 'roleId',
+      tieBreakOrderBySql: 'r.roleId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'Role configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: roles, total } = await executeCatalogBackedDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!roles.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -67,7 +133,6 @@ export class RolesService {
     }
 
     const pagination = this.buildPagination(filtersDto, total);
-
     return {
       items: roles,
       roles,
@@ -79,55 +144,16 @@ export class RolesService {
     };
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [{ name: Like(`%${filtersDto.search}%`) }];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
-  ): { total: number; page: number; limit: number; totalPages: number } {
-    const limit = filtersDto.limit || 10;
-    return {
+  ): RuntimeV2ListPagination {
+    return buildRuntimeV2ListPagination(
+      filtersDto.page,
+      filtersDto.limit,
       total,
-      page: filtersDto.page || 1,
-      limit,
-      totalPages: Math.max(1, Math.ceil(total / limit)),
-    };
+      10,
+    );
   }
 
   /**
@@ -176,18 +202,15 @@ export class RolesService {
 
     const { descriptions, permissions, ...roleUpdateData } = updateRoleDto;
 
-    // Handle descriptions update
     if (descriptions) {
       for (const description of descriptions) {
         if (description.roleDescriptionId) {
-          // Update existing description
           await this.roleDescriptionRepository.update(
             description.roleDescriptionId,
             description,
           );
         } else {
-          // Create new description
-          description.roleId = id; // Ensure the roleId is set for new descriptions
+          description.roleId = id;
           await this.roleDescriptionRepository.save(
             this.roleDescriptionRepository.create(description),
           );
@@ -195,18 +218,15 @@ export class RolesService {
       }
     }
 
-    // Handle permissions update
     if (permissions) {
       for (const permission of permissions) {
         if (permission.rolePermissionId) {
-          // Update existing permission
           await this.rolePermissionRepository.update(
             permission.rolePermissionId,
             permission,
           );
         } else {
-          // Create new permission
-          permission.roleId = id; // Ensure the roleId is set for new permissions
+          permission.roleId = id;
           await this.rolePermissionRepository.save(
             this.rolePermissionRepository.create(permission),
           );

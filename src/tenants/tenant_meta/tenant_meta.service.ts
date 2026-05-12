@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantMetaEntity } from './entities/tenant_meta.entity';
 import { CreateTenantMetaDto } from './dto/create-tenant_meta.dto';
@@ -11,18 +11,41 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantMetaService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantMetaId',
+    'tenantId',
+    'metaKey',
+    'metaValue',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantMetaId: 'tm.tenantMetaId',
+    tenantId: 'tm.tenantId',
+    metaKey: 'tm.metaKey',
+    metaValue: 'tm.metaValue',
+    createdAt: 'tm.createdAt',
+    updatedAt: 'tm.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantMetaEntity)
     private readonly tenantMetaRepository: Repository<TenantMetaEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -35,8 +58,6 @@ export class TenantMetaService {
     userId: number,
     createTenantMetaDto: CreateTenantMetaDto,
   ): Promise<TenantMetaEntity> {
-    console.log(createTenantMetaDto, 'createTenantMetaDto');
-
     const newMeta = this.tenantMetaRepository.create(createTenantMetaDto);
     return this.tenantMetaRepository.save(newMeta);
   }
@@ -52,12 +73,52 @@ export class TenantMetaService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [tenantMetaRecords, total] =
-      await this.tenantMetaRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantMetaEntity);
 
-    if (tenantMetaRecords.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantMetaEntity> = {
+      repository: this.tenantMetaRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tm',
+      rootEntityClass: TenantMetaEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['metaKey', 'metaValue'],
+      fallbackCoreFields: TenantMetaService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantMetaService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantMetaId',
+      tieBreakOrderBySql: 'tm.tenantMetaId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tm.tenantId = :tmTenantId', { tmTenantId: row.tenantId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant meta configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: tenantMetaRecords, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!tenantMetaRecords.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -65,10 +126,11 @@ export class TenantMetaService {
         ),
       );
     }
+
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: tenantMetaRecords,
-      tenantMetaRecords: tenantMetaRecords,
+      tenantMetaRecords,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -169,7 +231,7 @@ export class TenantMetaService {
     metaKey: string,
   ): Promise<string> {
     const meta = await this.tenantMetaRepository.findOne({
-      where: { tenantId, metaKey: metaKey },
+      where: { tenantId, metaKey },
     });
 
     if (!meta) {
@@ -184,51 +246,8 @@ export class TenantMetaService {
     return meta.metaValue;
   }
 
-  /**
-   * Builds a query object for filtering and sorting records.
-   * @param filtersDto - Filters for searching and sorting records.
-   * @returns The query object.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Ensure tenantId is always included in the query
-    query.where = { tenantId: filtersDto.tenantId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { phone: Like(`%${filtersDto.search}%`) },
-        { email: Like(`%${filtersDto.search}%`) },
-        { address: Like(`%${filtersDto.search}%`) },
-        { postal_code: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for the filtered records.
-   * @param filtersDto - Filters for pagination.
-   * @param total - Total number of records.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

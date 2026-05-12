@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
@@ -9,17 +9,41 @@ import { UpdateProcessTemplateDto } from './dto/update-process_template.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessTemplatesService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'processTemplateId',
+    'tenantId',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    processTemplateId: 'pt.processTemplateId',
+    tenantId: 'pt.tenantId',
+    createdBy: 'pt.createdBy',
+    updatedBy: 'pt.updatedBy',
+    createdAt: 'pt.createdAt',
+    updatedAt: 'pt.updatedAt',
+  };
+
   constructor(
     @InjectRepository(ProcessTemplateEntity)
     private readonly processTemplateRepository: Repository<ProcessTemplateEntity>,
@@ -27,6 +51,7 @@ export class ProcessTemplatesService {
     private readonly processTemplateDescriptionRepository: Repository<ProcessTemplateDescriptionEntity>,
     @InjectRepository(ProcessTemplateCategoryEntity)
     private readonly processTemplateCategoryRepository: Repository<ProcessTemplateCategoryEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -39,10 +64,6 @@ export class ProcessTemplatesService {
     userId: number,
     createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
-    console.log(
-      'Creating process template with DTO:',
-      createProcessTemplateDto,
-    );
     return await this.processTemplateRepository.save(
       this.processTemplateRepository.create(createProcessTemplateDto),
     );
@@ -59,14 +80,54 @@ export class ProcessTemplatesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch process templates and count total records
-    const [processTemplates, total] =
-      await this.processTemplateRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(ProcessTemplateEntity);
 
-    // Throw exception if no records are found
-    if (processTemplates.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<ProcessTemplateEntity> = {
+      repository: this.processTemplateRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'pt',
+      rootEntityClass: ProcessTemplateEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [],
+      fallbackCoreFields: ProcessTemplatesService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: ProcessTemplatesService.FALLBACK_EXPR,
+      defaultSortCoreField: 'processTemplateId',
+      tieBreakOrderBySql: 'pt.processTemplateId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        if (typeof row.tenantId === 'number' && row.tenantId > 0) {
+          qb.andWhere('pt.tenantId = :ptTenantId', { ptTenantId: row.tenantId });
+        }
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Process template configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: processTemplates, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!processTemplates.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -87,66 +148,8 @@ export class ProcessTemplatesService {
     };
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: [
-        'descriptions',
-        'categories',
-        'categories.category.descriptions',
-      ],
-    };
-    if (filtersDto.tenantId) {
-      query.where = { tenantId: filtersDto.tenantId };
-    }
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [
-        {
-          descriptions: {
-            name: Like(`%${filtersDto.search}%`),
-            description: Like(`%${filtersDto.search}%`),
-          },
-          'categories.category.descriptions': {
-            name: Like(`%${filtersDto.search}%`),
-            description: Like(`%${filtersDto.search}%`),
-          },
-        },
-      ];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(
@@ -165,17 +168,16 @@ export class ProcessTemplatesService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<ProcessTemplateEntity> {
-    const processTemplate =
-      await this.processTemplateRepository.findOne({
-        where: { processTemplateId: id },
-        relations: [
-          'descriptions',
-          'categories',
-          'categories.category.descriptions',
-          'steps',
-          'steps.descriptions',
-        ],
-      });
+    const processTemplate = await this.processTemplateRepository.findOne({
+      where: { processTemplateId: id },
+      relations: [
+        'descriptions',
+        'categories',
+        'categories.category.descriptions',
+        'steps',
+        'steps.descriptions',
+      ],
+    });
 
     if (!processTemplate) {
       throw new RpcException(
@@ -219,18 +221,15 @@ export class ProcessTemplatesService {
     const { descriptions, categories, ...processTemplateUpdateData } =
       updateProcessTemplateDto;
 
-    // Handle descriptions update
     if (descriptions) {
       for (const description of descriptions) {
         if (description.processTemplateDescriptionId) {
-          // Update existing description
           await this.processTemplateDescriptionRepository.update(
             description.processTemplateDescriptionId,
             description,
           );
         } else {
-          // Create new description
-          description.processTemplateId = id; // Ensure the processTemplateId is set for new descriptions
+          description.processTemplateId = id;
           await this.processTemplateDescriptionRepository.save(
             this.processTemplateDescriptionRepository.create(description),
           );
@@ -238,14 +237,12 @@ export class ProcessTemplatesService {
       }
     }
 
-    // Handle categories update
     if (categories) {
       await this.processTemplateCategoryRepository.delete({
         processTemplateId: id,
       });
       for (const category of categories) {
-        // Create new category
-        category.processTemplateId = id; // Ensure the processTemplateId is set for new categories
+        category.processTemplateId = id;
         await this.processTemplateCategoryRepository.save(
           this.processTemplateCategoryRepository.create(category),
         );

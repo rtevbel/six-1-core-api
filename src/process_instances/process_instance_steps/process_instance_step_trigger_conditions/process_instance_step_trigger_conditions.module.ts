@@ -5,6 +5,7 @@ import { ProcessInstanceStepTriggersService } from './process_instance_step_trig
 import { ProcessInstanceStepTriggersController } from './process_instance_step_trigger_conditions.controller';
 
 import { ProcessInstanceStepTriggerEntity } from './entities/process_instance_step_trigger_condition.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * ProcessInstanceStepTriggerConditionsModule is responsible for managing
@@ -17,6 +18,7 @@ import { ProcessInstanceStepTriggerEntity } from './entities/process_instance_st
   imports: [
     // Registers the ProcessInstanceStepTriggerEntity for TypeORM.
     TypeOrmModule.forFeature([ProcessInstanceStepTriggerEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [ProcessInstanceStepTriggersController],
   providers: [ProcessInstanceStepTriggersService],

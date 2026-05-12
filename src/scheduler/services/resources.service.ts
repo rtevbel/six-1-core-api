@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Like, DeleteResult, UpdateResult } from 'typeorm';
+import { Repository, In, DeleteResult, UpdateResult } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { ResourceEntity } from '../entities/resource.entity';
 import { CreateResourceDto } from '../dto/create-resource.dto';
 import { UpdateResourceDto } from '../dto/update-resource.dto';
 import { FiltersResourceDto } from '../dto/filters-resource.dto';
-import {  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
+import {
+  NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
   NO_RECORD_FOUND_MESSAGE,
 } from '../../common/constants';
 
@@ -14,6 +15,13 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { ResourceMetaEntity } from '../entities/resource_meta.entity';
+import {
+  executeSorBoundDynamicListQuery,
+  type SorBoundDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
+
 export interface FindAllResourcesResultInterface {
   items: ResourceEntity[];
   resourceRecords: ResourceEntity[];
@@ -26,9 +34,35 @@ export interface FindAllResourcesResultInterface {
 
 @Injectable()
 export class ResourcesService {
+  private static readonly FALLBACK_CORE_FIELDS = new Set([
+    'resourceId',
+    'tenantId',
+    'tenantUserId',
+    'type',
+    'name',
+    'description',
+    'isShared',
+    'createdAt',
+  ]);
+
+  private static readonly FALLBACK_CORE_FIELD_TO_COLUMN: Record<
+    string,
+    string
+  > = {
+    resourceId: 'r.resourceId',
+    tenantId: 'r.tenantId',
+    tenantUserId: 'r.tenantUserId',
+    type: 'r.type',
+    name: 'r.name',
+    description: 'r.description',
+    isShared: 'r.isShared',
+    createdAt: 'r.createdAt',
+  };
+
   constructor(
     @InjectRepository(ResourceEntity)
     private readonly repo: Repository<ResourceEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -55,8 +89,61 @@ export class ResourcesService {
     userId: number,
     filtersDto: FiltersResourceDto,
   ): Promise<FindAllResourcesResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
-    const [items, total] = await this.repo.findAndCount(findQuery);
+    filtersDto.page =
+      filtersDto.page && filtersDto.page > 0 ? filtersDto.page : 1;
+    const rawLimit =
+      filtersDto.limit && filtersDto.limit > 0 ? filtersDto.limit : 10;
+    filtersDto.limit = Math.min(rawLimit, 10);
+    filtersDto.sortBy = filtersDto.sortBy ?? 'resourceId';
+    filtersDto.sortOrder = filtersDto.sortOrder ?? 'DESC';
+    filtersDto.sortSource = filtersDto.sortSource ?? 'core';
+
+    const ctx: SorBoundDynamicListContext<ResourceEntity> = {
+      repository: this.repo,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: 'resource',
+      rootAlias: 'r',
+      rootEntityClass: ResourceEntity,
+      denyCatalogCanonicalType: 'resource',
+      meta: {
+        entity: ResourceMetaEntity,
+        alias: 'rm',
+        joinConditionSql: 'rm.resourceId = r.resourceId',
+      },
+      searchCorePropertyNames: ['name', 'description'],
+      fallbackCoreFields: ResourcesService.FALLBACK_CORE_FIELDS,
+      fallbackCoreColumnExpressions:
+        ResourcesService.FALLBACK_CORE_FIELD_TO_COLUMN,
+      defaultSortCoreField: 'resourceId',
+      tieBreakOrderBySql: 'r.resourceId',
+      catalogTenantResolver: (f) =>
+        typeof f.tenantId === 'number' && f.tenantId > 0 ? f.tenantId : null,
+      applyMandatoryScope: (qb, filters) => {
+        const f = filters as FiltersResourceDto;
+        if (typeof f.tenantId === 'number') {
+          qb.andWhere('r.tenantId = :tenantId', { tenantId: f.tenantId });
+        }
+        if (typeof f.tenantUserId === 'number') {
+          qb.andWhere('r.tenantUserId = :tenantUserId', {
+            tenantUserId: f.tenantUserId,
+          });
+        }
+        if (f.type) {
+          qb.andWhere('r.type = :resourceType', {
+            resourceType: f.type,
+          });
+        }
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Resource configuration schema is required for related list filters.',
+      maxPageSize: 10,
+      hydrateRoots: (roots) => this.hydrateResourcesForList(roots),
+    };
+
+    const { rows: items, total } = await executeSorBoundDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
 
     if (!items.length) {
       throw new RpcException(
@@ -77,6 +164,21 @@ export class ResourcesService {
       totalPages: pagination.totalPages,
       pagination,
     };
+  }
+
+  private async hydrateResourcesForList(
+    roots: ResourceEntity[],
+  ): Promise<ResourceEntity[]> {
+    const ids = roots.map((row) => row.resourceId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.repo.find({
+      where: { resourceId: In(ids) },
+      relations: ['tenant', 'tenantUser'],
+    });
+    const byId = new Map(loaded.map((row) => [row.resourceId, row]));
+    return ids.map((id) => byId.get(id)!).filter(Boolean) as ResourceEntity[];
   }
 
   /**
@@ -142,52 +244,6 @@ export class ResourcesService {
   }
 
   /**
-   * Builds a TypeORM find query based on provided filters.
-   * @private
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns A query object for TypeORM.
-   */
-  private buildFindQuery(filtersDto: FiltersResourceDto): Record<string, any> {
-    const query: Record<string, any> = {};
-    query.relations = ['tenant', 'tenantUser'];
-    query.where = {};
-
-    if (filtersDto.tenantId) {
-      query.where.tenantId = filtersDto.tenantId;
-    }
-
-    if (filtersDto.tenantUserId) {
-      query.where.tenantUserId = filtersDto.tenantUserId;
-    }
-
-    if (filtersDto.type) {
-      query.where.type = filtersDto.type;
-    }
-
-    if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`), ...query.where },
-        { description: Like(`%${filtersDto.search}%`), ...query.where },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
    * Builds pagination details based on filters and total count.
    * @private
    * @param filtersDto - Filters for pagination.
@@ -195,7 +251,7 @@ export class ResourcesService {
    * @returns An object containing pagination details.
    */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersResourceDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

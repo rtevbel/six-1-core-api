@@ -10,6 +10,7 @@ import { TenantTypesController } from './tenant_types.controller';
 // Importing TypeORM module and entity for tenant types
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantTypeEntity } from './entities/tenant_type.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * TenantTypesModule is responsible for managing tenant types.
@@ -23,6 +24,7 @@ import { TenantTypeEntity } from './entities/tenant_type.entity';
   imports: [
     // Registers the TenantTypeEntity for TypeORM.
     TypeOrmModule.forFeature([TenantTypeEntity]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantTypesController],

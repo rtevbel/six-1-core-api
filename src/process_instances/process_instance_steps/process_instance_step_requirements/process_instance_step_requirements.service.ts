@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceStepRequirementEntity } from './entities/process_instance_step_requirement.entity';
 import { CreateProcessInstanceStepRequirementDto } from './dto/create-process_instance_step_requirement.dto';
@@ -7,27 +7,57 @@ import { UpdateProcessInstanceStepRequirementDto } from './dto/update-process_in
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessInstanceStepRequirementsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'requirementInstanceId',
+    'stepInstanceId',
+    'processTemplateStepRequirementId',
+    'requirementType',
+    'requirementKey',
+    'isMandatory',
+    'status',
+    'lastSubmissionId',
+    'approvedAt',
+    'evaluatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    requirementInstanceId: 'pisr.requirementInstanceId',
+    stepInstanceId: 'pisr.stepInstanceId',
+    processTemplateStepRequirementId: 'pisr.processTemplateStepRequirementId',
+    requirementType: 'pisr.requirementType',
+    requirementKey: 'pisr.requirementKey',
+    isMandatory: 'pisr.isMandatory',
+    status: 'pisr.status',
+    lastSubmissionId: 'pisr.lastSubmissionId',
+    approvedAt: 'pisr.approvedAt',
+    evaluatedAt: 'pisr.evaluatedAt',
+  };
+
   constructor(
     @InjectRepository(ProcessInstanceStepRequirementEntity)
     private readonly processInstanceStepRequirementRepository: Repository<ProcessInstanceStepRequirementEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new ProcessInstanceStepRequirement record.
-   * @param userId - ID of the user performing the operation.
-   * @param createDto - Data Transfer Object containing the data for the new record.
-   * @returns The created ProcessInstanceStepRequirementEntity.
    */
   async create(
     userId: number,
@@ -42,20 +72,61 @@ export class ProcessInstanceStepRequirementsService {
 
   /**
    * Finds all ProcessInstanceStepRequirement records based on filters.
-   * @param userId - ID of the user performing the operation.
-   * @param filtersDto - Filters for searching and pagination.
-   * @returns An object containing the records and pagination details.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [requirements, total] =
-      await this.processInstanceStepRequirementRepository.findAndCount(
-        findQuery,
-      );
+    const canonical = canonicalListObjectTypeForEntity(
+      ProcessInstanceStepRequirementEntity,
+    );
+
+    const ctx: CatalogBackedDynamicListContext<ProcessInstanceStepRequirementEntity> =
+      {
+        repository: this.processInstanceStepRequirementRepository,
+        configObjectsService: this.configObjectsService,
+        canonicalObjectType: canonical,
+        rootAlias: 'pisr',
+        rootEntityClass: ProcessInstanceStepRequirementEntity,
+        denyCatalogCanonicalType: canonical,
+        searchCorePropertyNames: [
+          'requirementType',
+          'requirementKey',
+          'status',
+        ],
+        fallbackCoreFields:
+          ProcessInstanceStepRequirementsService.FALLBACK_FIELDS,
+        fallbackCoreColumnExpressions:
+          ProcessInstanceStepRequirementsService.FALLBACK_EXPR,
+        defaultSortCoreField: 'requirementInstanceId',
+        tieBreakOrderBySql: 'pisr.requirementInstanceId',
+        catalogTenantResolver: (f) => {
+          const row = f as FiltersDto;
+          return typeof row.catalogTenantId === 'number' &&
+            row.catalogTenantId > 0
+            ? row.catalogTenantId
+            : null;
+        },
+        applyMandatoryScope: (qb, filters) => {
+          const row = filters as FiltersDto;
+          qb.andWhere('pisr.stepInstanceId = :pisrStepInstanceId', {
+            pisrStepInstanceId: row.stepInstanceId,
+          });
+        },
+        schemaMissingForRelatedFiltersMessage:
+          'Process instance step requirement configuration schema is required for related list filters.',
+        maxPageSize: 10,
+      };
+
+    const { rows: requirements, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
 
     if (requirements.length === 0) {
       throw new RpcException(
@@ -80,10 +151,6 @@ export class ProcessInstanceStepRequirementsService {
 
   /**
    * Finds a single ProcessInstanceStepRequirement record by ID.
-   * @param userId - ID of the user performing the operation.
-   * @param id - ID of the record to find.
-   * @returns The found ProcessInstanceStepRequirementEntity.
-   * @throws RpcException if no record is found.
    */
   async findOne(
     userId: number,
@@ -109,11 +176,6 @@ export class ProcessInstanceStepRequirementsService {
 
   /**
    * Updates a ProcessInstanceStepRequirement record by ID.
-   * @param userId - ID of the user performing the operation.
-   * @param id - ID of the record to update.
-   * @param updateDto - Data Transfer Object containing the updated data.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
    */
   async update(
     userId: number,
@@ -142,10 +204,6 @@ export class ProcessInstanceStepRequirementsService {
 
   /**
    * Deletes a ProcessInstanceStepRequirement record by ID.
-   * @param userId - ID of the user performing the operation.
-   * @param stepInstanceId - ID of the step instance associated with the record.
-   * @param id - ID of the record to delete.
-   * @returns The result of the delete operation.
    */
   async remove(
     userId: number,
@@ -158,50 +216,8 @@ export class ProcessInstanceStepRequirementsService {
     });
   }
 
-  /**
-   * Builds the query object for finding records based on filters.
-   * @param filtersDto - Filters for searching and pagination.
-   * @returns The query object for the repository.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['processInstanceStep', 'processTemplateStepRequirement'],
-    };
-
-    query.where = { stepInstanceId: filtersDto.stepInstanceId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { requirementType: Like(`%${filtersDto.search}%`) },
-        { requirementKey: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records found.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

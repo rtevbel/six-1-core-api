@@ -6,6 +6,7 @@ import { ConfigObjectsService } from './config_objects.service';
 import { ConfigLifecycleService } from './config_lifecycle.service';
 import {
   MICROSERVICE_GET_CONFIG_SCHEMA_PATTERN,
+  MICROSERVICE_GET_OBJECT_LIST_FIELD_CATALOG_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELDS_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN,
   MICROSERVICE_LIST_CONFIG_OBJECTS_PATTERN,
@@ -69,6 +70,7 @@ import {
   MICROSERVICE_RESOLVE_STATUS_FROM_LIFECYCLE_STATE_PATTERN,
 } from './constants';
 import { GetConfigSchemaDto } from './dto/get-config-schema.dto';
+import { GetObjectListFieldCatalogDto } from './dto/get-object-list-field-catalog.dto';
 import { ResolveConfigInstanceDto } from './dto/resolve-config-instance.dto';
 import {
   CreateCustomObjectInstanceDto,
@@ -86,6 +88,7 @@ import {
   ConfigObjectRunnerSchemaView,
   ConfigObjectResolvedInstance,
 } from './interfaces/config-object-resolved-instance.interface';
+import type { ObjectListFieldCatalogView } from './list-field-catalog/object-list-field-catalog.interface';
 import { ApplySorBoundInstancePatchDto } from './dto/apply-sor-bound-instance-patch.dto';
 import { ConfigObjectEntity } from './entities/config_object.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
@@ -213,6 +216,20 @@ export class ConfigObjectsController {
       dto.tenantId ?? null,
       dto.objectType,
     );
+  }
+
+  /**
+   * Returns list filter/sort catalog for Object Designer (single gateway entry point).
+   */
+  @MessagePattern(MICROSERVICE_GET_OBJECT_LIST_FIELD_CATALOG_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async getObjectListFieldCatalog(
+    @Payload('data') dto: GetObjectListFieldCatalogDto,
+  ): Promise<ObjectListFieldCatalogView> {
+    return this.configObjectsService.getObjectListFieldCatalog({
+      tenantId: dto.tenantId ?? null,
+      objectType: dto.objectType,
+    });
   }
 
   /**

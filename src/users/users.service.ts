@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserEntity } from './entities/user.entity';
 import { CreateUserDto } from './dto/create-user.dto';
@@ -8,7 +8,8 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { FindByDTO } from './dto/find-by.dto';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
 
@@ -16,44 +17,99 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class UserService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'userId',
+    'email',
+    'username',
+    'firstName',
+    'lastName',
+    'activationKey',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    userId: 'u.userId',
+    email: 'u.email',
+    username: 'u.username',
+    firstName: 'u.firstName',
+    lastName: 'u.lastName',
+    activationKey: 'u.activationKey',
+    createdAt: 'u.createdAt',
+    updatedAt: 'u.updatedAt',
+  };
+
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
-  /**
-   * Creates a new user record.
-   * @param userId - ID of the user creating the record.
-   * @param createUserDto - Data Transfer Object containing user details.
-   * @returns The created UserEntity.
-   */
   async create(createUserDto: CreateUserDto): Promise<UserEntity> {
     return await this.userRepository.save(
       this.userRepository.create(createUserDto),
     );
   }
 
-  /**
-   * Retrieves all users with optional filters, pagination, and sorting.
-   * @param userId - ID of the user requesting the data.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An object containing the list of users and pagination details.
-   * @throws RpcException if no records match the filters.
-   */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
-   
-    // Fetch users and count total records
-    const [users, total] = await this.userRepository.findAndCount(findQuery);
-    
-    // Throw exception if no records are found
-    if (users.length === 0) {
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
+
+    const canonical = canonicalListObjectTypeForEntity(UserEntity);
+
+    const ctx: CatalogBackedDynamicListContext<UserEntity> = {
+      repository: this.userRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'u',
+      rootEntityClass: UserEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [
+        'email',
+        'username',
+        'firstName',
+        'lastName',
+        'activationKey',
+      ],
+      fallbackCoreFields: UserService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: UserService.FALLBACK_EXPR,
+      defaultSortCoreField: 'userId',
+      tieBreakOrderBySql: 'u.userId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto & { catalogTenantId?: number };
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'User configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: users, total } = await executeCatalogBackedDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!users.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -65,7 +121,7 @@ export class UserService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: users,
-      users: users,
+      users,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -74,52 +130,8 @@ export class UserService {
     };
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [
-        { email: Like(`%${filtersDto.search}%`) },
-        { username: Like(`%${filtersDto.search}%`) },
-        { firstName: Like(`%${filtersDto.search}%`) },
-        { lastName: Like(`%${filtersDto.search}%`) },
-        { activationKey: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(
@@ -130,13 +142,6 @@ export class UserService {
     );
   }
 
-  /**
-   * Retrieves a single user by ID.
-   * @param userId - ID of the user requesting the data.
-   * @param id - ID of the user to retrieve.
-   * @returns The UserEntity matching the ID.
-   * @throws RpcException if no record is found.
-   */
   async findOne(userId: number, id: number): Promise<UserEntity> {
     const user = await this.userRepository.findOneByOrFail({
       userId: id,
@@ -151,21 +156,6 @@ export class UserService {
     return user;
   }
 
-  /**
-   * Fetch user by filter.
-   *
-   * @version 1.0.0
-   *
-   * This service method fetch user,
-   * from database by filter.
-   *
-   * @param {number} userId -Authenticated user ID.
-   * @param {FindByDTO} findByDTO -Data transfer object containing filter params.
-   * @returns {Promise<UserEntity>} -Promise that resolves to UserEntity.
-   *
-   * @throws {RpcException} - Throws RpcException if no record found.
-   *
-   */
   async findOneBy(userId: number, findByDTO: FindByDTO): Promise<UserEntity> {
     const user = await this.userRepository.findOneBy(findByDTO);
 
@@ -178,14 +168,6 @@ export class UserService {
     return user;
   }
 
-  /**
-   * Updates an existing user record.
-   * @param userId - ID of the user updating the record.
-   * @param id - ID of the user to update.
-   * @param updateUserDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
-   */
   async update(
     userId: number,
     id: number,
@@ -204,12 +186,6 @@ export class UserService {
     return await this.userRepository.update(id, updateUserDto);
   }
 
-  /**
-   * Deletes a user record by ID.
-   * @param userId - ID of the user deleting the record.
-   * @param id - ID of the user to delete.
-   * @returns The result of the delete operation.
-   */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.userRepository.delete({ userId: id });
   }

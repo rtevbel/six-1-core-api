@@ -1,26 +1,47 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
-import { SystemLanguageEntity } from '../system_languages/entities/system-language.entity';
-import { CreateSystemLanguageDto } from '../system_languages/dto/create-system-language.dto';
-import { UpdateSystemLanguageDto } from '../system_languages/dto/update-system-language.dto';
-import { FiltersDto } from '../system_languages/dto/filters.dto';
-import { FindAllResultInterface } from '../system_languages/interfaces/findall-result.interface';
+import { SystemLanguageEntity } from './entities/system-language.entity';
+import { CreateSystemLanguageDto } from './dto/create-system-language.dto';
+import { UpdateSystemLanguageDto } from './dto/update-system-language.dto';
+import { FiltersDto } from './dto/filters.dto';
+import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class SystemLanguagesService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'languageId',
+    'name',
+    'langCode',
+    'isActive',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    languageId: 'l.languageId',
+    name: 'l.name',
+    langCode: 'l.langCode',
+    isActive: 'l.isActive',
+  };
+
   constructor(
     @InjectRepository(SystemLanguageEntity)
     private readonly systemLanguageRepository: Repository<SystemLanguageEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -49,14 +70,44 @@ export class SystemLanguagesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch languages and count total records
-    const [languages, total] =
-      await this.systemLanguageRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(SystemLanguageEntity);
 
-    // Throw exception if no records are found
-    if (languages.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<SystemLanguageEntity> = {
+      repository: this.systemLanguageRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'l',
+      rootEntityClass: SystemLanguageEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['name', 'langCode'],
+      fallbackCoreFields: SystemLanguagesService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: SystemLanguagesService.FALLBACK_EXPR,
+      defaultSortCoreField: 'languageId',
+      tieBreakOrderBySql: 'l.languageId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'System language configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: languages, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!languages.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -68,7 +119,7 @@ export class SystemLanguagesService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: languages,
-      languages: languages,
+      languages,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -77,49 +128,8 @@ export class SystemLanguagesService {
     };
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-        { code: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

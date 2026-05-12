@@ -3,6 +3,7 @@ import { TenantUserWorkingHoursService } from './tenant_user_working_hours.servi
 import { TenantUserWorkingHoursController } from './tenant_user_working_hours.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUserWorkingHoursEntity } from './entities/tenant_user_working_hour.entity';
+import { ConfigObjectsModule } from '../../../config_objects/config_objects.module';
 
 /**
  * TenantUserWorkingHoursModule is responsible for managing tenant user working hours.
@@ -15,6 +16,7 @@ import { TenantUserWorkingHoursEntity } from './entities/tenant_user_working_hou
   imports: [
     // Registers the TenantUserWorkingHoursEntity for TypeORM.
     TypeOrmModule.forFeature([TenantUserWorkingHoursEntity]),
+    ConfigObjectsModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantUserWorkingHoursController],

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { SystemStatusEntity } from './entities/system-status.entity';
 import { CreateSystemStatusDto } from './dto/create-system-status.dto';
@@ -7,20 +7,41 @@ import { UpdateSystemStatusDto } from './dto/update-system-status.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class SystemStatusesService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'status_id',
+    'name',
+    'module_name',
+    'module_identifier',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    status_id: 's.status_id',
+    name: 's.name',
+    module_name: 's.module_name',
+    module_identifier: 's.module_identifier',
+  };
+
   constructor(
     @InjectRepository(SystemStatusEntity)
     private readonly systemStatusesRepository: Repository<SystemStatusEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -49,14 +70,44 @@ export class SystemStatusesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch statuses and count total records
-    const [statuses, total] =
-      await this.systemStatusesRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(SystemStatusEntity);
 
-    // Throw exception if no records are found
-    if (statuses.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<SystemStatusEntity> = {
+      repository: this.systemStatusesRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 's',
+      rootEntityClass: SystemStatusEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['name', 'module_name', 'module_identifier'],
+      fallbackCoreFields: SystemStatusesService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: SystemStatusesService.FALLBACK_EXPR,
+      defaultSortCoreField: 'status_id',
+      tieBreakOrderBySql: 's.status_id',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: () => undefined,
+      schemaMissingForRelatedFiltersMessage:
+        'System status configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: statuses, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!statuses.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -68,7 +119,7 @@ export class SystemStatusesService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: statuses,
-      statuses: statuses,
+      statuses,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -143,49 +194,8 @@ export class SystemStatusesService {
     return await this.systemStatusesRepository.delete({ status_id: id });
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-        { code: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

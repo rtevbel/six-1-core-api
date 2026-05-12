@@ -187,11 +187,39 @@ describe('ConfigObjectsService', () => {
   it('getObjectSchema should return null when no active template set exists', async () => {
     jest
       .spyOn(templateSetRepo, 'findOne')
+      .mockResolvedValueOnce(null as any)
       .mockResolvedValueOnce(null as any);
 
     const schema = await service.getObjectSchema(1, 'project');
 
     expect(schema).toBeNull();
+  });
+
+  it('getObjectSchema should fallback to global published template set when tenant has none', async () => {
+    jest
+      .spyOn(templateSetRepo, 'findOne')
+      .mockResolvedValueOnce(null as any)
+      .mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 120,
+      configTemplateSetId: 20,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+    } as any);
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+    const schema = await service.getObjectSchema(17, 'customer');
+
+    expect(schema).not.toBeNull();
+    expect(schema?.configObject.objectType).toBe('customer');
   });
 
   it('getObjectSchema should return fields and rules when configuration exists', async () => {
@@ -284,6 +312,31 @@ describe('ConfigObjectsService', () => {
     expect(schema?.relationManifestsByKey).toBeDefined();
   });
 
+  it('getObjectSchema should resolve legacy plural objectType rows for canonical requests', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 101,
+      configTemplateSetId: 10,
+      objectType: 'customers',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+    const schema = await service.getObjectSchema(1, 'customer');
+
+    expect(schema).not.toBeNull();
+    expect(schema?.configObject.objectType).toBe('customers');
+  });
+
   it('getObjectSchema should include system_entity runner hints for system_table', async () => {
     jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
       configTemplateSetId: 10,
@@ -330,7 +383,12 @@ describe('ConfigObjectsService', () => {
 
     jest.spyOn(configObjectRepo, 'findOne').mockImplementation(async (opts: any) => {
       const w = opts?.where ?? {};
-      if (w.objectType === 'role') {
+      const candidateObjectTypes: string[] = Array.isArray(w.objectType?.value)
+        ? w.objectType.value
+        : typeof w.objectType === 'string'
+          ? [w.objectType]
+          : [];
+      if (candidateObjectTypes.includes('role')) {
         return {
           configObjectId: 301,
           configTemplateSetId: 10,
@@ -339,7 +397,7 @@ describe('ConfigObjectsService', () => {
           status: 'PUBLISHED',
         } as any;
       }
-      if (w.objectType === 'permissions') {
+      if (candidateObjectTypes.includes('permissions')) {
         return {
           configObjectId: 302,
           configTemplateSetId: 10,
@@ -348,7 +406,7 @@ describe('ConfigObjectsService', () => {
           status: 'PUBLISHED',
         } as any;
       }
-      if (w.objectType === 'role_descriptions') {
+      if (candidateObjectTypes.includes('role_descriptions')) {
         return {
           configObjectId: 303,
           configTemplateSetId: 10,
@@ -916,6 +974,61 @@ describe('ConfigObjectsService', () => {
     ).rejects.toThrow(
       'Custom config fields are not supported when binding_mode is system_table.',
     );
+  });
+
+  it('createConfigField normalizes field_key (trim, lowercase, spaces to underscores)', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+    jest.spyOn(fieldRepo, 'findOne').mockResolvedValue(null as any);
+    const createSpy = jest
+      .spyOn(fieldRepo, 'create')
+      .mockImplementation((row) => ({ ...row, configObjectFieldId: 99 }) as any);
+    jest.spyOn(fieldRepo, 'save').mockImplementation(async (e) => e as any);
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    await service.createConfigField({
+      tenantId: 1,
+      configObjectId: 10,
+      createdBy: 1,
+      fieldKey: '  My Custom Field ',
+      label: 'My Custom Field',
+      fieldType: 'text',
+    });
+
+    expect(createSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ fieldKey: 'my_custom_field' }),
+    );
+  });
+
+  it('createConfigField rejects field_key that is not a valid identifier after normalization', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+      configObjectId: 10,
+      configTemplateSetId: 1,
+      bindingMode: 'sor_bound',
+    } as any);
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+      configTemplateSetId: 1,
+      tenantId: 1,
+    } as any);
+
+    await expect(
+      service.createConfigField({
+        tenantId: 1,
+        configObjectId: 10,
+        createdBy: 1,
+        fieldKey: 'bad-key',
+        label: 'Bad',
+        fieldType: 'text',
+      }),
+    ).rejects.toThrow(RpcException);
   });
 
   it('createConfigField should reject invalid lookup-select authoring metadata', async () => {

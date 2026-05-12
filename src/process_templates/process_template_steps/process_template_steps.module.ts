@@ -11,6 +11,7 @@ import { ProcessTemplateStepRequirementsModule } from './process_template_step_r
 import { ProcessTemplateStepRequirementSubmissionsModule } from './process_template_step_requirement_submissions/process_template_step_requirement_submissions.module';
 import { ProcessTemplateStepTriggerConditionsModule } from './process_template_step_trigger_conditions/process_template_step_trigger_conditions.module';
 import { ProcessTemplateStepTriggerConditionSubmissionsModule } from './process_template_step_trigger_condition_submissions/process_template_step_trigger_condition_submissions.module';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * ProcessTemplateStepsModule is responsible for managing process template steps.
@@ -30,6 +31,7 @@ import { ProcessTemplateStepTriggerConditionSubmissionsModule } from './process_
     ProcessTemplateStepRequirementSubmissionsModule,
     ProcessTemplateStepTriggerConditionsModule,
     ProcessTemplateStepTriggerConditionSubmissionsModule,
+    ConfigObjectsModule,
   ],
   controllers: [ProcessTemplateStepsController],
   providers: [ProcessTemplateStepsService],

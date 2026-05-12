@@ -6,6 +6,7 @@ import { ProcessInstanceStepEntity } from './entities/process_instance_step.enti
 import { ProcessInstanceStepRequirementsModule } from './process_instance_step_requirements/process_instance_step_requirements.module';
 import { ProcessInstanceStepRequirementSubmissionsModule } from './process_instance_step_requirement_submissions/process_instance_step_requirement_submissions.module';
 import { ProcessInstanceStepTriggerConditionsModule } from './process_instance_step_trigger_conditions/process_instance_step_trigger_conditions.module';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * ProcessInstanceStepsModule is responsible for managing process instance steps.
@@ -21,6 +22,7 @@ import { ProcessInstanceStepTriggerConditionsModule } from './process_instance_s
     ProcessInstanceStepRequirementsModule,
     ProcessInstanceStepRequirementSubmissionsModule,
     ProcessInstanceStepTriggerConditionsModule,
+    ConfigObjectsModule,
   ],
   controllers: [ProcessInstanceStepsController],
   providers: [ProcessInstanceStepsService],

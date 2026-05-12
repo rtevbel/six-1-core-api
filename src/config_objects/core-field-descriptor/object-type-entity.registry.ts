@@ -202,6 +202,8 @@ const OBJECT_TYPE_ALIASES: Record<string, string> = {
   customer: 'customers',
   customer_contact: 'customer_contact_info',
   customer_invitation: 'customer_invitations',
+  customer_project_member: 'customer_project_members',
+  customer_task_member: 'customer_task_members',
   event: 'events',
   event_log: 'event_logs',
   event_listener: 'event_listeners',

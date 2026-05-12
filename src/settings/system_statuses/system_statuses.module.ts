@@ -3,6 +3,7 @@ import { SystemStatusesController } from './system_statuses.controller';
 import { SystemStatusesService } from './system_statuses.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SystemStatusEntity } from './entities/system-status.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * Module for managing system statuses.
@@ -18,6 +19,7 @@ import { SystemStatusEntity } from './entities/system-status.entity';
   imports: [
     // Registers the SystemStatusEntity for TypeORM.
     TypeOrmModule.forFeature([SystemStatusEntity]),
+    ConfigObjectsModule,
   ],
   controllers: [
     /**

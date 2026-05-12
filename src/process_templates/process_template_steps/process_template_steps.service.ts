@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateStepEntity } from './entities/process_template_step.entity';
 import { ProcessTemplateStepDescriptionEntity } from './entities/process_template_step_description.entity';
@@ -8,22 +8,53 @@ import { UpdateProcessTemplateStepDto } from './dto/update-process_template_step
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessTemplateStepsService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'processTemplateStepId',
+    'processTemplateId',
+    'taskType',
+    'stepOrder',
+    'isOptional',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    processTemplateStepId: 'pts.processTemplateStepId',
+    processTemplateId: 'pts.processTemplateId',
+    taskType: 'pts.taskType',
+    stepOrder: 'pts.stepOrder',
+    isOptional: 'pts.isOptional',
+    createdBy: 'pts.createdBy',
+    updatedBy: 'pts.updatedBy',
+    createdAt: 'pts.createdAt',
+    updatedAt: 'pts.updatedAt',
+  };
+
   constructor(
     @InjectRepository(ProcessTemplateStepEntity)
     private readonly processTemplateStepRepository: Repository<ProcessTemplateStepEntity>,
     @InjectRepository(ProcessTemplateStepDescriptionEntity)
     private readonly processTemplateStepDescriptionRepository: Repository<ProcessTemplateStepDescriptionEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -53,14 +84,53 @@ export class ProcessTemplateStepsService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    // Fetch process template steps and count total records
-    const [steps, total] =
-      await this.processTemplateStepRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      ProcessTemplateStepEntity,
+    );
 
-    // Throw exception if no records are found
-    if (steps.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<ProcessTemplateStepEntity> = {
+      repository: this.processTemplateStepRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'pts',
+      rootEntityClass: ProcessTemplateStepEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['taskType'],
+      fallbackCoreFields: ProcessTemplateStepsService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: ProcessTemplateStepsService.FALLBACK_EXPR,
+      defaultSortCoreField: 'processTemplateStepId',
+      tieBreakOrderBySql: 'pts.processTemplateStepId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        return typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+          ? row.catalogTenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('pts.processTemplateId = :ptsProcessTemplateId', {
+          ptsProcessTemplateId: row.processTemplateId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Process template step configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: steps, total } = await executeCatalogBackedDynamicListQuery(
+      ctx,
+      filtersDto,
+    );
+
+    if (!steps.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -83,11 +153,6 @@ export class ProcessTemplateStepsService {
 
   /**
    * Retrieves a single process template step by ID.
-   * @param userId - ID of the user making the request.
-   * @param processTemplateId - ID of the associated process template.
-   * @param id - ID of the step to retrieve.
-   * @returns The ProcessTemplateStepEntity matching the ID.
-   * @throws RpcException if no record is found.
    */
   async findOne(
     userId: number,
@@ -97,7 +162,7 @@ export class ProcessTemplateStepsService {
     const step = await this.processTemplateStepRepository.findOne({
       where: {
         processTemplateStepId: id,
-        processTemplateId: processTemplateId,
+        processTemplateId,
       },
       relations: ['descriptions'],
     });
@@ -113,11 +178,6 @@ export class ProcessTemplateStepsService {
 
   /**
    * Updates an existing process template step record.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the step to update.
-   * @param updateProcessTemplateStepDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
    */
   async update(
     userId: number,
@@ -139,18 +199,15 @@ export class ProcessTemplateStepsService {
 
     const { descriptions, ...stepUpdateData } = updateProcessTemplateStepDto;
 
-    // Handle descriptions update
     if (descriptions) {
       for (const description of descriptions) {
         if (description.processTemplateStepDescriptionId) {
-          // Update existing description
           await this.processTemplateStepDescriptionRepository.update(
             description.processTemplateStepDescriptionId,
             description,
           );
         } else {
-          // Create new description
-          description.processTemplateStepId = id; // Ensure the step ID is set for new descriptions
+          description.processTemplateStepId = id;
           await this.processTemplateStepDescriptionRepository.save(
             this.processTemplateStepDescriptionRepository.create(description),
           );
@@ -163,10 +220,6 @@ export class ProcessTemplateStepsService {
 
   /**
    * Deletes a process template step record by ID.
-   * @param userId - ID of the user making the request.
-   * @param processTemplateId - ID of the associated process template.
-   * @param id - ID of the step to delete.
-   * @returns The result of the delete operation.
    */
   async remove(
     userId: number,
@@ -175,55 +228,12 @@ export class ProcessTemplateStepsService {
   ): Promise<DeleteResult> {
     return await this.processTemplateStepRepository.delete({
       processTemplateStepId: id,
-      processTemplateId: processTemplateId,
+      processTemplateId,
     });
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['descriptions'],
-    };
-
-    // Mandatory filter by processTemplateId
-    query.where = { processTemplateId: filtersDto.processTemplateId };
-
-    // Apply search filters if provided
-    if (filtersDto.search) {
-      query.where = [{ name: Like(`%${filtersDto.search}%`) }];
-    }
-
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    // Apply pagination if limit is provided
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(
@@ -236,22 +246,16 @@ export class ProcessTemplateStepsService {
 
   /**
    * Retrieves all process template steps by process template id.
-   * @param userId - ID of the user making the request.
-   * @param processTemplateId - ID of the associated process template.
-   * @returns An object containing the list of process template steps.
-   * @throws RpcException if no records match the filters.
    */
   async findAllByProcessTemplateId(
     userId: number,
     processTemplateId: number,
   ): Promise<ProcessTemplateStepEntity[]> {
-    // Fetch process template steps
     const steps = await this.processTemplateStepRepository.find({
-      where: { processTemplateId: processTemplateId },
-      relations: ['descriptions'], // Include the 'descriptions' relationship
+      where: { processTemplateId },
+      relations: ['descriptions'],
     });
 
-    // Throw exception if no records are found
     if (steps.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(

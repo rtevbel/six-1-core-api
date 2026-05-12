@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { CreateProcessInstanceDto } from './dto/create-process_instance.dto';
@@ -7,27 +7,55 @@ import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
-
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class ProcessInstancesService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'processInstanceId',
+    'processTemplateId',
+    'tenantId',
+    'status',
+    'correlationId',
+    'createdBy',
+    'startedAt',
+    'completedAt',
+    'canceledAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    processInstanceId: 'pi.processInstanceId',
+    processTemplateId: 'pi.processTemplateId',
+    tenantId: 'pi.tenantId',
+    status: 'pi.status',
+    correlationId: 'pi.correlationId',
+    createdBy: 'pi.createdBy',
+    startedAt: 'pi.startedAt',
+    completedAt: 'pi.completedAt',
+    canceledAt: 'pi.canceledAt',
+  };
+
   constructor(
     @InjectRepository(ProcessInstanceEntity)
     private readonly processInstanceRepository: Repository<ProcessInstanceEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new process instance record.
-   * @param userId - ID of the user creating the record.
-   * @param createProcessInstanceDto - Data Transfer Object containing process instance details.
-   * @returns The created ProcessInstanceEntity.
    */
   async create(
     userId: number,
@@ -40,19 +68,60 @@ export class ProcessInstancesService {
 
   /**
    * Retrieves all process instances with optional filters, pagination, and sorting.
-   * @param userId - ID of the user requesting the data.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An object containing the list of process instances and pagination details.
-   * @throws RpcException if no records match the filters.
    */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [processInstances, total] =
-      await this.processInstanceRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(ProcessInstanceEntity);
+
+    const ctx: CatalogBackedDynamicListContext<ProcessInstanceEntity> = {
+      repository: this.processInstanceRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'pi',
+      rootEntityClass: ProcessInstanceEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['correlationId', 'status'],
+      fallbackCoreFields: ProcessInstancesService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: ProcessInstancesService.FALLBACK_EXPR,
+      defaultSortCoreField: 'processInstanceId',
+      tieBreakOrderBySql: 'pi.processInstanceId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        if (typeof row.tenantId === 'number' && row.tenantId > 0) {
+          return row.tenantId;
+        }
+        return null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        if (typeof row.tenantId === 'number' && row.tenantId > 0) {
+          qb.andWhere('pi.tenantId = :piTenantId', {
+            piTenantId: row.tenantId,
+          });
+        }
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Process instance configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: processInstances, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
 
     if (processInstances.length === 0) {
       throw new RpcException(
@@ -75,52 +144,8 @@ export class ProcessInstancesService {
     };
   }
 
-  /**
-   * Builds the query object for filtering, sorting, and pagination.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns The query object for TypeORM's `findAndCount` method.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['processTemplate', 'tenant', 'createdByUser'],
-    };
-
-    if (filtersDto.tenantId) {
-      query.where = { tenantId: filtersDto.tenantId };
-    }
-
-    if (filtersDto.search) {
-      query.where = [
-        { correlationId: Like(`%${filtersDto.search}%`) },
-        { status: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters containing pagination details.
-   * @param total - Total number of records matching the query.
-   * @returns The pagination object.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(
@@ -133,10 +158,6 @@ export class ProcessInstancesService {
 
   /**
    * Retrieves a single process instance by ID.
-   * @param userId - ID of the user requesting the data.
-   * @param id - ID of the process instance to retrieve.
-   * @returns The ProcessInstanceEntity matching the ID.
-   * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<ProcessInstanceEntity> {
     const processInstance = await this.processInstanceRepository.findOne({
@@ -158,11 +179,6 @@ export class ProcessInstancesService {
 
   /**
    * Updates an existing process instance record.
-   * @param userId - ID of the user updating the record.
-   * @param id - ID of the process instance to update.
-   * @param updateProcessInstanceDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
    */
   async update(
     userId: number,
@@ -190,9 +206,6 @@ export class ProcessInstancesService {
 
   /**
    * Deletes a process instance record by ID.
-   * @param userId - ID of the user deleting the record.
-   * @param id - ID of the process instance to delete.
-   * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.processInstanceRepository.delete({

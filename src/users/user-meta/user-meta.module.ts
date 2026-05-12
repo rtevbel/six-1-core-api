@@ -3,6 +3,7 @@ import { UserMetaService } from './user-meta.service';
 import { UserMetaController } from './user-meta.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserMetaEntity } from './entities/user-meta.entity';
+import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
  * UserMetaModule is responsible for managing user metadata.
@@ -16,6 +17,7 @@ import { UserMetaEntity } from './entities/user-meta.entity';
   imports: [
     // Registers the UserMetaEntity for TypeORM.
     TypeOrmModule.forFeature([UserMetaEntity]),
+    ConfigObjectsModule,
   ],
 
   // Specifies the controllers that handle incoming requests.
