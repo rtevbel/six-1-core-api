@@ -9,6 +9,8 @@ export const MICROSERVICE_UPDATE_PROCESS_INSTANCE_PATTERN =
   'v0.1_update_process_instance';
 export const MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN =
   'v0.1_remove_process_instance';
+export const MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN =
+  'v0.1_get_process_instance_runner';
 
 export const MESSAGE_BROKER_PROCESS_INSTANCE_SERVICE_CLIENT_TOKEN =
   'process_instance_service_token';

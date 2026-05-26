@@ -13,12 +13,18 @@ import {
  * transaction for `sor_bound` configurable objects (Object Runner save).
  *
  * Gateway must enforce domain permissions (e.g. `projects.update`) before proxying.
+ *
+ * **`tenantId` (optional):** When omitted (super-admin / global scope), only
+ * `metaPatch` is allowed and field keys are resolved from the global published
+ * template set. Core column updates on tenant-owned rows (`project`, `task`,
+ * `resource`) require `tenantId >= 1`.
  */
 export class ApplySorBoundInstancePatchDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  tenantId!: number;
+  @IsOptional()
+  tenantId?: number;
 
   @IsString()
   @IsNotEmpty()

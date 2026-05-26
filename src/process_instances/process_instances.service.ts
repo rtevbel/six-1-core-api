@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { CreateProcessInstanceDto } from './dto/create-process_instance.dto';
@@ -16,6 +17,7 @@ import {
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { PROCESS_SUBJECT_TYPE_WORKFLOW } from '../automation/process-subject.constants';
 import { canonicalListObjectTypeForEntity } from '../config_objects/list-query/catalog-list-object-type.util';
 import {
   executeCatalogBackedDynamicListQuery,
@@ -28,6 +30,8 @@ export class ProcessInstancesService {
     'processInstanceId',
     'processTemplateId',
     'tenantId',
+    'subjectType',
+    'subjectId',
     'status',
     'correlationId',
     'createdBy',
@@ -40,6 +44,8 @@ export class ProcessInstancesService {
     processInstanceId: 'pi.processInstanceId',
     processTemplateId: 'pi.processTemplateId',
     tenantId: 'pi.tenantId',
+    subjectType: 'pi.subjectType',
+    subjectId: 'pi.subjectId',
     status: 'pi.status',
     correlationId: 'pi.correlationId',
     createdBy: 'pi.createdBy',
@@ -61,9 +67,29 @@ export class ProcessInstancesService {
     userId: number,
     createProcessInstanceDto: CreateProcessInstanceDto,
   ): Promise<ProcessInstanceEntity> {
-    return await this.processInstanceRepository.save(
-      this.processInstanceRepository.create(createProcessInstanceDto),
-    );
+    const subjectType =
+      createProcessInstanceDto.subjectType ?? PROCESS_SUBJECT_TYPE_WORKFLOW;
+    const subjectId = createProcessInstanceDto.subjectId ?? 0;
+
+    const entity = this.processInstanceRepository.create({
+      ...createProcessInstanceDto,
+      subjectType,
+      subjectId,
+    });
+    const saved = await this.processInstanceRepository.save(entity);
+
+    if (
+      subjectType === PROCESS_SUBJECT_TYPE_WORKFLOW &&
+      (createProcessInstanceDto.subjectId === undefined ||
+        createProcessInstanceDto.subjectId === 0)
+    ) {
+      saved.subjectId = saved.processInstanceId;
+      await this.processInstanceRepository.update(saved.processInstanceId, {
+        subjectId: saved.processInstanceId,
+      });
+    }
+
+    return saved;
   }
 
   /**
@@ -112,6 +138,16 @@ export class ProcessInstancesService {
         if (typeof row.tenantId === 'number' && row.tenantId > 0) {
           qb.andWhere('pi.tenantId = :piTenantId', {
             piTenantId: row.tenantId,
+          });
+        }
+        if (row.subjectType) {
+          qb.andWhere('pi.subjectType = :piSubjectType', {
+            piSubjectType: row.subjectType,
+          });
+        }
+        if (typeof row.subjectId === 'number' && row.subjectId > 0) {
+          qb.andWhere('pi.subjectId = :piSubjectId', {
+            piSubjectId: row.subjectId,
           });
         }
       },
@@ -198,9 +234,10 @@ export class ProcessInstancesService {
       );
     }
 
+    const { processInstanceId: _omit, ...patch } = updateProcessInstanceDto;
     return await this.processInstanceRepository.update(
       id,
-      updateProcessInstanceDto,
+      patch as QueryDeepPartialEntity<ProcessInstanceEntity>,
     );
   }
 

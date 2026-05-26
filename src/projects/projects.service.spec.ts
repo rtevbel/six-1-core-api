@@ -5,7 +5,7 @@ import { DataSource } from 'typeorm';
 import { ProjectsService } from './projects.service';
 import { ProjectEntity } from './entities/project.entity';
 import { EventsService } from '../events/events.service';
-import { ProcessInstantiationService } from '../automation/process-instantiation.service';
+import { ProcessLifecycleFacade } from '../automation/process-lifecycle.facade';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
 import { ConfigLifecycleService } from '../config_objects/config_lifecycle.service';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
@@ -34,7 +34,7 @@ describe('ProjectsService', () => {
           useValue: {},
         },
         {
-          provide: ProcessInstantiationService,
+          provide: ProcessLifecycleFacade,
           useValue: {},
         },
         {

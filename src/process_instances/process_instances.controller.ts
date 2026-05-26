@@ -6,9 +6,12 @@ import {
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ProcessInstancesService } from './process_instances.service';
+import { ProcessRunnerService } from './process-runner.service';
+import type { ProcessRunnerPayload } from './interfaces/process-runner-payload.interface';
 import { CreateProcessInstanceDto } from './dto/create-process_instance.dto';
 import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
+import { GetProcessInstanceRunnerDto } from './dto/get-process-instance-runner.dto';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RequirePermissions } from '../authorization/authorization.decorator';
@@ -19,6 +22,7 @@ import {
   MICROSERVICE_FIND_ONE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_UPDATE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN,
+  MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
@@ -28,6 +32,7 @@ import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 export class ProcessInstancesController {
   constructor(
     private readonly processInstancesService: ProcessInstancesService,
+    private readonly processRunnerService: ProcessRunnerService,
   ) {}
 
   /**
@@ -113,5 +118,26 @@ export class ProcessInstancesController {
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
     return this.processInstancesService.remove(userId, id);
+  }
+
+  /**
+   * Returns the aggregated Process Runner payload for a process instance.
+   */
+  @MessagePattern(MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN)
+  @RequirePermissions('process_instances.read')
+  getProcessInstanceRunner(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') data: GetProcessInstanceRunnerDto | number,
+  ): Promise<ProcessRunnerPayload> {
+    const dto =
+      typeof data === 'number'
+        ? { processInstanceId: data }
+        : data;
+
+    return this.processRunnerService.buildPayload(
+      userId,
+      dto.processInstanceId,
+      dto.tenantId,
+    );
   }
 }

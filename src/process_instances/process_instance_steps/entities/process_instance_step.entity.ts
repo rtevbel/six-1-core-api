@@ -13,6 +13,7 @@ import { ProcessInstanceEntity } from '../../entities/process_instance.entity';
 import { ProcessTemplateStepEntity } from '../../../process_templates/process_template_steps/entities/process_template_step.entity';
 import { ProcessInstanceStepRequirementEntity } from '../process_instance_step_requirements/entities/process_instance_step_requirement.entity';
 import { ProcessInstanceStepTriggerEntity } from '../process_instance_step_trigger_conditions/entities/process_instance_step_trigger_condition.entity';
+import { ProcessInstanceStepObjectInstanceEntity } from '../process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 
 /**
@@ -57,11 +58,11 @@ export class ProcessInstanceStepEntity {
   @Column({
     name: 'task_type',
     type: 'enum',
-    enum: ['manual', 'automated'],
+    enum: ['manual', 'automated', 'call_process', 'config_object'],
     nullable: false,
-    comment: 'Task type: manual or automated',
+    comment: 'Task type copied from template step',
   })
-  taskType!: 'manual' | 'automated';
+  taskType!: 'manual' | 'automated' | 'call_process' | 'config_object';
 
   @Column({
     name: 'step_order',
@@ -222,6 +223,16 @@ export class ProcessInstanceStepEntity {
     },
   )
   triggers!: ProcessInstanceStepTriggerEntity[];
+
+  /**
+   * Runtime configurable object instances linked to this step.
+   */
+  @OneToMany(
+    () => ProcessInstanceStepObjectInstanceEntity,
+    (row) => row.processInstanceStep,
+    { cascade: true },
+  )
+  objectInstances!: ProcessInstanceStepObjectInstanceEntity[];
 
   /**
    * Relationship to TaskEntity.

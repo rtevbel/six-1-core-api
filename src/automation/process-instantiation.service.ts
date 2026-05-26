@@ -3,6 +3,11 @@
 // ──────────────────────────────────────────────────────────────────────────────
 import { Injectable } from '@nestjs/common';
 import { DataSource, EntityManager } from 'typeorm';
+import { PROCESS_SUBJECT_TYPE_WORKFLOW } from './process-subject.constants';
+import type {
+  ProcessInstanceSubjectInput,
+  ProcessInstantiationOptions,
+} from './process-subject.types';
 
 @Injectable()
 export class ProcessInstantiationService {
@@ -39,9 +44,11 @@ export class ProcessInstantiationService {
     templateId: number,
     tenantId: number,
     createdBy: number,
+    subjectOrOptions?: ProcessInstanceSubjectInput | ProcessInstantiationOptions,
   ): Promise<number> {
+    const options = normalizeInstantiationOptions(subjectOrOptions);
     return await this.withTxRetry(async (em) =>
-      this.instantiateProcessIn(em, templateId, tenantId, createdBy),
+      this.instantiateProcessIn(em, templateId, tenantId, createdBy, options),
     );
   }
 
@@ -54,16 +61,58 @@ export class ProcessInstantiationService {
     templateId: number,
     tenantId: number,
     createdBy: number,
+    subjectOrOptions?: ProcessInstanceSubjectInput | ProcessInstantiationOptions,
   ): Promise<number> {
-    // 1) Create process instance
+    const options = normalizeInstantiationOptions(subjectOrOptions);
+    const subject = options.subject;
+    const subjectType = subject?.subjectType ?? PROCESS_SUBJECT_TYPE_WORKFLOW;
+    const subjectId = subject?.subjectId ?? 0;
+    const subjectMetadata =
+      subject?.subjectMetadata !== undefined
+        ? JSON.stringify(subject.subjectMetadata)
+        : null;
+    const contextJson =
+      options.context !== undefined && options.context !== null
+        ? JSON.stringify(options.context)
+        : null;
+
+    // 1) Create process instance (subject required after migration 1710000000015)
     const res: any = await em.query(
-      `INSERT INTO process_instances (process_template_id, tenant_id, status, created_by, started_at)
-       VALUES (?, ?, 'active', ?, NOW())`,
-      [templateId, tenantId, createdBy],
+      `INSERT INTO process_instances (
+         process_template_id, tenant_id, status, created_by, started_at,
+         subject_type, subject_id, subject_metadata,
+         parent_instance_id, parent_step_id, on_child_failure, context
+       )
+       VALUES (?, ?, 'active', ?, NOW(), ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        templateId,
+        tenantId,
+        createdBy,
+        subjectType,
+        subjectId,
+        subjectMetadata,
+        options.parentInstanceId ?? null,
+        options.parentStepId ?? null,
+        options.onChildFailure ?? 'pause_parent',
+        contextJson,
+      ],
     );
     const processInstanceId: number = Number(
       res?.insertId ?? res?.[0]?.insertId,
     );
+
+    const needsSelfSubject =
+      !subject ||
+      (subjectType === PROCESS_SUBJECT_TYPE_WORKFLOW && subjectId === 0);
+
+    if (needsSelfSubject) {
+      await em.query(
+        `UPDATE process_instances
+            SET subject_id = ?
+          WHERE process_instance_id = ?`,
+        [processInstanceId, processInstanceId],
+      );
+    }
 
     // 2) Fetch template steps + name via correlated subquery (ordered for consistent lock order)
     const steps: Array<{
@@ -192,8 +241,57 @@ export class ProcessInstantiationService {
           );
         }
       }
+
+      // 6) Bulk copy template object bindings → instance rows (pending)
+      const bindings: Array<{
+        binding_id: number;
+        process_template_step_id: number;
+        config_object_id: number;
+      }> = await em.query(
+        `SELECT binding_id, process_template_step_id, config_object_id
+           FROM process_template_step_object_bindings
+          WHERE process_template_step_id IN (${tplIds.map(() => '?').join(',')})
+          ORDER BY order_index ASC, binding_id ASC`,
+        tplIds,
+      );
+
+      if (bindings.length) {
+        const bindingPlaceholders: string[] = [];
+        const bindingValues: unknown[] = [];
+        for (const b of bindings) {
+          const stepInstanceId = tplToInst.get(b.process_template_step_id);
+          if (!stepInstanceId) continue;
+          bindingPlaceholders.push('(?, ?, ?, ?, "pending")');
+          bindingValues.push(
+            stepInstanceId,
+            b.binding_id,
+            b.config_object_id,
+            null,
+          );
+        }
+        if (bindingPlaceholders.length) {
+          await em.query(
+            `INSERT INTO process_instance_step_object_instances
+               (step_instance_id, binding_id, config_object_id, config_custom_object_instance_id, status)
+             VALUES ${bindingPlaceholders.join(',')}`,
+            bindingValues,
+          );
+        }
+      }
     }
 
     return processInstanceId;
   }
+}
+
+function normalizeInstantiationOptions(
+  input?: ProcessInstanceSubjectInput | ProcessInstantiationOptions,
+): ProcessInstantiationOptions {
+  if (!input) {
+    return {};
+  }
+  if ('subjectType' in input) {
+    return { subject: input };
+  }
+  return input;
 }

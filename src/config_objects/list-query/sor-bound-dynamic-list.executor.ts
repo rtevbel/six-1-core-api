@@ -6,6 +6,7 @@ import type { ConfigObjectRunnerSchemaView } from '../interfaces/config-object-r
 import { appendRelatedExistsFilter } from './append-related-exists-filter';
 import { appendParameterizedListFilterPredicate } from './append-parameterized-list-filter-predicate';
 import { deniedCoreFieldKeysForObjectListCatalog } from '../list-field-catalog/list-field-catalog-core-deny.registry';
+import { inferListFilterFieldTypeFromColumn } from './list-filter-field-type';
 
 export type SorListFilterOperator = 'eq' | 'contains' | 'gte' | 'lte' | 'in';
 
@@ -34,6 +35,9 @@ export interface SorBoundDynamicListCatalogSets {
   core: Set<string>;
   meta: Set<string>;
   related: Map<string, Set<string>>;
+  coreFieldTypes: Map<string, string>;
+  metaFieldTypes: Map<string, string>;
+  relatedFieldTypes: Map<string, Map<string, string>>;
 }
 
 export interface SorBoundMetaJoinConfig {
@@ -105,10 +109,17 @@ function cloneCatalogSets(
   for (const [k, v] of view.related.entries()) {
     related.set(k, new Set(v));
   }
+  const relatedFieldTypes = new Map<string, Map<string, string>>();
+  for (const [k, v] of view.relatedFieldTypes.entries()) {
+    relatedFieldTypes.set(k, new Map(v));
+  }
   return {
     core: new Set(view.core),
     meta: new Set(view.meta),
     related,
+    coreFieldTypes: new Map(view.coreFieldTypes),
+    metaFieldTypes: new Map(view.metaFieldTypes),
+    relatedFieldTypes,
   };
 }
 
@@ -125,20 +136,49 @@ async function loadRuntimeCatalogSets(
   const core = new Set<string>();
   const meta = new Set<string>();
   const related = new Map<string, Set<string>>();
+  const coreFieldTypes = new Map<string, string>();
+  const metaFieldTypes = new Map<string, string>();
+  const relatedFieldTypes = new Map<string, Map<string, string>>();
 
   for (const entry of catalogView.fields) {
     if (entry.source === 'core') {
       core.add(entry.fieldKey);
+      coreFieldTypes.set(entry.fieldKey, entry.fieldType);
     } else if (entry.source === 'meta') {
       meta.add(entry.fieldKey);
+      metaFieldTypes.set(entry.fieldKey, entry.fieldType);
     } else if (entry.source === 'related' && entry.relationshipKey) {
       const bucket = related.get(entry.relationshipKey) ?? new Set<string>();
       bucket.add(entry.fieldKey);
       related.set(entry.relationshipKey, bucket);
+      const typeBucket =
+        relatedFieldTypes.get(entry.relationshipKey) ?? new Map<string, string>();
+      typeBucket.set(entry.fieldKey, entry.fieldType);
+      relatedFieldTypes.set(entry.relationshipKey, typeBucket);
     }
   }
 
-  return { core, meta, related };
+  return {
+    core,
+    meta,
+    related,
+    coreFieldTypes,
+    metaFieldTypes,
+    relatedFieldTypes,
+  };
+}
+
+function resolveCoreFilterFieldType<TRoot extends object>(
+  repository: Repository<TRoot>,
+  catalog: SorBoundDynamicListCatalogSets,
+  fieldKey: string,
+): string | undefined {
+  const fromCatalog = catalog.coreFieldTypes.get(fieldKey);
+  if (fromCatalog) {
+    return fromCatalog;
+  }
+  const col = repository.metadata.findColumnWithPropertyName(fieldKey);
+  return inferListFilterFieldTypeFromColumn(col ?? null);
 }
 
 function shouldIncludeMetaJoin(
@@ -287,6 +327,7 @@ function applyStructuredFilters<TRoot extends object>(
           operator: filter.operator,
           value: filter.value,
           logicalField: filter.field,
+          fieldType: resolveCoreFilterFieldType(repository, catalog, filter.field),
         },
         `core_${index}`,
       );
@@ -312,6 +353,7 @@ function applyStructuredFilters<TRoot extends object>(
         operator: filter.operator,
         value: filter.value,
         logicalField: filter.field,
+        fieldType: catalog.metaFieldTypes.get(filter.field),
       },
       `meta_${index}`,
     );

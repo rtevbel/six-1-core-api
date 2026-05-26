@@ -24,6 +24,17 @@ export class FiltersDto extends CatalogDynamicListFiltersMixin {
   @IsOptional()
   @IsString()
   @MaxLength(64)
+  @Matches(/^[a-z][a-z0-9_]*$/)
+  subjectType?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  subjectId?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
   @Matches(/^[A-Za-z0-9_]+$/)
   sortBy: string = 'processInstanceId';
 }

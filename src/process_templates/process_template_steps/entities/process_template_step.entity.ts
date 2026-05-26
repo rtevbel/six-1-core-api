@@ -12,6 +12,7 @@ import { ProcessTemplateEntity } from '../../entities/process_template.entity';
 import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant_user.entity';
 import { ProcessTemplateStepDescriptionEntity } from './process_template_step_description.entity';
 import { ProcessTemplateStepRequirementEntity } from '../process_template_step_requirements/entities/process_template_step_requirement.entity';
+import { ProcessTemplateStepObjectBindingEntity } from '../process_template_step_object_bindings/entities/process_template_step_object_binding.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
 
@@ -39,11 +40,36 @@ export class ProcessTemplateStepEntity {
   @Column({
     name: 'task_type',
     type: 'enum',
-    enum: ['manual', 'automated'],
+    enum: ['manual', 'automated', 'call_process', 'config_object'],
     default: 'manual',
-    comment: 'Manual or Auto step',
+    comment: 'Step execution type',
   })
-  taskType!: 'manual' | 'automated';
+  taskType!: 'manual' | 'automated' | 'call_process' | 'config_object';
+
+  @Column({
+    name: 'child_template_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Child process template when task_type=call_process',
+  })
+  childTemplateId!: number | null;
+
+  @Column({
+    name: 'child_subject_policy',
+    type: 'enum',
+    enum: ['inherit', 'workflow', 'config_instance'],
+    default: 'workflow',
+    nullable: false,
+  })
+  childSubjectPolicy!: 'inherit' | 'workflow' | 'config_instance';
+
+  @Column({
+    name: 'child_context_patch',
+    type: 'json',
+    nullable: true,
+  })
+  childContextPatch!: Record<string, unknown> | null;
 
   @Column({
     name: 'step_order',
@@ -150,6 +176,16 @@ export class ProcessTemplateStepEntity {
     },
   )
   requirements!: ProcessTemplateStepRequirementEntity[];
+
+  /**
+   * Configurable object bindings declared on this template step.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepObjectBindingEntity,
+    (binding) => binding.processTemplateStep,
+    { cascade: true },
+  )
+  objectBindings!: ProcessTemplateStepObjectBindingEntity[];
 
   /**
    * Reverse relationship to ProcessInstanceStepEntity.

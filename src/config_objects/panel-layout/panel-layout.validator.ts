@@ -123,6 +123,31 @@ function isDisplayMode(value: unknown): value is PanelLayoutDisplayMode {
   );
 }
 
+function normalizeFieldLabelByKeyMap(
+  value: unknown,
+): Record<string, string> | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  const labels = assertPlainObject(value, 'layout.fieldLabelByKey');
+  const normalizedLabels: Record<string, string> = {};
+  for (const [key, label] of Object.entries(labels)) {
+    const normalizedKey = key.trim();
+    if (!normalizedKey) {
+      throw new PanelLayoutConfigValidationError(
+        'layout.fieldLabelByKey keys must be non-empty strings',
+      );
+    }
+    if (typeof label !== 'string' || !label.trim()) {
+      throw new PanelLayoutConfigValidationError(
+        `layout.fieldLabelByKey.${normalizedKey} must be a non-empty string`,
+      );
+    }
+    normalizedLabels[normalizedKey] = label.trim();
+  }
+  return normalizedLabels;
+}
+
 function validateLayoutForMode(
   displayMode: PanelLayoutDisplayMode,
   layout: Record<string, unknown>,
@@ -137,6 +162,7 @@ function validateLayoutForMode(
         'relationKey',
         'targetEntityKey',
         'selectionControl',
+        'fieldLabelByKey',
       ]);
       const unknownKeys = Object.keys(layout).filter((k) => !allowed.has(k));
       if (unknownKeys.length) {
@@ -222,6 +248,10 @@ function validateLayoutForMode(
         }
         out.selectionControl = layout.selectionControl;
       }
+      const fieldLabelByKey = normalizeFieldLabelByKeyMap(layout.fieldLabelByKey);
+      if (fieldLabelByKey && Object.keys(fieldLabelByKey).length) {
+        out.fieldLabelByKey = fieldLabelByKey;
+      }
       return out;
     }
     case 'cards': {
@@ -248,30 +278,9 @@ function validateLayoutForMode(
       if (layout.badges !== undefined && layout.badges !== null) {
         out.badges = assertPlainObject(layout.badges, 'layout.badges');
       }
-      if (
-        layout.fieldLabelByKey !== undefined &&
-        layout.fieldLabelByKey !== null
-      ) {
-        const labels = assertPlainObject(
-          layout.fieldLabelByKey,
-          'layout.fieldLabelByKey',
-        );
-        const normalizedLabels: Record<string, string> = {};
-        for (const [key, value] of Object.entries(labels)) {
-          const normalizedKey = key.trim();
-          if (!normalizedKey) {
-            throw new PanelLayoutConfigValidationError(
-              'layout.fieldLabelByKey keys must be non-empty strings',
-            );
-          }
-          if (typeof value !== 'string' || !value.trim()) {
-            throw new PanelLayoutConfigValidationError(
-              `layout.fieldLabelByKey.${normalizedKey} must be a non-empty string`,
-            );
-          }
-          normalizedLabels[normalizedKey] = value.trim();
-        }
-        out.fieldLabelByKey = normalizedLabels;
+      const fieldLabelByKey = normalizeFieldLabelByKeyMap(layout.fieldLabelByKey);
+      if (fieldLabelByKey && Object.keys(fieldLabelByKey).length) {
+        out.fieldLabelByKey = fieldLabelByKey;
       }
       return out;
     }

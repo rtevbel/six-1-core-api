@@ -11,6 +11,7 @@ import { ProcessTemplateStepRequirementsModule } from './process_template_step_r
 import { ProcessTemplateStepRequirementSubmissionsModule } from './process_template_step_requirement_submissions/process_template_step_requirement_submissions.module';
 import { ProcessTemplateStepTriggerConditionsModule } from './process_template_step_trigger_conditions/process_template_step_trigger_conditions.module';
 import { ProcessTemplateStepTriggerConditionSubmissionsModule } from './process_template_step_trigger_condition_submissions/process_template_step_trigger_condition_submissions.module';
+import { ProcessTemplateStepObjectBindingsModule } from './process_template_step_object_bindings/process_template_step_object_bindings.module';
 import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
 
 /**
@@ -31,6 +32,7 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
     ProcessTemplateStepRequirementSubmissionsModule,
     ProcessTemplateStepTriggerConditionsModule,
     ProcessTemplateStepTriggerConditionSubmissionsModule,
+    ProcessTemplateStepObjectBindingsModule,
     ConfigObjectsModule,
   ],
   controllers: [ProcessTemplateStepsController],

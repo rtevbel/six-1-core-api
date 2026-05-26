@@ -42,6 +42,8 @@ import { ProcessTemplateStepEntity } from '../../process_templates/process_templ
 import { ProcessTemplateStepDescriptionEntity } from '../../process_templates/process_template_steps/entities/process_template_step_description.entity';
 import { ProcessTemplateStepRequirementSubmissionEntity } from '../../process_templates/process_template_steps/process_template_step_requirement_submissions/entities/process_template_step_requirement_submission.entity';
 import { ProcessTemplateStepRequirementEntity } from '../../process_templates/process_template_steps/process_template_step_requirements/entities/process_template_step_requirement.entity';
+import { ProcessTemplateStepObjectBindingEntity } from '../../process_templates/process_template_steps/process_template_step_object_bindings/entities/process_template_step_object_binding.entity';
+import { ProcessInstanceStepObjectInstanceEntity } from '../../process_instances/process_instance_steps/process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
 import { ProcessTemplateStepTriggerConditionSubmissionEntity } from '../../process_templates/process_template_steps/process_template_step_trigger_condition_submissions/entities/process_template_step_trigger_condition_submission.entity';
 import { ProcessTemplateStepTriggerConditionEntity } from '../../process_templates/process_template_steps/process_template_step_trigger_conditions/entities/process_template_step_trigger_condition.entity';
 import { ProjectEntity } from '../../projects/entities/project.entity';
@@ -140,6 +142,8 @@ const ENTITY_CLASSES: Function[] = [
   ProcessTemplateStepDescriptionEntity,
   ProcessTemplateStepRequirementSubmissionEntity,
   ProcessTemplateStepRequirementEntity,
+  ProcessTemplateStepObjectBindingEntity,
+  ProcessInstanceStepObjectInstanceEntity,
   ProcessTemplateStepTriggerConditionSubmissionEntity,
   ProcessTemplateStepTriggerConditionEntity,
   ProjectEntity,

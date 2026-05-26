@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { DataSource } from 'typeorm';
 import jsonLogic from 'json-logic-js';
 import { StepOrchestratorService } from './step-orchestrator.service';
+import { ConfigObjectStepExecutor } from './config-object-step-executor.service';
+import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 
 type AnyEvent = {
   entity?: { entityType?: string | null; entityId?: number | string | null };
@@ -13,10 +15,112 @@ type AnyEvent = {
 
 @Injectable()
 export class AutomationEventBridgeListener {
+  private readonly logger = new Logger(AutomationEventBridgeListener.name);
+
   constructor(
     private readonly ds: DataSource,
     private readonly orchestrator: StepOrchestratorService,
+    private readonly configObjectExecutor: ConfigObjectStepExecutor,
+    private readonly flags: ProcessFeatureFlagsService,
   ) {}
+
+  @OnEvent('six1-event.process_child_completed', { async: true })
+  async onProcessChildCompleted(payload: AnyEvent) {
+    if (!this.flags.isCallProcessEnabled()) {
+      return;
+    }
+
+    if (!payload?.data?.resumedParent) {
+      return;
+    }
+
+    const parentStepInstanceId = Number(payload.data.parentStepInstanceId);
+    if (!parentStepInstanceId) {
+      return;
+    }
+
+    this.logger.debug(
+      `Child process completed; resuming parent step ${parentStepInstanceId}`,
+      { correlationId: payload.correlationId },
+    );
+
+    await this.orchestrator.resumeParentAfterChildCallProcess(
+      parentStepInstanceId,
+      {
+        cause: 'event',
+        correlationId: payload.correlationId,
+        actorTenantUserId: payload?.data?.actorTenantUserId
+          ? Number(payload.data.actorTenantUserId)
+          : undefined,
+      },
+    );
+  }
+
+  @OnEvent('six1-event.process_step_object_validated', { async: true })
+  async onProcessStepObjectValidated(payload: AnyEvent) {
+    if (!this.flags.isConfigObjectStepsEnabled()) {
+      return;
+    }
+
+    const stepInstanceId =
+      payload?.data?.stepInstanceId ?? payload?.data?.step_instance_id;
+
+    if (!stepInstanceId) {
+      return;
+    }
+
+    await this.orchestrator.attemptAdvance(Number(stepInstanceId), {
+      cause: 'event',
+      correlationId: payload.correlationId,
+      actorTenantUserId: payload?.data?.updatedBy
+        ? Number(payload.data.updatedBy)
+        : undefined,
+    });
+  }
+
+  @OnEvent('six1-event.config_object_instance.updated', { async: true })
+  async onConfigObjectInstanceUpdated(payload: AnyEvent) {
+    if (!this.flags.isConfigObjectStepsEnabled()) {
+      return;
+    }
+
+    const configCustomObjectInstanceId =
+      payload?.data?.configCustomObjectInstanceId ??
+      payload?.data?.config_custom_object_instance_id ??
+      payload?.entity?.entityId;
+
+    if (!configCustomObjectInstanceId) {
+      return;
+    }
+
+    const updatedBy =
+      payload?.data?.updatedBy ??
+      payload?.data?.updated_by ??
+      payload?.data?.userId ??
+      1;
+
+    const result = await this.configObjectExecutor.validateByCustomInstanceId(
+      Number(configCustomObjectInstanceId),
+      Number(updatedBy),
+      payload.correlationId,
+    );
+
+    if (!result.stepInstanceId) {
+      return;
+    }
+
+    this.logger.debug(
+      `Config object instance ${configCustomObjectInstanceId} validated=${result.valid} stepId=${result.stepInstanceId}`,
+    );
+
+    if (result.valid) {
+      await this.orchestrator.attemptAdvance(result.stepInstanceId, {
+        cause: 'event',
+        correlationId: payload.correlationId,
+        actorTenantUserId: Number(updatedBy),
+      });
+    }
+  }
 
   @OnEvent('six1-event.requirement.*', { async: true })
   async onRequirementEvent(payload: AnyEvent) {
@@ -29,11 +133,9 @@ export class AutomationEventBridgeListener {
     const stepId = await this.findStepIdByRequirement(requirementInstanceId);
     if (!stepId) return;
 
-    console.log(
-      `Event Bridge-> six1-event.requirement.* ->Received requirement event with payload:`,
-      payload,
-      'mapped to stepId:',
-      stepId,
+    this.logger.debug(
+      `Requirement event mapped to stepId=${stepId}`,
+      { correlationId: payload.correlationId },
     );
     await this.orchestrator.attemptAdvance(stepId, {
       cause: 'event',
@@ -43,10 +145,11 @@ export class AutomationEventBridgeListener {
 
   @OnEvent('six1-event.*', { async: true })
   async onAnyDomainEvent(payload: AnyEvent, eventName: string) {
-    console.log(
-      `Event Bridge-> six1-event.* ->Received event: ${eventName} with payload:`,
-      payload,
-    );
+    this.logger.debug(`Domain event received: ${eventName}`, {
+      correlationId: payload.correlationId,
+      processInstanceId:
+        payload?.data?.processInstanceId ?? payload?.data?.process_instance_id,
+    });
     const processInstanceId =
       payload?.data?.processInstanceId ??
       payload?.data?.process_instance_id ??

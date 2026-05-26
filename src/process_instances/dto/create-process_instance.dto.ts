@@ -4,7 +4,12 @@ import {
   IsEnum,
   IsString,
   IsDate,
+  IsObject,
+  MaxLength,
+  Matches,
+  Validate,
 } from 'class-validator';
+import { IsProcessSubjectTypeConstraint } from '../validators/is-process-subject-type.validator';
 
 /**
  * DTO for creating a new ProcessInstance.
@@ -21,6 +26,31 @@ export class CreateProcessInstanceDto {
    */
   @IsNumber()
   tenantId!: number;
+
+  /**
+   * Job anchor type (see process-subject.constants). Required on new creates once
+   * subject model is enabled; optional for backward compatibility until Phase 1 facade.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  @Matches(/^[a-z][a-z0-9_]*$/)
+  @Validate(IsProcessSubjectTypeConstraint)
+  subjectType?: string;
+
+  /**
+   * Primary key of the subject entity (or process_instance_id for workflow self-subject).
+   */
+  @IsOptional()
+  @IsNumber()
+  subjectId?: number;
+
+  /**
+   * Optional snapshot for hosts and runner UI.
+   */
+  @IsOptional()
+  @IsObject()
+  subjectMetadata?: Record<string, unknown>;
 
   /**
    * Status of the process instance.

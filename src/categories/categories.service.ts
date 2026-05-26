@@ -1,5 +1,12 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import {
+  Brackets,
+  In,
+  Repository,
+  UpdateResult,
+  DeleteResult,
+  SelectQueryBuilder,
+} from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CategoryEntity } from './entities/category.entity';
 import { CategoryDescriptionEntity } from './entities/category-description.entity';
@@ -12,9 +19,23 @@ import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
+import { appendParameterizedListFilterPredicate } from '../config_objects/list-query/append-parameterized-list-filter-predicate';
+import { inferListFilterFieldTypeFromColumn } from '../config_objects/list-query/list-filter-field-type';
 
 @Injectable()
 export class CategoriesService {
+  /** Core columns allowed for structured list filters on categories. */
+  private static readonly LIST_CORE_FILTER_FIELDS = new Set([
+    'categoryId',
+    'tenantId',
+    'statusId',
+    'groupName',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
   constructor(
     @InjectRepository(CategoryEntity)
     private readonly categoryRepository: Repository<CategoryEntity>,
@@ -51,12 +72,29 @@ export class CategoriesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<CategoryListResponseDto> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (filtersDto.sortSource === 'meta') {
+      throw new RpcException(
+        'Category list does not support sortSource "meta"; use "core".',
+      );
+    }
+    if (filtersDto.includeMeta) {
+      throw new RpcException(
+        'Category list does not support includeMeta; categories have no meta JSON row.',
+      );
+    }
+    for (const clause of filtersDto.filters ?? []) {
+      if (clause.source !== 'core') {
+        throw new RpcException(
+          `Category list filters support source "core" only (received "${clause.source}").`,
+        );
+      }
+    }
 
-    const [categories, total] =
-      await this.categoryRepository.findAndCount(findQuery);
+    const qb = this.createFilteredCategoriesQuery(filtersDto);
 
-    if (categories.length === 0) {
+    const [categoriesBare, total] = await qb.getManyAndCount();
+
+    if (categoriesBare.length === 0) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -64,6 +102,19 @@ export class CategoriesService {
         ),
       );
     }
+
+    const ids = categoriesBare.map((c) => c.categoryId);
+    const orderIndex = new Map(ids.map((id, idx) => [id, idx]));
+    const categories = (
+      await this.categoryRepository.find({
+        where: { categoryId: In(ids) },
+        relations: ['descriptions'],
+      })
+    ).sort(
+      (a, b) =>
+        (orderIndex.get(a.categoryId) ?? 0) -
+        (orderIndex.get(b.categoryId) ?? 0),
+    );
 
     const pagination = this.buildPagination(filtersDto, total);
 
@@ -86,8 +137,9 @@ export class CategoriesService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<CategoryEntity> {
-    const category = await this.categoryRepository.findOneByOrFail({
-      categoryId: id,
+    const category = await this.categoryRepository.findOne({
+      where: { categoryId: id },
+      relations: ['descriptions'],
     });
 
     if (!category) {
@@ -185,40 +237,70 @@ export class CategoriesService {
     return await this.categoryRepository.delete({ categoryId: id });
   }
 
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      relations: ['descriptions'], // Add the relationship for leftJoinAndSelect
-    };
+  /**
+   * Builds a query for category rows with search, structured core filters, sort, and pagination.
+   * Descriptions are loaded in {@link findAll} after pagination to avoid inflated counts.
+   */
+  private createFilteredCategoriesQuery(
+    filtersDto: FiltersDto,
+  ): SelectQueryBuilder<CategoryEntity> {
+    const qb = this.categoryRepository.createQueryBuilder('cat');
 
-    // Apply search filter if provided
-    if (filtersDto.search) {
-      query.where = [
-        { groupName: Like(`%${filtersDto.search}%`) },
+    const rawSearch = filtersDto.search?.trim();
+    if (rawSearch) {
+      const search = `%${rawSearch}%`;
+      qb.andWhere(
+        new Brackets((wb) => {
+          wb.where('cat.groupName LIKE :search', { search }).orWhere(
+            `EXISTS (SELECT 1 FROM category_descriptions cd WHERE cd.category_id = cat.category_id AND (cd.name LIKE :search OR cd.description LIKE :search))`,
+            { search },
+          );
+        }),
+      );
+    }
+
+    for (const [index, clause] of (filtersDto.filters ?? []).entries()) {
+      if (!CategoriesService.LIST_CORE_FILTER_FIELDS.has(clause.field)) {
+        throw new RpcException(
+          `Unsupported core filter field: ${clause.field}`,
+        );
+      }
+      const column = this.categoryRepository.metadata.findColumnWithPropertyName(
+        clause.field,
+      );
+      if (!column) {
+        throw new RpcException(`Unknown core filter field: ${clause.field}`);
+      }
+      appendParameterizedListFilterPredicate(
+        qb as SelectQueryBuilder<object>,
+        `cat.${column.propertyName}`,
         {
-          descriptions: {
-            name: Like(`%${filtersDto.search}%`),
-            description: Like(`%${filtersDto.search}%`),
-          },
+          operator: clause.operator,
+          value: clause.value,
+          logicalField: clause.field,
+          fieldType: inferListFilterFieldTypeFromColumn(column),
         },
-      ];
+        `catflt_${index}`,
+      );
     }
 
-    // Apply sorting if provided
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
+    const sortBy = filtersDto.sortBy ?? 'categoryId';
+    const sortColumn =
+      this.categoryRepository.metadata.findColumnWithPropertyName(sortBy);
+    if (!sortColumn) {
+      throw new RpcException(`Unsupported sort field: ${sortBy}`);
     }
+    const sortOrder = filtersDto.sortOrder === 'ASC' ? 'ASC' : 'DESC';
+    qb.orderBy(`cat.${sortColumn.propertyName}`, sortOrder);
 
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    const page =
+      filtersDto.page && filtersDto.page > 0 ? filtersDto.page : 1;
+    let limit =
+      filtersDto.limit && filtersDto.limit > 0 ? filtersDto.limit : 10;
+    limit = Math.min(limit, 10);
+    qb.skip((page - 1) * limit).take(limit);
 
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
+    return qb;
   }
 
   private buildPagination(

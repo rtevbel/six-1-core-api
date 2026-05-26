@@ -45,6 +45,9 @@ export class SchedulerController {
       requestedStartUtc: new Date(createSchedulerDto.requestedStartUtc),
       requestedEndUtc: new Date(createSchedulerDto.requestedEndUtc),
       priority: createSchedulerDto.priority ?? 0,
+      parentScheduledTaskId: createSchedulerDto.parentScheduledTaskId,
+      processTemplateId: createSchedulerDto.processTemplateId,
+      createdBy: createSchedulerDto.createdBy,
     });
 
     return {

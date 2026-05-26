@@ -30,6 +30,7 @@ import { ResourceAvailabilityService } from './services/resource_availability.se
 import { ResourceBlackoutDatesService } from './services/resource_blackout_dates.service';
 import { TaskProcessor } from './processors/task.processor';
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { AutomationModule } from '../automation/automation.module';
 import { SchedulerController } from './scheduler.controller';
 import { ResourceAssignmentsController } from './controllers/resource_assignments.controller';
 import { ResourcesController } from './controllers/resources.controller';
@@ -90,6 +91,7 @@ import {
     }),
     BullModule.registerQueue({ name: 'task-scheduler' }),
     ConfigObjectsModule,
+    AutomationModule,
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [

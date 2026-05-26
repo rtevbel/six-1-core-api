@@ -1348,9 +1348,13 @@ export class ConfigObjectsService {
    * `sor_bound` types supported by {@link loadCoreAndMeta}.
    *
    * Gateway should enforce domain permissions (e.g. `projects.update`) before calling.
+   *
+   * When `tenantId` is omitted, resolves the global published schema (super-admin
+   * scope). Meta patches are always allowed; core patches on tenant-scoped SoR rows
+   * (`project`, `task`, `resource`) require `tenantId >= 1`.
    */
   async applySorBoundInstancePatch(params: {
-    tenantId: number;
+    tenantId?: number | null;
     objectType: string;
     coreId: number;
     corePatch?: Record<string, unknown>;
@@ -1366,11 +1370,9 @@ export class ConfigObjectsService {
       customerId,
     } = params;
 
-    if (typeof tenantId !== 'number' || tenantId < 1) {
-      throw new RpcException('tenantId is required.');
-    }
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
-    const schema = await this.getObjectSchema(tenantId, objectType);
+    const schema = await this.getObjectSchema(effectiveTenantId, objectType);
     if (!schema) {
       throw new RpcException('Configuration schema not found for object type.');
     }
@@ -1413,12 +1415,18 @@ export class ConfigObjectsService {
       );
     }
 
+    if (Object.keys(filteredCore).length && effectiveTenantId === null) {
+      throw new RpcException(
+        'Core field updates require tenant scope. Omit corePatch or provide tenantId >= 1.',
+      );
+    }
+
     return this.dataSource.transaction(async (manager) =>
       this.applySorBoundPatchInTransaction(
         manager,
         objectType,
         coreId,
-        tenantId,
+        effectiveTenantId,
         filteredCore,
         filteredMeta,
         customerId,
@@ -1430,7 +1438,7 @@ export class ConfigObjectsService {
     manager: EntityManager,
     objectType: string,
     coreId: number,
-    tenantId: number,
+    tenantScope: number | null,
     filteredCore: Record<string, unknown>,
     filteredMeta: Record<string, unknown>,
     customerId?: number,
@@ -1439,7 +1447,7 @@ export class ConfigObjectsService {
       return this.patchProjectCoreAndMeta(
         manager,
         coreId,
-        tenantId,
+        tenantScope,
         filteredCore,
         filteredMeta,
       );
@@ -1448,7 +1456,7 @@ export class ConfigObjectsService {
       return this.patchTaskCoreAndMeta(
         manager,
         coreId,
-        tenantId,
+        tenantScope,
         filteredCore,
         filteredMeta,
       );
@@ -1474,7 +1482,7 @@ export class ConfigObjectsService {
       return this.patchResourceCoreAndMeta(
         manager,
         coreId,
-        tenantId,
+        tenantScope,
         filteredCore,
         filteredMeta,
       );
@@ -1505,7 +1513,7 @@ export class ConfigObjectsService {
   private async patchProjectCoreAndMeta(
     manager: EntityManager,
     coreId: number,
-    tenantId: number,
+    tenantScope: number | null,
     filteredCore: Record<string, unknown>,
     filteredMeta: Record<string, unknown>,
   ): Promise<ApplySorBoundInstancePatchResult> {
@@ -1515,7 +1523,11 @@ export class ConfigObjectsService {
     if (!project) {
       throw new RpcException('Project not found.');
     }
-    if (project.tenantId !== tenantId) {
+    if (
+      Object.keys(filteredCore).length &&
+      tenantScope !== null &&
+      project.tenantId !== tenantScope
+    ) {
       throw new RpcException(
         'Project does not belong to the specified tenant.',
       );
@@ -1565,7 +1577,7 @@ export class ConfigObjectsService {
   private async patchTaskCoreAndMeta(
     manager: EntityManager,
     coreId: number,
-    tenantId: number,
+    tenantScope: number | null,
     filteredCore: Record<string, unknown>,
     filteredMeta: Record<string, unknown>,
   ): Promise<ApplySorBoundInstancePatchResult> {
@@ -1575,7 +1587,11 @@ export class ConfigObjectsService {
     if (!task) {
       throw new RpcException('Task not found.');
     }
-    if (task.tenantId !== tenantId) {
+    if (
+      Object.keys(filteredCore).length &&
+      tenantScope !== null &&
+      task.tenantId !== tenantScope
+    ) {
       throw new RpcException('Task does not belong to the specified tenant.');
     }
 
@@ -1735,7 +1751,7 @@ export class ConfigObjectsService {
   private async patchResourceCoreAndMeta(
     manager: EntityManager,
     coreId: number,
-    tenantId: number,
+    tenantScope: number | null,
     filteredCore: Record<string, unknown>,
     filteredMeta: Record<string, unknown>,
   ): Promise<ApplySorBoundInstancePatchResult> {
@@ -1745,7 +1761,11 @@ export class ConfigObjectsService {
     if (!resource) {
       throw new RpcException('Resource not found.');
     }
-    if (resource.tenantId !== tenantId) {
+    if (
+      Object.keys(filteredCore).length &&
+      tenantScope !== null &&
+      resource.tenantId !== tenantScope
+    ) {
       throw new RpcException(
         'Resource does not belong to the specified tenant.',
       );

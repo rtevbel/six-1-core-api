@@ -156,8 +156,9 @@ export class PermissionsService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<PermissionEntity> {
-    const permission = await this.permissionRepository.findOneByOrFail({
-      permission_id: id,
+    const permission = await this.permissionRepository.findOne({
+      where: { permission_id: id },
+      relations: ['descriptions'],
     });
 
     if (!permission) {

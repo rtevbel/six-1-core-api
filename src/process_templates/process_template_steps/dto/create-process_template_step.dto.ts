@@ -1,11 +1,12 @@
 import {
   IsNumber,
-  IsString,
   IsOptional,
   IsEnum,
   IsBoolean,
   IsArray,
   ValidateNested,
+  IsObject,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateProcessTemplateStepDescriptionDto } from './create-process_template_step_description.dto';
@@ -21,10 +22,25 @@ export class CreateProcessTemplateStepDto {
   processTemplateId!: number;
 
   /**
-   * Task type of the step (manual or automated).
+   * Task type of the step.
    */
-  @IsEnum(['manual', 'automated'])
-  taskType!: 'manual' | 'automated';
+  @IsEnum(['manual', 'automated', 'call_process', 'config_object'])
+  taskType!: 'manual' | 'automated' | 'call_process' | 'config_object';
+
+  /**
+   * Child template when taskType is call_process.
+   */
+  @ValidateIf((o) => o.taskType === 'call_process')
+  @IsNumber()
+  childTemplateId?: number;
+
+  @IsOptional()
+  @IsEnum(['inherit', 'workflow', 'config_instance'])
+  childSubjectPolicy?: 'inherit' | 'workflow' | 'config_instance';
+
+  @IsOptional()
+  @IsObject()
+  childContextPatch?: Record<string, unknown>;
 
   /**
    * Order of the step in the process.

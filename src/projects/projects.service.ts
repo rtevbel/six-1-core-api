@@ -21,7 +21,7 @@ import { RpcException } from '@nestjs/microservices';
 import { CreateProjectTaskDefaultStatusDto } from './project_task_statuses/dto/create-project_task_default_status.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventsService } from '../events/events.service';
-import { ProcessInstantiationService } from '../automation/process-instantiation.service';
+import { ProcessLifecycleFacade } from '../automation/process-lifecycle.facade';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
 import { ConfigLifecycleService } from '../config_objects/config_lifecycle.service';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
@@ -69,7 +69,7 @@ export class ProjectsService {
     private eventEmitter: EventEmitter2,
     private events: EventsService,
     private readonly ds: DataSource,
-    private readonly processes: ProcessInstantiationService,
+    private readonly processLifecycle: ProcessLifecycleFacade,
     private readonly orchestrator: StepOrchestratorService,
     private readonly configLifecycleService: ConfigLifecycleService,
     private readonly configObjectsService: ConfigObjectsService,
@@ -171,130 +171,30 @@ export class ProjectsService {
               );
             }
 
-            // 4) Instantiate process (inside same TX) and create tasks
+            // 4) Instantiate process (inside same TX) via lifecycle facade
             let piId = 0;
             if (processTemplateId) {
-              piId = await this.processes.instantiateProcessIn(
-                em,
-                processTemplateId,
-                createProjectDto.tenantId,
-                userId,
-              );
+              const statusIdByNameRecord: Record<string, number> = {};
+              for (const [name, id] of statusIdByName.entries()) {
+                statusIdByNameRecord[name] = id;
+              }
+
+              const processStart =
+                await this.processLifecycle.startProcessForProject({
+                  tenantId: createProjectDto.tenantId,
+                  createdBy: userId,
+                  templateId: processTemplateId,
+                  projectId: project.projectId,
+                  statusIdByName: statusIdByNameRecord,
+                  entityManager: em,
+                });
+
+              piId = processStart.processInstanceId;
+              firstStepIdToKick = processStart.firstStepInstanceId;
+
               await projectRepo.update(project.projectId, {
                 processInstanceId: piId,
               });
-
-              // 4a) Project-level default step→status mapping
-              const defaultMap: Record<string, string> = {
-                pending: 'To Do',
-                ready: 'Ready',
-                in_progress: 'In Progress',
-                completed: 'Done',
-                blocked: 'Blocked',
-                canceled: 'Done',
-              };
-              for (const [engineState, statusName] of Object.entries(
-                defaultMap,
-              )) {
-                const taskStatusId = statusIdByName.get(statusName);
-                if (!taskStatusId)
-                  throw new Error(`Missing status id for ${statusName}`);
-                await em.query(
-                  `INSERT IGNORE INTO project_step_status_mappings
-                   (project_id, step_instance_id, step_engine_state, task_status_id)
-                 VALUES (?, NULL, ?, ?)`,
-                  [project.projectId, engineState, taskStatusId],
-                );
-              }
-
-              // 4b) Build tasks from instance steps (bulk insert)
-              const instanceSteps: Array<{
-                step_instance_id: number;
-                name: string;
-                task_type: string | null;
-                step_order: number;
-                status:
-                  | 'pending'
-                  | 'ready'
-                  | 'in_progress'
-                  | 'completed'
-                  | 'blocked'
-                  | 'canceled';
-              }> = await em.query(
-                `SELECT step_instance_id, name, task_type, step_order, status
-                 FROM process_instance_steps
-                WHERE process_instance_id = ?
-                ORDER BY step_order ASC`,
-                [piId],
-              );
-
-              // remember first step to kick AFTER COMMIT to avoid lock contention
-              firstStepIdToKick = instanceSteps[0]?.step_instance_id ?? null;
-
-              const statusIdByEngineState = new Map<string, number>();
-              const mappingRows: Array<{
-                step_engine_state: string;
-                task_status_id: number;
-              }> = await em.query(
-                `SELECT step_engine_state, task_status_id
-                 FROM project_step_status_mappings
-                WHERE project_id = ? AND step_instance_id IS NULL`,
-                [project.projectId],
-              );
-              for (const r of mappingRows)
-                statusIdByEngineState.set(
-                  r.step_engine_state,
-                  r.task_status_id,
-                );
-
-              if (instanceSteps.length) {
-                const placeholders: string[] = [];
-                const values: any[] = [];
-                for (const s of instanceSteps) {
-                  const mappedStatusId =
-                    statusIdByEngineState.get(s.status) ??
-                    statusIdByName.get('To Do');
-                  if (!mappedStatusId)
-                    throw new Error('Failed to resolve default task status id');
-
-                  const identifier = s.name
-                    ? this.generateUniqueTaskIdentifier(s.name)
-                    : `task-${s.step_instance_id}${project.projectId}`;
-
-                  placeholders.push(
-                    '(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,?, NOW())',
-                  );
-                  values.push(
-                    project.projectId,
-                    createProjectDto.tenantId,
-                    s.step_instance_id,
-                    s.name,
-                    identifier,
-                    null,
-                    'medium',
-                    2.0,
-                    null,
-                    mappedStatusId,
-                    'process',
-                    null,
-                    'manual',
-                    4,
-                    null,
-                    null,
-                    null,
-                    null,
-                    userId,
-                    userId,
-                  );
-                }
-
-                await em.query(
-                  `INSERT INTO tasks
-                   (project_id, tenant_id, step_instance_id, name, task_indentifier, description, priority, estimated_duration, parent_task_id, task_status_id, status_control, effort_hours , scheduling_mode , default_shift_hours , primary_assignee_id , team_id , start_constraint_utc , finish_constraint_utc , created_by, updated_by, created_at)
-                 VALUES ${placeholders.join(',')}`,
-                  values,
-                );
-              }
             }
 
             // 5) Dispatch event to create notifications (after commit)

@@ -72,6 +72,15 @@ export class ScheduleWindowDto {
   @IsOptional()
   @IsInt()
   parentScheduledTaskId?: number;
+
+  /**
+   * Optional process template to attach when the schedule is activated.
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  processTemplateId?: number;
+
   /**
    * User ID of the creator.
    *

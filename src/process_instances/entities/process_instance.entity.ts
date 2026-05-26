@@ -63,6 +63,33 @@ export class ProcessInstanceEntity {
   tenantId!: number;
 
   @Column({
+    name: 'subject_type',
+    type: 'varchar',
+    length: 64,
+    nullable: false,
+    comment:
+      'Job anchor: project, scheduled_task, config_custom_object_instance, workflow, sor_entity',
+  })
+  subjectType!: string;
+
+  @Column({
+    name: 'subject_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: false,
+    comment: 'PK of subject row, or process_instance_id for workflow self-subject',
+  })
+  subjectId!: number;
+
+  @Column({
+    name: 'subject_metadata',
+    type: 'json',
+    nullable: true,
+    comment: 'Optional snapshot for hosts and UI (objectType, configObjectId, etc.)',
+  })
+  subjectMetadata!: Record<string, unknown> | null;
+
+  @Column({
     name: 'status',
     type: 'enum',
     enum: ['draft', 'active', 'completed', 'canceled'],

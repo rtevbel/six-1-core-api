@@ -1,7 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, QueryRunner } from 'typeorm';
 import { TriggerEngineService } from './trigger-engine.service';
 import { EventsService } from '../events/events.service';
+import type { ProcessEngineState } from './process-engine-state';
+import { ProcessHostRegistry } from './process-host/process-host.registry';
+import {
+  buildProcessHostContext,
+  buildStepStateChangedContext,
+  loadProcessInstanceRow,
+} from './process-host/process-host-orchestration.util';
+import { ConfigObjectStepExecutor } from './config-object-step-executor.service';
+import { ChildProcessOrchestrationService } from './child-process-orchestration.service';
+import { ProcessCompletionService } from './process-completion.service';
+import { PROCESS_STEP_TASK_TYPE_CALL_PROCESS } from './process-step-task-type.constants';
 
 type AdvanceOptions = {
   cause?: 'event' | 'manual' | 'timer';
@@ -9,24 +20,77 @@ type AdvanceOptions = {
   actorTenantUserId?: number;
 };
 
-type EngineState =
-  | 'pending'
-  | 'ready'
-  | 'in_progress'
-  | 'completed'
-  | 'blocked'
-  | 'canceled';
+type StepRow = {
+  step_instance_id: number;
+  process_instance_id: number;
+  process_template_step_id: number;
+  step_order: number;
+  status: string;
+  task_type: string;
+};
 
 @Injectable()
 export class StepOrchestratorService {
+  private readonly logger = new Logger(StepOrchestratorService.name);
+
   constructor(
     private readonly ds: DataSource,
     private readonly triggers: TriggerEngineService,
     private readonly events: EventsService,
+    private readonly hostRegistry: ProcessHostRegistry,
+    private readonly configObjectExecutor: ConfigObjectStepExecutor,
+    private readonly childProcess: ChildProcessOrchestrationService,
+    private readonly processCompletion: ProcessCompletionService,
   ) {}
+
+  /**
+   * After a call_process parent step completes (child finished), unlock following steps.
+   */
+  async resumeParentAfterChildCallProcess(
+    parentStepInstanceId: number,
+    opts: AdvanceOptions = {},
+  ): Promise<void> {
+    const qr = await this.begin();
+    let childTerminalId: number | null = null;
+    try {
+      const [step] = await qr.manager.query(
+        `SELECT process_instance_id, step_order, status
+           FROM process_instance_steps
+          WHERE step_instance_id = ?
+          FOR UPDATE`,
+        [parentStepInstanceId],
+      );
+      if (!step || step.status !== 'completed') {
+        return await this.rollback(qr);
+      }
+
+      await this.enableNextSteps(
+        qr,
+        Number(step.process_instance_id),
+        Number(step.step_order),
+        opts,
+      );
+      childTerminalId = await this.maybeCompleteJob(
+        qr,
+        Number(step.process_instance_id),
+        opts,
+      );
+      await qr.commitTransaction();
+    } catch (e) {
+      await this.safeRollback(qr);
+      throw e;
+    } finally {
+      await this.release(qr);
+    }
+
+    if (childTerminalId) {
+      await this.finalizeChildTerminalIfNeeded(childTerminalId, opts);
+    }
+  }
 
   async attemptAdvance(stepInstanceId: number, opts: AdvanceOptions = {}) {
     const qr = await this.begin();
+    let childTerminalId: number | null = null;
     try {
       const s = await this.loadStepLocked(qr, stepInstanceId);
       if (!s) return await this.rollback(qr);
@@ -34,7 +98,14 @@ export class StepOrchestratorService {
         return await this.rollback(qr);
       }
 
-      const allMandatoryApproved = await this.checkRequirements(
+      if (s.status === 'ready') {
+        await this.configObjectExecutor.provisionBindingsOnStepReady(qr, {
+          stepInstanceId: s.step_instance_id,
+          correlationId: opts.correlationId,
+        });
+      }
+
+      const allMandatoryApproved = await this.checkStepGates(
         qr,
         s.step_instance_id,
       );
@@ -46,27 +117,38 @@ export class StepOrchestratorService {
 
       const now = new Date();
 
-      // pending -> ready
-      console.log(
-        `StepOrchestrator: step ${s.step_instance_id} status=${s.status}, allMandatoryApproved=${allMandatoryApproved}, triggersMet=${triggersMet}`,
+      this.logger.debug(
+        `Step ${s.step_instance_id} status=${s.status} requirements=${allMandatoryApproved} triggers=${triggersMet}`,
       );
+
       if (s.status === 'pending' && allMandatoryApproved && triggersMet) {
-        await this.setState(qr, s.step_instance_id, 'ready', { ready_at: now });
-        await this.syncTaskColumn(qr, s.step_instance_id, 'ready');
-        this.events.emit('six1-event.process_step_ready', {
-          entity: { entityType: 'ProcessStep', entityId: s.step_instance_id },
-          data: {
-            processInstanceId: s.process_instance_id,
-            stepOrder: s.step_order,
-            cause: opts.cause ?? 'event',
-          },
-          correlationId: opts.correlationId,
-        });
+        if (
+          this.childProcess.isEnabled() &&
+          s.task_type === PROCESS_STEP_TASK_TYPE_CALL_PROCESS
+        ) {
+          await this.childProcess.spawnChildAndBlockParent(qr, s, opts);
+        } else {
+          await this.setState(qr, s.step_instance_id, 'ready', { ready_at: now });
+          await this.dispatchStepStateChanged(qr, s, 'ready', opts);
+          await this.configObjectExecutor.provisionBindingsOnStepReady(qr, {
+            stepInstanceId: s.step_instance_id,
+            correlationId: opts.correlationId,
+          });
+          this.events.emit('six1-event.process_step_ready', {
+            entity: { entityType: 'ProcessStep', entityId: s.step_instance_id },
+            data: {
+              processInstanceId: s.process_instance_id,
+              stepOrder: s.step_order,
+              cause: opts.cause ?? 'event',
+            },
+            correlationId: opts.correlationId,
+          });
+        }
       }
 
-      // Handle automated steps: ready -> in_progress -> completed
       const fresh = await this.loadStepLocked(qr, s.step_instance_id);
       if (
+        fresh &&
         fresh.task_type === 'automated' &&
         fresh.status === 'ready' &&
         allMandatoryApproved &&
@@ -75,7 +157,7 @@ export class StepOrchestratorService {
         await this.setState(qr, fresh.step_instance_id, 'in_progress', {
           started_at: now,
         });
-        await this.syncTaskColumn(qr, fresh.step_instance_id, 'in_progress');
+        await this.dispatchStepStateChanged(qr, fresh, 'in_progress', opts);
         this.events.emit('six1-event.process_step_started', {
           entity: {
             entityType: 'ProcessStep',
@@ -89,11 +171,10 @@ export class StepOrchestratorService {
           correlationId: opts.correlationId,
         });
 
-        //Instant completion (replace with your actual automation)
         await this.setState(qr, fresh.step_instance_id, 'completed', {
           completed_at: new Date(),
         });
-        await this.syncTaskColumn(qr, fresh.step_instance_id, 'completed');
+        await this.dispatchStepStateChanged(qr, fresh, 'completed', opts);
         this.events.emit('six1-event.process_step_completed', {
           entity: {
             entityType: 'ProcessStep',
@@ -113,7 +194,7 @@ export class StepOrchestratorService {
           fresh.step_order,
           opts,
         );
-        await this.checkAndCompleteProjectIfDone(
+        childTerminalId = await this.maybeCompleteJob(
           qr,
           fresh.process_instance_id,
           opts,
@@ -127,20 +208,29 @@ export class StepOrchestratorService {
     } finally {
       await this.release(qr);
     }
+
+    if (childTerminalId) {
+      await this.finalizeChildTerminalIfNeeded(childTerminalId, opts);
+    }
   }
 
   async markCompleted(stepInstanceId: number, opts: AdvanceOptions = {}) {
     const qr = await this.begin();
+    let childTerminalId: number | null = null;
     try {
       const s = await this.loadStepLocked(qr, stepInstanceId);
       if (!s) return await this.rollback(qr);
       if (!['ready', 'in_progress'].includes(s.status))
         return await this.rollback(qr);
 
+      if (!(await this.checkStepGates(qr, s.step_instance_id))) {
+        return await this.rollback(qr);
+      }
+
       await this.setState(qr, s.step_instance_id, 'completed', {
         completed_at: new Date(),
       });
-      await this.syncTaskColumn(qr, s.step_instance_id, 'completed');
+      await this.dispatchStepStateChanged(qr, s, 'completed', opts);
       this.events.emit('six1-event.notification.process_step_completed', {
         entity: { entityType: 'ProcessStep', entityId: s.step_instance_id },
         data: {
@@ -152,7 +242,11 @@ export class StepOrchestratorService {
       });
 
       await this.enableNextSteps(qr, s.process_instance_id, s.step_order, opts);
-      await this.checkAndCompleteProjectIfDone(qr, s.process_instance_id, opts);
+      childTerminalId = await this.maybeCompleteJob(
+        qr,
+        s.process_instance_id,
+        opts,
+      );
       await qr.commitTransaction();
     } catch (e) {
       await this.safeRollback(qr);
@@ -160,11 +254,158 @@ export class StepOrchestratorService {
     } finally {
       await this.release(qr);
     }
+
+    if (childTerminalId) {
+      await this.finalizeChildTerminalIfNeeded(childTerminalId, opts);
+    }
   }
 
-  // ---- internals ----
+  private async dispatchStepStateChanged(
+    qr: QueryRunner,
+    step: Pick<StepRow, 'process_instance_id' | 'step_instance_id' | 'step_order'>,
+    engineState: ProcessEngineState,
+    opts: AdvanceOptions,
+  ): Promise<void> {
+    const proc = await loadProcessInstanceRow(qr.manager, step.process_instance_id);
+    if (!proc) {
+      return;
+    }
 
-  private async checkRequirements(
+    const adapter = this.hostRegistry.get(proc.subject_type);
+    const ctx = buildStepStateChangedContext(qr.manager, proc, {
+      stepInstanceId: step.step_instance_id,
+      engineState,
+      stepOrder: step.step_order,
+      advance: {
+        actorTenantUserId: opts.actorTenantUserId,
+        correlationId: opts.correlationId,
+      },
+    });
+    await adapter.onStepStateChanged(ctx);
+  }
+
+  private async maybeCompleteJob(
+    qr: QueryRunner,
+    processInstanceId: number,
+    opts: AdvanceOptions,
+  ): Promise<number | null> {
+    const allDone = await this.areAllStepsCompleted(qr, processInstanceId);
+    if (allDone) {
+      await this.childProcess.markProcessCompletedIfEligible(
+        qr.manager,
+        processInstanceId,
+      );
+    }
+
+    const [inst] = await qr.manager.query(
+      `SELECT status, parent_step_id
+         FROM process_instances
+        WHERE process_instance_id = ?
+        LIMIT 1`,
+      [processInstanceId],
+    );
+
+    if (
+      allDone &&
+      inst?.parent_step_id != null &&
+      String(inst.status) === 'completed'
+    ) {
+      return processInstanceId;
+    }
+
+    const engineCanComplete = await this.processCompletion.canCompleteProcess(
+      processInstanceId,
+      qr.manager,
+    );
+
+    if (!engineCanComplete) {
+      return null;
+    }
+
+    const proc = await loadProcessInstanceRow(qr.manager, processInstanceId);
+    if (!proc) {
+      return null;
+    }
+
+    const adapter = this.hostRegistry.get(proc.subject_type);
+    const ctx = buildProcessHostContext(qr.manager, proc, {
+      actorTenantUserId: opts.actorTenantUserId,
+      correlationId: opts.correlationId,
+    });
+
+    if (await adapter.canCompleteJob(ctx)) {
+      if (allDone) {
+        await qr.manager.query(
+          `UPDATE process_instances
+              SET status = 'completed', completed_at = NOW()
+            WHERE process_instance_id = ? AND status = 'active'`,
+          [processInstanceId],
+        );
+      }
+      await adapter.onProcessCompleted(ctx);
+      this.events.emit('six1-event.process_completed', {
+        tenantId: proc.tenant_id,
+        entity: {
+          entityType: 'ProcessInstance',
+          entityId: processInstanceId,
+        },
+        data: {
+          processInstanceId,
+          subjectType: proc.subject_type,
+          subjectId: proc.subject_id,
+        },
+        correlationId: opts.correlationId,
+      });
+    }
+
+    return null;
+  }
+
+  private async areAllStepsCompleted(
+    qr: QueryRunner,
+    processInstanceId: number,
+  ): Promise<boolean> {
+    const [agg] = await qr.manager.query(
+      `SELECT SUM(status = 'completed') AS done, COUNT(*) AS total
+         FROM process_instance_steps
+        WHERE process_instance_id = ?`,
+      [processInstanceId],
+    );
+    return (
+      !!agg &&
+      Number(agg.done) === Number(agg.total) &&
+      Number(agg.total) > 0
+    );
+  }
+
+  private async finalizeChildTerminalIfNeeded(
+    childProcessInstanceId: number,
+    opts: AdvanceOptions,
+  ): Promise<void> {
+    await this.childProcess.handleChildTerminal(
+      childProcessInstanceId,
+      'completed',
+      opts,
+    );
+  }
+
+  private async checkStepGates(
+    qr: QueryRunner,
+    stepInstanceId: number,
+  ): Promise<boolean> {
+    const requirementsOk = await this.checkRequirementsOnly(
+      qr,
+      stepInstanceId,
+    );
+    const bindingsOk =
+      await this.configObjectExecutor.areMandatoryBindingsValid(
+        qr.manager,
+        stepInstanceId,
+      );
+    return requirementsOk && bindingsOk;
+  }
+
+  private async checkRequirementsOnly(
     qr: QueryRunner,
     stepInstanceId: number,
   ): Promise<boolean> {
@@ -175,8 +416,8 @@ export class StepOrchestratorService {
       [stepInstanceId],
     );
     return rows
-      .filter((r: any) => r.is_mandatory === 1)
-      .every((r: any) => r.status === 'approved');
+      .filter((r: { is_mandatory: number }) => r.is_mandatory === 1)
+      .every((r: { status: string }) => r.status === 'approved');
   }
 
   private async evaluateTriggers(
@@ -222,34 +463,67 @@ export class StepOrchestratorService {
     opts: AdvanceOptions,
   ) {
     const nextRows = await qr.manager.query(
-      `SELECT step_instance_id, step_order
+      `SELECT step_instance_id,
+              process_instance_id,
+              process_template_step_id,
+              step_order,
+              status,
+              task_type
          FROM process_instance_steps
-        WHERE process_instance_id = ? AND step_order = ? AND status = 'pending' FOR UPDATE`,
+        WHERE process_instance_id = ? AND step_order = ? AND status = 'pending'
+        FOR UPDATE`,
       [processInstanceId, currentOrder + 1],
     );
 
     for (const row of nextRows) {
-      const okReq = await this.checkRequirements(qr, row.step_instance_id);
+      const okReq = await this.checkStepGates(qr, row.step_instance_id);
       const okTrig = await this.evaluateTriggers(
         qr,
         processInstanceId,
         row.step_instance_id,
       );
-      if (okReq && okTrig) {
-        await this.setState(qr, row.step_instance_id, 'ready', {
-          ready_at: new Date(),
-        });
-        await this.syncTaskColumn(qr, row.step_instance_id, 'ready');
-        this.events.emit('six1-event.process_step_task_created', {
-          entity: { entityType: 'ProcessStep', entityId: row.step_instance_id },
-          data: {
-            processInstanceId,
-            stepOrder: row.step_order,
-            cause: opts.cause ?? 'event',
-          },
-          correlationId: opts.correlationId,
-        });
+      if (!okReq || !okTrig) {
+        continue;
       }
+
+      if (
+        this.childProcess.isEnabled() &&
+        row.task_type === PROCESS_STEP_TASK_TYPE_CALL_PROCESS
+      ) {
+        await this.childProcess.spawnChildAndBlockParent(
+          qr,
+          row as StepRow,
+          opts,
+        );
+        continue;
+      }
+
+      await this.setState(qr, row.step_instance_id, 'ready', {
+        ready_at: new Date(),
+      });
+      await this.dispatchStepStateChanged(
+        qr,
+        {
+          process_instance_id: processInstanceId,
+          step_instance_id: row.step_instance_id,
+          step_order: row.step_order,
+        },
+        'ready',
+        opts,
+      );
+      await this.configObjectExecutor.provisionBindingsOnStepReady(qr, {
+        stepInstanceId: row.step_instance_id,
+        correlationId: opts.correlationId,
+      });
+      this.events.emit('six1-event.process_step_task_created', {
+        entity: { entityType: 'ProcessStep', entityId: row.step_instance_id },
+        data: {
+          processInstanceId,
+          stepOrder: row.step_order,
+          cause: opts.cause ?? 'event',
+        },
+        correlationId: opts.correlationId,
+      });
     }
   }
 
@@ -271,8 +545,8 @@ export class StepOrchestratorService {
       [stepInstanceId],
     );
     const allReqApproved = reqRows
-      .filter((r: any) => r.is_mandatory === 1)
-      .every((r: any) => r.status === 'approved');
+      .filter((r: { is_mandatory: number }) => r.is_mandatory === 1)
+      .every((r: { status: string }) => r.status === 'approved');
 
     return {
       tenantId: proc?.tenant_id,
@@ -289,18 +563,18 @@ export class StepOrchestratorService {
   private async loadStepLocked(
     qr: QueryRunner,
     stepInstanceId: number,
-  ): Promise<any | null> {
+  ): Promise<StepRow | null> {
     const [row] = await qr.manager.query(
       `SELECT * FROM process_instance_steps WHERE step_instance_id = ? FOR UPDATE`,
       [stepInstanceId],
     );
-    return row ?? null;
+    return (row as StepRow | undefined) ?? null;
   }
 
   private async setState(
     qr: QueryRunner,
     stepInstanceId: number,
-    next: EngineState,
+    next: ProcessEngineState,
     times: Partial<{
       ready_at: Date;
       started_at: Date;
@@ -328,143 +602,30 @@ export class StepOrchestratorService {
     );
   }
 
-  /**
-   * Move the task's Kanban column based on mapping for the given engine state.
-   * - Only applies to tasks with status_control IN ('process','hybrid')
-   * - Prefers per-step override mapping; falls back to project-level default mapping
-   */
-  private async syncTaskColumn(
-    qr: QueryRunner,
-    stepInstanceId: number,
-    engineState: EngineState,
-  ): Promise<void> {
-    // Find the engine-controlled task linked to this step
-    const [task] = await qr.manager.query(
-      `SELECT t.task_id, t.project_id, t.status_control
-         FROM tasks t
-        WHERE t.step_instance_id = ?
-        LIMIT 1`,
-      [stepInstanceId],
-    );
-    if (!task) return;
-    if (!['process', 'hybrid'].includes(task.status_control)) return;
-
-    // Resolve mapped column
-    const [map] = await qr.manager.query(
-      `SELECT m.task_status_id
-         FROM project_step_status_mappings m
-        WHERE m.project_id = ?
-          AND m.step_engine_state = ?
-          AND (m.step_instance_id = ? OR m.step_instance_id IS NULL)
-        ORDER BY m.step_instance_id IS NULL ASC
-        LIMIT 1`,
-      [task.project_id, engineState, stepInstanceId],
-    );
-    if (!map?.task_status_id) return;
-
-    // Idempotent column update
-    await qr.manager.query(
-      `UPDATE tasks
-          SET task_status_id = ?, updated_at = NOW()
-        WHERE task_id = ?`,
-      [map.task_status_id, task.task_id],
-    );
-
-    // Emit event for notification pipeline (fire-and-forget)
-    this.events.emit('six1-event.notification.task_status_changed', {
-      userId: 1, // or the actor if you have it in scope
-      entity: { entityType: 'Task', entityId: task.task_id },
-      data: {
-        projectId: task.project_id,
-        stepInstanceId,
-        toStatusId: map.task_status_id,
-        engineState,
-      },
-    });
-  }
-
-  /**
-   * If all steps of the process instance are completed, mark the project completed.
-   * Assumes `projects` has `status` ENUM and `completed_at` DATETIME.
-   * Tries to resolve `project_id` via `process_instances` first; falls back to task-link if needed.
-   */
-  private async checkAndCompleteProjectIfDone(
-    qr: QueryRunner,
-    processInstanceId: number,
-    opts: AdvanceOptions,
-  ) {
-    const [agg] = await qr.manager.query(
-      `SELECT 
-         SUM(s.status = 'completed') AS completed_count,
-         COUNT(*) AS total_count
-       FROM process_instance_steps s
-       WHERE s.process_instance_id = ?`,
-      [processInstanceId],
-    );
-
-    if (!agg || Number(agg.total_count) === 0) return;
-    if (Number(agg.completed_count) !== Number(agg.total_count)) return;
-
-    // Resolve project_id (prefer process_instances.project_id if present)
-    let projectId: number | null = null;
-
-    const [pi] = await qr.manager.query(
-      `SELECT project_id FROM projects WHERE process_instance_id = ? LIMIT 1`,
-      [processInstanceId],
-    );
-    if (pi?.project_id) {
-      projectId = Number(pi.project_id);
-    } else {
-      // Fallback: find any task linked to any step in this process to get project_id
-      const [t] = await qr.manager.query(
-        `SELECT t.project_id
-           FROM tasks t
-           JOIN process_instance_steps s ON s.step_instance_id = t.step_instance_id
-          WHERE s.process_instance_id = ?
-          LIMIT 1`,
-        [processInstanceId],
-      );
-      if (t?.project_id) projectId = Number(t.project_id);
-    }
-
-    if (!projectId) return;
-
-    // Mark project completed (idempotent)
-    await qr.manager.query(
-      `UPDATE projects
-          SET status = 'completed',
-              completed_at = COALESCE(completed_at, NOW()),
-              updated_at = NOW()
-        WHERE project_id = ? AND status <> 'completed'`,
-      [projectId],
-    );
-
-    // Emit event for notification pipeline (fire-and-forget)
-    this.events.emit('six1-event.notification.project_status_changed', {
-      userId: opts.actorTenantUserId ?? 1,
-      entity: { entityType: 'Project', entityId: projectId },
-      data: { processInstanceId },
-      correlationId: opts.correlationId,
-    });
-  }
-
   private async begin(): Promise<QueryRunner> {
     const qr = this.ds.createQueryRunner();
     await qr.connect();
     await qr.startTransaction();
     return qr;
   }
+
   private async rollback(qr: QueryRunner) {
     await qr.rollbackTransaction();
   }
+
   private async safeRollback(qr: QueryRunner) {
     try {
       await qr.rollbackTransaction();
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }
+
   private async release(qr: QueryRunner) {
     try {
       await qr.release();
-    } catch {}
+    } catch {
+      /* ignore */
+    }
   }
 }

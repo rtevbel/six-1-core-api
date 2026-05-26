@@ -77,6 +77,16 @@ export class ScheduledTaskEntity {
   taskId!: number;
 
   @Column({
+    name: 'process_instance_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+    comment: 'Dynamic process instance for this schedule',
+  })
+  @Index('idx_scheduled_tasks_process_instance')
+  processInstanceId!: number | null;
+
+  @Column({
     name: 'task_status_id',
     type: 'bigint',
     unsigned: true,

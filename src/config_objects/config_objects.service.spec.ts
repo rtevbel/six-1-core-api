@@ -526,6 +526,91 @@ describe('ConfigObjectsService', () => {
     expect(mockManager.save).toHaveBeenCalled();
   });
 
+  it('applySorBoundInstancePatch should apply meta under global schema when tenantId is omitted', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 20,
+      tenantId: null,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 120,
+      configTemplateSetId: 20,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
+      {
+        configObjectFieldId: 1,
+        fieldKey: 'customer_code',
+        label: 'Code',
+        fieldType: 'text',
+        orderIndex: 0,
+        sectionKey: null,
+      } as any,
+    ]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+    const mockManager = {
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce({ customerId: 9, email: 'a@b.c' })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ customerId: 9, email: 'a@b.c' }),
+      save: jest.fn(async (e) => e),
+      create: jest.fn((_Entity: unknown, row: Record<string, unknown>) => ({
+        ...row,
+      })),
+    };
+
+    (dataSource.transaction as jest.Mock).mockImplementation(async (fn: unknown) =>
+      (fn as (m: typeof mockManager) => Promise<unknown>)(mockManager),
+    );
+
+    const result = await service.applySorBoundInstancePatch({
+      objectType: 'customer',
+      coreId: 9,
+      metaPatch: { customer_code: 'C-9' },
+    });
+
+    expect(result.metaJson).toEqual({ customer_code: 'C-9' });
+    expect(mockManager.save).toHaveBeenCalled();
+  });
+
+  it('applySorBoundInstancePatch should reject corePatch without tenant scope', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 20,
+      tenantId: null,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 100,
+      configTemplateSetId: 20,
+      objectType: 'project',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+
+    await expect(
+      service.applySorBoundInstancePatch({
+        objectType: 'project',
+        coreId: 5,
+        corePatch: { name: 'New' },
+      }),
+    ).rejects.toThrow(
+      'Core field updates require tenant scope. Omit corePatch or provide tenantId >= 1.',
+    );
+
+    expect(dataSource.transaction).not.toHaveBeenCalled();
+  });
+
   it('getLifecyclesForObjectType should return lifecycles when configured', async () => {
     jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
       configObjectId: 100,

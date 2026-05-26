@@ -67,6 +67,7 @@ export class ProcessTemplateStepsService {
     userId: number,
     createProcessTemplateStepDto: CreateProcessTemplateStepDto,
   ): Promise<ProcessTemplateStepEntity> {
+    this.assertCallProcessConfig(createProcessTemplateStepDto);
     const step = this.processTemplateStepRepository.create(
       createProcessTemplateStepDto,
     );
@@ -199,6 +200,12 @@ export class ProcessTemplateStepsService {
 
     const { descriptions, ...stepUpdateData } = updateProcessTemplateStepDto;
 
+    this.assertCallProcessConfig({
+      taskType: stepUpdateData.taskType ?? step.taskType,
+      childTemplateId:
+        stepUpdateData.childTemplateId ?? step.childTemplateId ?? undefined,
+    });
+
     if (descriptions) {
       for (const description of descriptions) {
         if (description.processTemplateStepDescriptionId) {
@@ -266,5 +273,16 @@ export class ProcessTemplateStepsService {
     }
 
     return steps;
+  }
+
+  private assertCallProcessConfig(dto: {
+    taskType?: string;
+    childTemplateId?: number | null;
+  }): void {
+    if (dto.taskType === 'call_process' && !dto.childTemplateId) {
+      throw new RpcException(
+        'childTemplateId is required when taskType is call_process',
+      );
+    }
   }
 }

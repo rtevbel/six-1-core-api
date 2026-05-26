@@ -159,6 +159,37 @@ describe('CustomersService', () => {
     );
   });
 
+  it('applies createdAt gte/lte with date strings from catalog datetime type', async () => {
+    await service.findAll(1, {
+      filters: [
+        {
+          source: 'core',
+          field: 'createdAt',
+          operator: 'gte',
+          value: '2026-01-01',
+        },
+        {
+          source: 'core',
+          field: 'createdAt',
+          operator: 'lte',
+          value: '2026-05-13',
+        },
+      ],
+      page: 1,
+      limit: 10,
+      sortBy: 'customerId',
+      sortOrder: 'ASC',
+      sortSource: 'core',
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith('c.createdAt >= :core_0', {
+      core_0: '2026-01-01 00:00:00',
+    });
+    expect(qb.andWhere).toHaveBeenCalledWith('c.createdAt <= :core_1', {
+      core_1: '2026-05-13 23:59:59.999999',
+    });
+  });
+
   it('joins meta table and applies meta filter safely', async () => {
     await service.findAll(1, {
       includeMeta: true,

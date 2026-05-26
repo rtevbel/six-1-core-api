@@ -169,6 +169,33 @@ describe('validateAndNormalizePanelLayoutConfigJson', () => {
     ).toThrow(PanelLayoutConfigValidationError);
   });
 
+  it('accepts table with fieldLabelByKey for column headers', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'table',
+      dataBinding: 'main',
+      layout: {
+        fieldLabelByKey: {
+          name: 'Name',
+          groupName: 'Group',
+          description: 'Description',
+          languageId: 'Language',
+        },
+        columns: ['name', 'groupName', 'description', 'languageId'],
+      },
+    });
+    expect(out?.layout).toEqual({
+      columns: ['name', 'groupName', 'description', 'languageId'],
+      fieldLabelByKey: {
+        name: 'Name',
+        groupName: 'Group',
+        description: 'Description',
+        languageId: 'Language',
+      },
+    });
+    expect(out?.dataBinding).toBe('main');
+  });
+
   it('accepts table membership metadata keys in layout', () => {
     const out = validateAndNormalizePanelLayoutConfigJson({
       schemaVersion: 1,

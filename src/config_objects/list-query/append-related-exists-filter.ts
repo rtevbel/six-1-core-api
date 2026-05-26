@@ -8,6 +8,7 @@ import {
 import type { RelationDescriptor } from '../interfaces/relation-descriptor.interface';
 import { appendParameterizedListFilterPredicate } from './append-parameterized-list-filter-predicate';
 import type { ListFilterOperator } from './append-parameterized-list-filter-predicate';
+import { inferListFilterFieldTypeFromColumn } from './list-filter-field-type';
 
 function relationTargetConstructor(relation: {
   type?: unknown;
@@ -187,6 +188,7 @@ export function appendRelatedExistsFilter(
       operator: filter.operator,
       value: filter.value,
       logicalField: `${rel.relationshipKey}.${filter.fieldKey}`,
+      fieldType: inferListFilterFieldTypeFromColumn(relatedColumn),
     },
     `${options.paramNamespace}_rv`,
   );

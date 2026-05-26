@@ -38,6 +38,7 @@ import {
 } from '../../common/constants';
 import { FiltersDto } from '../dto/filters.dto';
 import { FindAllResultInterface } from '../interfaces/findall-result.interface';
+import { ScheduledTaskProcessBootstrapService } from '../../automation/scheduled-task-process-bootstrap.service';
 
 /**
  * SchedulerService:
@@ -65,6 +66,7 @@ export class SchedulerService {
     private readonly schedRepo: Repository<ScheduledTaskEntity>,
     @InjectRepository(ResourceAssignmentShiftEntity)
     private readonly shiftRepo: Repository<ResourceAssignmentShiftEntity>,
+    private readonly scheduledTaskProcess: ScheduledTaskProcessBootstrapService,
   ) {}
 
   /* ---------- time helpers ---------- */
@@ -189,6 +191,8 @@ export class SchedulerService {
       requestedEndUtc: Date;
       priority?: number;
       parentScheduledTaskId?: number | null;
+      processTemplateId?: number;
+      createdBy?: number;
     },
   ) {
     const ctx = await this.taskCtx.getTaskContext(input.taskId);
@@ -281,11 +285,24 @@ export class SchedulerService {
 
     await this.history.snapshot(row);
 
+    let processInstanceId: number | null = null;
+    if (input.processTemplateId && input.createdBy) {
+      const attached = await this.scheduledTaskProcess.attachProcessIfEnabled({
+        tenantId,
+        createdBy: input.createdBy,
+        scheduledTaskId: row.scheduledTaskId,
+        processTemplateId: input.processTemplateId,
+        context: { taskId: input.taskId },
+      });
+      processInstanceId = attached.processInstanceId;
+    }
+
     return {
       scheduledTaskId: row.scheduledTaskId,
       effectiveStartUtc: row.effectiveStartUtc,
       effectiveEndUtc: row.effectiveEndUtc,
       tzUsed: row.tzUsed,
+      processInstanceId,
     };
   }
 

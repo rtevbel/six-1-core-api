@@ -1,5 +1,10 @@
 import { RpcException } from '@nestjs/microservices';
 import { SelectQueryBuilder } from 'typeorm';
+import {
+  isNumericListFilterFieldType,
+  isTemporalListFilterFieldType,
+  normalizeTemporalListFilterBound,
+} from './list-filter-field-type';
 
 export type ListFilterOperator = 'eq' | 'contains' | 'gte' | 'lte' | 'in';
 
@@ -15,6 +20,8 @@ export function appendParameterizedListFilterPredicate(
     value: unknown;
     /** Used in error messages for traceability. */
     logicalField?: string;
+    /** Catalog or column-inferred type (e.g. datetime, number). */
+    fieldType?: string;
   },
   paramKey: string,
 ): void {
@@ -35,10 +42,32 @@ export function appendParameterizedListFilterPredicate(
   }
 
   if (options.operator === 'gte' || options.operator === 'lte') {
+    if (isTemporalListFilterFieldType(options.fieldType)) {
+      let bound: string;
+      try {
+        bound = normalizeTemporalListFilterBound(
+          options.value,
+          options.operator,
+        );
+      } catch {
+        throw new RpcException(
+          `Operator ${options.operator} requires a valid date value for ${fieldLabel}`,
+        );
+      }
+      const comparator = options.operator === 'gte' ? '>=' : '<=';
+      qb.andWhere(`${expression} ${comparator} :${paramKey}`, {
+        [paramKey]: bound,
+      });
+      return;
+    }
+
     const numericValue = Number(options.value);
     if (!Number.isFinite(numericValue)) {
+      const hint = isNumericListFilterFieldType(options.fieldType)
+        ? 'numeric'
+        : 'numeric or date';
       throw new RpcException(
-        `Operator ${options.operator} requires numeric value for ${fieldLabel}`,
+        `Operator ${options.operator} requires ${hint} value for ${fieldLabel}`,
       );
     }
     const comparator = options.operator === 'gte' ? '>=' : '<=';

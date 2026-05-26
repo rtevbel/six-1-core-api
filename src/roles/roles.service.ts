@@ -164,8 +164,9 @@ export class RolesService {
    * @throws RpcException if no record is found.
    */
   async findOne(userId: number, id: number): Promise<RoleEntity> {
-    const role = await this.roleRepository.findOneByOrFail({
-      roleId: id,
+    const role = await this.roleRepository.findOne({
+      where: { roleId: id },
+      relations: ['descriptions', 'permissions'],
     });
 
     if (!role) {
