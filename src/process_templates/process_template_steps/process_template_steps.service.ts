@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateStepEntity } from './entities/process_template_step.entity';
 import { ProcessTemplateStepDescriptionEntity } from './entities/process_template_step_description.entity';
@@ -222,7 +223,10 @@ export class ProcessTemplateStepsService {
       }
     }
 
-    return await this.processTemplateStepRepository.update(id, stepUpdateData);
+    return await this.processTemplateStepRepository.update(
+      id,
+      stepUpdateData as QueryDeepPartialEntity<ProcessTemplateStepEntity>,
+    );
   }
 
   /**

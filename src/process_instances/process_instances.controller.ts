@@ -12,6 +12,7 @@ import { CreateProcessInstanceDto } from './dto/create-process_instance.dto';
 import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { GetProcessInstanceRunnerDto } from './dto/get-process-instance-runner.dto';
+import { StartProcessDto } from './dto/start-process.dto';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RequirePermissions } from '../authorization/authorization.decorator';
@@ -23,16 +24,22 @@ import {
   MICROSERVICE_UPDATE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN,
+  MICROSERVICE_START_PROCESS_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
+import { ProcessLifecycleFacade } from '../automation/process-lifecycle.facade';
+import { StepOrchestratorService } from '../automation/step-orchestrator.service';
+import type { StartProcessResult } from '../automation/process-host/process-host.context';
 
 @Controller('process-instances')
 export class ProcessInstancesController {
   constructor(
     private readonly processInstancesService: ProcessInstancesService,
     private readonly processRunnerService: ProcessRunnerService,
+    private readonly processLifecycle: ProcessLifecycleFacade,
+    private readonly orchestrator: StepOrchestratorService,
   ) {}
 
   /**
@@ -139,5 +146,38 @@ export class ProcessInstancesController {
       dto.processInstanceId,
       dto.tenantId,
     );
+  }
+
+  /**
+   * True start semantics: instantiate + host onProcessStarted + first-step resolution.
+   * Gateway should use this instead of `v0.1_create_process_instance`.
+   */
+  @MessagePattern(MICROSERVICE_START_PROCESS_PATTERN)
+  @RequirePermissions('process_instances.create')
+  @UsePipes(AppRpcValidationPipe)
+  async startProcess(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: StartProcessDto,
+  ): Promise<StartProcessResult> {
+    const result = await this.processLifecycle.startProcess({
+      tenantId: dto.tenantId,
+      createdBy: dto.createdBy ?? userId,
+      templateId: dto.templateId,
+      subjectType: dto.subjectType,
+      subjectId: dto.subjectId,
+      subjectMetadata: dto.subjectMetadata ?? null,
+      context: dto.context ?? null,
+      correlationId: dto.correlationId ?? null,
+    });
+
+    if (result.firstStepInstanceId) {
+      await this.orchestrator.attemptAdvance(result.firstStepInstanceId, {
+        cause: 'manual',
+        correlationId: dto.correlationId ?? undefined,
+        actorTenantUserId: dto.createdBy ?? userId,
+      });
+    }
+
+    return result;
   }
 }

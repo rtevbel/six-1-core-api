@@ -6,6 +6,7 @@ import { ProcessInstancesController } from './process_instances.controller';
 import { ProcessInstanceStepsModule } from './process_instance_steps/process_instance_steps.module';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { AutomationModule } from '../automation/automation.module';
 
 /**
  * ProcessInstancesModule is responsible for managing process instances.
@@ -20,6 +21,7 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
     TypeOrmModule.forFeature([ProcessInstanceEntity]),
     ProcessInstanceStepsModule, // Module for managing process instance steps
     ConfigObjectsModule,
+    AutomationModule,
   ],
   controllers: [ProcessInstancesController],
   providers: [ProcessInstancesService, ProcessRunnerService],
