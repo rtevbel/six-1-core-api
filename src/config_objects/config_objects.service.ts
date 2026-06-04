@@ -5818,8 +5818,62 @@ export class ConfigObjectsService {
     const fieldRegistryByKey = new Set(
       schema.fieldRegistry.map((f) => f.fieldKey),
     );
+    const relationKeys = new Set(
+      (schema.relations ?? []).map((r) => r.relationshipKey),
+    );
     for (const panel of orderedPanels) {
       const panelFieldKeys = this.extractFieldKeysFromPanelLayout(panel);
+      const relationKey = this.extractRelationKeyFromPanel(panel);
+      const isFormSectionRelationPanel =
+        relationKey !== null && panel.panelType === 'form-section';
+
+      if (isFormSectionRelationPanel) {
+        if (!relationKeys.has(relationKey)) {
+          diagnostics.push({
+            code: RuntimeErrorCode.RelationKeyUnresolved,
+            message: `${viewType} panel "${panel.panelKey}" references unknown relation "${relationKey}".`,
+            level: 'warn',
+            refType: 'relationKey',
+            refKey: relationKey,
+          });
+        }
+
+        if (relationKey && !(schema.relationManifestsByKey ?? {})[relationKey]) {
+          diagnostics.push({
+            code: RuntimeErrorCode.RelationKeyUnresolved,
+            message: `${viewType} panel "${panel.panelKey}" references relation "${relationKey}" without relation manifest metadata.`,
+            level: 'warn',
+            refType: 'relationKey',
+            refKey: relationKey,
+          });
+        }
+
+        const relatedRegistry = schema.relatedFieldRegistryByRelationKey?.[relationKey] ?? null;
+        if (!relatedRegistry) {
+          diagnostics.push({
+            code: RuntimeErrorCode.RelationKeyUnresolved,
+            message: `${viewType} panel "${panel.panelKey}" references relation "${relationKey}" without related field registry metadata.`,
+            level: 'warn',
+            refType: 'relationKey',
+            refKey: relationKey,
+          });
+        } else {
+          const relatedFieldKeys = new Set(relatedRegistry.map((d) => d.fieldKey));
+          for (const fieldKey of panelFieldKeys) {
+            if (!relatedFieldKeys.has(fieldKey)) {
+              diagnostics.push({
+                code: RuntimeErrorCode.FieldKeyUnresolved,
+                message: `${viewType} panel "${panel.panelKey}" references unknown related field "${relationKey}::${fieldKey}".`,
+                level: 'warn',
+                refType: 'fieldKey',
+                refKey: fieldKey,
+              });
+            }
+          }
+        }
+        continue;
+      }
+
       for (const fieldKey of panelFieldKeys) {
         if (!fieldRegistryByKey.has(fieldKey)) {
           diagnostics.push({
@@ -5831,12 +5885,9 @@ export class ConfigObjectsService {
           });
         }
       }
+
       if (this.isRelationMembershipPanel(panel)) {
-        const relationKey = this.extractRelationKeyFromPanel(panel);
-        if (
-          relationKey &&
-          !(schema.relationManifestsByKey ?? {})[relationKey]
-        ) {
+        if (relationKey && !(schema.relationManifestsByKey ?? {})[relationKey]) {
           diagnostics.push({
             code: RuntimeErrorCode.RelationKeyUnresolved,
             message: `${viewType} panel "${panel.panelKey}" references relation "${relationKey}" without relation manifest metadata.`,

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantBillingInfoEntity } from './entities/tenant_billing_info.entity';
 import { CreateTenantBillingInfoDto } from './dto/create-tenant_billing_info.dto';
@@ -11,24 +11,62 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantBillingInfoService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantBillingId',
+    'tenantId',
+    'billingEmail',
+    'billingPhone',
+    'billingAddress',
+    'billingCity',
+    'billingState',
+    'billingCountry',
+    'billingPostalCode',
+    'billingCurrency',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantBillingId: 'tbi.tenantBillingId',
+    tenantId: 'tbi.tenantId',
+    billingEmail: 'tbi.billingEmail',
+    billingPhone: 'tbi.billingPhone',
+    billingAddress: 'tbi.billingAddress',
+    billingCity: 'tbi.billingCity',
+    billingState: 'tbi.billingState',
+    billingCountry: 'tbi.billingCountry',
+    billingPostalCode: 'tbi.billingPostalCode',
+    billingCurrency: 'tbi.billingCurrency',
+    createdBy: 'tbi.createdBy',
+    updatedBy: 'tbi.updatedBy',
+    createdAt: 'tbi.createdAt',
+    updatedAt: 'tbi.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantBillingInfoEntity)
     private readonly tenantBillingInfoRepository: Repository<TenantBillingInfoEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
    * Creates a new tenant billing info record.
    * @param userId - ID of the user making the request.
-   * @param tenantId - ID of the tenant.
    * @param createTenantBillingInfoDto - DTO containing billing info details.
    * @returns The created TenantBillingInfoEntity.
    */
@@ -42,22 +80,74 @@ export class TenantBillingInfoService {
       this.tenantBillingInfoRepository.create(createTenantBillingInfoDto),
     );
   }
+
   /**
-   * Retrieves billing info records based on filters.
+   * Retrieves billing info records based on catalog-backed dynamic filters.
    * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for searching and sorting records.
+   * @param filtersDto - Filters for searching, structured filtering, sorting, and pagination.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilter(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [billingInfoRecords, total] =
-      await this.tenantBillingInfoRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantBillingInfoEntity);
 
-    if (billingInfoRecords.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantBillingInfoEntity> = {
+      repository: this.tenantBillingInfoRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tbi',
+      rootEntityClass: TenantBillingInfoEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [
+        'billingEmail',
+        'billingPhone',
+        'billingAddress',
+        'billingCity',
+        'billingState',
+        'billingCountry',
+        'billingPostalCode',
+        'billingCurrency',
+      ],
+      fallbackCoreFields: TenantBillingInfoService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantBillingInfoService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantBillingId',
+      tieBreakOrderBySql: 'tbi.tenantBillingId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tbi.tenantId = :tbiTenantId', {
+          tbiTenantId: row.tenantId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant billing info configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: billingInfoRecords, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!billingInfoRecords.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -69,7 +159,7 @@ export class TenantBillingInfoService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: billingInfoRecords,
-      contactBillingInfoRecords: billingInfoRecords,
+      billingInfoRecords,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -171,49 +261,8 @@ export class TenantBillingInfoService {
     });
   }
 
-  /**
-   * Builds a query object for filtering and pagination.
-   * @param filtersDto - DTO containing filter and pagination options.
-   * @returns The query object.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    query.where = { tenantId: filtersDto.tenantId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { billing_address: Like(`%${filtersDto.search}%`) },
-        { tax_id: Like(`%${filtersDto.search}%`) },
-        { currency: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination metadata.
-   * @param filtersDto - DTO containing pagination options.
-   * @param total - Total number of records.
-   * @returns Pagination metadata.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

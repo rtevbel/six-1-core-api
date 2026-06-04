@@ -11,7 +11,7 @@ import { TenantBillingInfoEntity } from '../entities/tenant_billing_info.entity'
  */
 export interface FindAllResultInterface {
   items: TenantBillingInfoEntity[];
-  contactBillingInfoRecords: TenantBillingInfoEntity[];
+  billingInfoRecords: TenantBillingInfoEntity[];
   page: number;
   limit: number;
   total: number;

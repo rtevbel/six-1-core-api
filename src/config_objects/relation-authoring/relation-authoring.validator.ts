@@ -31,6 +31,7 @@ const RELATION_MANIFEST_MODES = [
   'related_list',
   'inline_required',
   'inline_optional',
+  'embedded_form',
 ] as const;
 type RelationManifestMode = (typeof RELATION_MANIFEST_MODES)[number];
 
@@ -44,6 +45,29 @@ const RELATION_MANIFEST_DISPLAY_MODES = [
 ] as const;
 type RelationManifestDisplayMode =
   (typeof RELATION_MANIFEST_DISPLAY_MODES)[number];
+
+function assertRefToken(value: unknown, label: string): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new RelationAuthoringValidationError(`${label} must be a non-empty string`);
+  }
+  const token = value.trim();
+  if (/https?:\/\//i.test(token) || token.includes('://')) {
+    throw new RelationAuthoringValidationError(
+      `${label} must be a ref token, not a URL`,
+    );
+  }
+  return token;
+}
+
+function assertManifestApiKeyRef(value: unknown, label: string): string {
+  const token = assertRefToken(value, label);
+  if (!/^api\.[A-Za-z0-9_]+$/.test(token)) {
+    throw new RelationAuthoringValidationError(
+      `${label} must be a manifest api key like "api.get" (got "${token}")`,
+    );
+  }
+  return token;
+}
 
 /**
  * B-5: validates optional `queryConfig.inlineRelation` for nested DTO binding.
@@ -136,18 +160,7 @@ export function validateAndNormalizeRelationManifestsByKey(
       if (v === undefined || v === null) {
         continue;
       }
-      if (typeof v !== 'string' || !v.trim()) {
-        throw new RelationAuthoringValidationError(
-          `relationManifestsByKey.${key}.${k} must be a non-empty string when set`,
-        );
-      }
-      const token = v.trim();
-      if (/https?:\/\//i.test(token) || token.includes('://')) {
-        throw new RelationAuthoringValidationError(
-          `relationManifestsByKey.${key}.${k} must be a ref token, not a URL`,
-        );
-      }
-      entry[k] = token;
+      entry[k] = assertRefToken(v, `relationManifestsByKey.${key}.${k}`);
     }
 
     const modeRaw = b.mode;
@@ -259,6 +272,67 @@ export function validateAndNormalizeRelationManifestsByKey(
       if (!entry.columns) {
         throw new RelationAuthoringValidationError(
           `relationManifestsByKey.${key}.columns is required for mode relation_membership`,
+        );
+      }
+    }
+
+    if (entry.mode === 'embedded_form') {
+      if (typeof entry.targetEntityKey !== 'string' || !entry.targetEntityKey) {
+        throw new RelationAuthoringValidationError(
+          `relationManifestsByKey.${key}.targetEntityKey is required for mode embedded_form`,
+        );
+      }
+      if (entry.displayMode !== 'form-section') {
+        throw new RelationAuthoringValidationError(
+          `relationManifestsByKey.${key}.displayMode must be "form-section" for mode embedded_form`,
+        );
+      }
+      if (!entry.actions || typeof entry.actions !== 'object' || Array.isArray(entry.actions)) {
+        throw new RelationAuthoringValidationError(
+          `relationManifestsByKey.${key}.actions is required for mode embedded_form`,
+        );
+      }
+
+      const actions = entry.actions as Record<string, unknown>;
+      const upsertRef = actions.upsertRef;
+      const createRef = actions.createRef;
+      const updateRef = actions.updateRef;
+      const loadRef = actions.loadRef;
+
+      if (upsertRef !== undefined && upsertRef !== null) {
+        actions.upsertRef = assertManifestApiKeyRef(
+          upsertRef,
+          `relationManifestsByKey.${key}.actions.upsertRef`,
+        );
+      }
+      if (createRef !== undefined && createRef !== null) {
+        actions.createRef = assertManifestApiKeyRef(
+          createRef,
+          `relationManifestsByKey.${key}.actions.createRef`,
+        );
+      }
+      if (updateRef !== undefined && updateRef !== null) {
+        actions.updateRef = assertManifestApiKeyRef(
+          updateRef,
+          `relationManifestsByKey.${key}.actions.updateRef`,
+        );
+      }
+      if (loadRef !== undefined && loadRef !== null) {
+        actions.loadRef = assertManifestApiKeyRef(
+          loadRef,
+          `relationManifestsByKey.${key}.actions.loadRef`,
+        );
+      }
+
+      const hasUpsert = typeof actions.upsertRef === 'string' && actions.upsertRef.length > 0;
+      const hasCreate =
+        typeof actions.createRef === 'string' && actions.createRef.length > 0;
+      const hasUpdate =
+        typeof actions.updateRef === 'string' && actions.updateRef.length > 0;
+
+      if (!hasUpsert && !(hasCreate && hasUpdate)) {
+        throw new RelationAuthoringValidationError(
+          `relationManifestsByKey.${key}.actions must include upsertRef or both createRef and updateRef for mode embedded_form`,
         );
       }
     }

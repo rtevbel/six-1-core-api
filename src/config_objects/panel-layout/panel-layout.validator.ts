@@ -3,6 +3,7 @@ import {
   PANEL_LAYOUT_CONFIG_TOP_LEVEL_KEYS,
   PANEL_LAYOUT_DATA_BINDING_VALUES,
   PANEL_LAYOUT_DISPLAY_MODES,
+  PANEL_LAYOUT_RELATION_PANEL_MODES,
 } from './panel-layout.constants';
 import type {
   PanelLayoutConfig,
@@ -123,6 +124,42 @@ function isDisplayMode(value: unknown): value is PanelLayoutDisplayMode {
   );
 }
 
+function assertDataBindingValue(
+  value: unknown,
+  field: string,
+): PanelLayoutConfig['dataBinding'] | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (
+    typeof value !== 'string' ||
+    !(PANEL_LAYOUT_DATA_BINDING_VALUES as readonly string[]).includes(value)
+  ) {
+    throw new PanelLayoutConfigValidationError(
+      `${field} must be one of: ${PANEL_LAYOUT_DATA_BINDING_VALUES.join(', ')}`,
+    );
+  }
+  return value as PanelLayoutConfig['dataBinding'];
+}
+
+function assertRelationPanelModeValue(
+  value: unknown,
+  field: string,
+): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+  if (
+    typeof value !== 'string' ||
+    !(PANEL_LAYOUT_RELATION_PANEL_MODES as readonly string[]).includes(value)
+  ) {
+    throw new PanelLayoutConfigValidationError(
+      `${field} must be one of: ${PANEL_LAYOUT_RELATION_PANEL_MODES.join(', ')}`,
+    );
+  }
+  return value;
+}
+
 function normalizeFieldLabelByKeyMap(
   value: unknown,
 ): Record<string, string> | undefined {
@@ -163,6 +200,10 @@ function validateLayoutForMode(
         'targetEntityKey',
         'selectionControl',
         'fieldLabelByKey',
+        'dataBinding',
+        'relationPanelMode',
+        'form',
+        'list',
       ]);
       const unknownKeys = Object.keys(layout).filter((k) => !allowed.has(k));
       if (unknownKeys.length) {
@@ -252,6 +293,28 @@ function validateLayoutForMode(
       if (fieldLabelByKey && Object.keys(fieldLabelByKey).length) {
         out.fieldLabelByKey = fieldLabelByKey;
       }
+      const layoutDataBinding = assertDataBindingValue(
+        layout.dataBinding,
+        'layout.dataBinding',
+      );
+      if (layoutDataBinding) {
+        out.dataBinding = layoutDataBinding;
+      }
+      const relationPanelMode = assertRelationPanelModeValue(
+        layout.relationPanelMode,
+        'layout.relationPanelMode',
+      );
+      if (relationPanelMode) {
+        out.relationPanelMode = relationPanelMode;
+      }
+      const form = assertOptionalPlainObject(layout.form, 'layout.form');
+      if (form) {
+        out.form = form;
+      }
+      const list = assertOptionalPlainObject(layout.list, 'layout.list');
+      if (list) {
+        out.list = list;
+      }
       return out;
     }
     case 'cards': {
@@ -328,7 +391,13 @@ function validateLayoutForMode(
       return out;
     }
     case 'form-section': {
-      const allowed = new Set(['sections', 'fieldOrder']);
+      const allowed = new Set([
+        'sections',
+        'fieldOrder',
+        'relationKey',
+        'targetEntityKey',
+        'dataBinding',
+      ]);
       const unknownKeys = Object.keys(layout).filter((k) => !allowed.has(k));
       if (unknownKeys.length) {
         throw new PanelLayoutConfigValidationError(
@@ -367,6 +436,33 @@ function validateLayoutForMode(
       if (hasSec) {
         out.sections = sections;
       }
+
+      if (layout.relationKey !== undefined && layout.relationKey !== null) {
+        if (typeof layout.relationKey !== 'string' || !layout.relationKey.trim()) {
+          throw new PanelLayoutConfigValidationError(
+            'layout.relationKey must be a non-empty string when set',
+          );
+        }
+        out.relationKey = layout.relationKey.trim();
+      }
+
+      if (layout.targetEntityKey !== undefined && layout.targetEntityKey !== null) {
+        if (
+          typeof layout.targetEntityKey !== 'string' ||
+          !layout.targetEntityKey.trim()
+        ) {
+          throw new PanelLayoutConfigValidationError(
+            'layout.targetEntityKey must be a non-empty string when set',
+          );
+        }
+        out.targetEntityKey = layout.targetEntityKey.trim();
+      }
+
+      const dataBinding = assertDataBindingValue(layout.dataBinding, 'layout.dataBinding');
+      if (dataBinding) {
+        out.dataBinding = dataBinding;
+      }
+
       return out;
     }
     case 'timeline': {
@@ -490,19 +586,7 @@ export function validateAndNormalizePanelLayoutConfigJson(
   }
   const displayMode = displayModeRaw;
 
-  const dataBindingRaw = obj.dataBinding;
-  if (dataBindingRaw !== undefined && dataBindingRaw !== null) {
-    if (
-      typeof dataBindingRaw !== 'string' ||
-      !(PANEL_LAYOUT_DATA_BINDING_VALUES as readonly string[]).includes(
-        dataBindingRaw,
-      )
-    ) {
-      throw new PanelLayoutConfigValidationError(
-        `dataBinding must be one of: ${PANEL_LAYOUT_DATA_BINDING_VALUES.join(', ')}`,
-      );
-    }
-  }
+  const dataBinding = assertDataBindingValue(obj.dataBinding, 'dataBinding');
 
   const layoutRaw = obj.layout;
   if (layoutRaw === undefined || layoutRaw === null) {
@@ -524,13 +608,8 @@ export function validateAndNormalizePanelLayoutConfigJson(
     layout,
   };
 
-  if (
-    dataBindingRaw !== undefined &&
-    dataBindingRaw !== null &&
-    typeof dataBindingRaw === 'string' &&
-    (PANEL_LAYOUT_DATA_BINDING_VALUES as readonly string[]).includes(dataBindingRaw)
-  ) {
-    out.dataBinding = dataBindingRaw as PanelLayoutConfig['dataBinding'];
+  if (dataBinding) {
+    out.dataBinding = dataBinding;
   }
   if (actions) {
     out.actions = actions;

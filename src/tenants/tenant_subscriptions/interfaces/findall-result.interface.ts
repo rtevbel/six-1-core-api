@@ -11,7 +11,7 @@ import { TenantSubscriptionEntity } from '../entities/tenant_subscription.entity
  */
 export interface FindAllResultInterface {
   items: TenantSubscriptionEntity[];
-  tennantSubscriptions: TenantSubscriptionEntity[];
+  tenantSubscriptions: TenantSubscriptionEntity[];
   page: number;
   limit: number;
   total: number;

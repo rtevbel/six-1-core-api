@@ -171,26 +171,30 @@ export class AuthService {
   async login(user: any): Promise<UserJWTTokenResponseInterface> {
     const payload = { username: user.username, userId: user.userId };
 
+    const refreshExpirationDaysStr = this.configService.get<string>(
+      JWT_REFRESH_TOKEN_EXPIRATION_TIME,
+    );
+    const refreshExpirationDays = refreshExpirationDaysStr
+      ? parseInt(
+          ensureDefinedConfigParam(
+            refreshExpirationDaysStr,
+            JWT_REFRESH_TOKEN_EXPIRATION_TIME,
+          ),
+          10,
+        )
+      : 7;
+    const refreshExpiresInSeconds = refreshExpirationDays * 86400;
+
     const response = {
       access_token: this.jwtService.sign(payload),
       refresh_token: this.jwtService.sign(payload, {
         secret: this.configService.get<string>(JWT_REFRESH_TOKEN_SECRET_KEY),
-        expiresIn: this.configService.get<string>(
-          JWT_REFRESH_TOKEN_EXPIRATION_TIME,
-        ),
+        expiresIn: refreshExpiresInSeconds,
       }),
     };
 
     // Store refresh_token in redis database to handle it's expiry and removal
-    const expiresIn =
-      (this.configService.get<string>(JWT_REFRESH_TOKEN_EXPIRATION_TIME)
-        ? parseInt(
-            ensureDefinedConfigParam(
-              this.configService.get<string>(JWT_REFRESH_TOKEN_EXPIRATION_TIME),
-              JWT_REFRESH_TOKEN_EXPIRATION_TIME,
-            ),
-          )
-        : 7) * 86400; // 7 days in seconds
+    const expiresIn = refreshExpiresInSeconds;
 
     const hased_refresh_token = await hash_content(response.refresh_token);
     this.redisClient.set(

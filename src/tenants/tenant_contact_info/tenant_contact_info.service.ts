@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantContactInfoEntity } from './entities/tenant_contact_info.entity';
 import { CreateTenantContactInfoDto } from './dto/create-tenant_contact_info.dto';
@@ -11,18 +11,55 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantContactInfoService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'tenantContactId',
+    'tenantId',
+    'email',
+    'phone',
+    'address',
+    'city',
+    'state',
+    'country',
+    'postalCode',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    tenantContactId: 'tci.tenantContactId',
+    tenantId: 'tci.tenantId',
+    email: 'tci.email',
+    phone: 'tci.phone',
+    address: 'tci.address',
+    city: 'tci.city',
+    state: 'tci.state',
+    country: 'tci.country',
+    postalCode: 'tci.postalCode',
+    createdBy: 'tci.createdBy',
+    updatedBy: 'tci.updatedBy',
+    createdAt: 'tci.createdAt',
+    updatedAt: 'tci.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantContactInfoEntity)
     private readonly tenantContactInfoRepository: Repository<TenantContactInfoEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -46,21 +83,71 @@ export class TenantContactInfoService {
   }
 
   /**
-   * Retrieves contact information records based on filters.
+   * Retrieves contact information records based on catalog-backed dynamic filters.
    * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for searching and sorting records.
+   * @param filtersDto - Filters for searching, structured filtering, sorting, and pagination.
    * @returns An object containing the filtered records and pagination details.
    */
   async findAllByFilters(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [contactInfoRecords, total] =
-      await this.tenantContactInfoRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(TenantContactInfoEntity);
 
-    if (contactInfoRecords.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantContactInfoEntity> = {
+      repository: this.tenantContactInfoRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'tci',
+      rootEntityClass: TenantContactInfoEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: [
+        'email',
+        'phone',
+        'address',
+        'city',
+        'state',
+        'country',
+        'postalCode',
+      ],
+      fallbackCoreFields: TenantContactInfoService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantContactInfoService.FALLBACK_EXPR,
+      defaultSortCoreField: 'tenantContactId',
+      tieBreakOrderBySql: 'tci.tenantContactId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('tci.tenantId = :tciTenantId', {
+          tciTenantId: row.tenantId,
+        });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant contact info configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: contactInfoRecords, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!contactInfoRecords.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -72,7 +159,7 @@ export class TenantContactInfoService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: contactInfoRecords,
-      contactInfoRecords: contactInfoRecords,
+      contactInfoRecords,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -174,51 +261,8 @@ export class TenantContactInfoService {
     });
   }
 
-  /**
-   * Builds a query object for filtering and sorting records.
-   * @param filtersDto - Filters for searching and sorting records.
-   * @returns The query object.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    // Ensure tenantId is always included in the query
-    query.where = { tenantId: filtersDto.tenantId };
-
-    if (filtersDto.search) {
-      query.where = [
-        { phone: Like(`%${filtersDto.search}%`) },
-        { email: Like(`%${filtersDto.search}%`) },
-        { address: Like(`%${filtersDto.search}%`) },
-        { postal_code: Like(`%${filtersDto.search}%`) },
-      ];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for the filtered records.
-   * @param filtersDto - Filters for pagination.
-   * @param total - Total number of records.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

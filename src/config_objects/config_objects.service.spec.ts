@@ -2316,6 +2316,91 @@ describe('ConfigObjectsService', () => {
     ).toBe(true);
   });
 
+  it('getRuntimeManifest should validate form-section relation panels against related field registry', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'tenant' },
+      fields: [],
+      fieldRegistry: [{ fieldKey: 'name', label: 'Name' }],
+      relations: [
+        {
+          relationshipKey: 'tenant_billing_info',
+          toObjectType: 'tenant_billing_info',
+          cardinality: 'many_to_one',
+          queryConfig: {},
+        },
+      ],
+      relationManifestsByKey: {
+        tenant_billing_info: {
+          mode: 'embedded_form',
+          targetEntityKey: 'tenant_billing_info',
+          displayMode: 'form-section',
+          actions: { upsertRef: 'six1:action:tenantBillingInfo.upsert' },
+        },
+      },
+      relatedFieldRegistryByRelationKey: {
+        tenant_billing_info: [{ fieldKey: 'billingEmail', label: 'Billing email' }],
+      },
+    } as any);
+
+    jest
+      .spyOn(service, 'getActiveScopedConfigView')
+      .mockResolvedValueOnce({
+        configObjectViewId: 1,
+        viewType: 'list',
+        configJson: { schemaVersion: 1, table: { columns: ['name'] } },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 2,
+        viewType: 'detail',
+        configJson: { schemaVersion: 1, panels: ['billing_panel'] },
+      } as any)
+      .mockResolvedValueOnce({
+        configObjectViewId: 3,
+        viewType: 'form',
+        configJson: { schemaVersion: 1, panels: ['billing_panel'] },
+      } as any);
+
+    jest.spyOn(panelRepo, 'find').mockResolvedValue([
+      {
+        panelKey: 'billing_panel',
+        title: 'Billing',
+        panelType: 'form-section',
+        orderIndex: 10,
+        layoutConfig: {
+          schemaVersion: 1,
+          displayMode: 'form-section',
+          layout: {
+            relationKey: 'tenant_billing_info',
+            fieldOrder: ['billingEmail', 'unknownKey'],
+          },
+        },
+      },
+    ] as any);
+
+    const manifest = await service.getRuntimeManifest({
+      tenantId: 1,
+      entityKey: 'tenant',
+      includeDiagnostics: true,
+    });
+
+    expect(
+      manifest.diagnostics.some(
+        (d) =>
+          d.code === RuntimeErrorCode.FieldKeyUnresolved &&
+          d.message.includes('tenant_billing_info::unknownKey'),
+      ),
+    ).toBe(true);
+
+    // Ensure we did not incorrectly validate related fields against root fieldRegistry.
+    expect(
+      manifest.diagnostics.some(
+        (d) =>
+          d.code === RuntimeErrorCode.FieldKeyUnresolved &&
+          d.message.includes('unknown field "billingEmail"'),
+      ),
+    ).toBe(false);
+  });
+
   it('validateRuntimeRelationAction should reject missing required permissions', async () => {
     jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
       configObject: { objectType: 'project' },

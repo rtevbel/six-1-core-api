@@ -1,22 +1,27 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Queue, JobsOptions, QueueEvents } from 'bullmq';
-import IORedis from 'ioredis';
 import { SchedulerPort } from './scheduler.port';
 
 @Injectable()
 export class BullMqSchedulerAdapter implements SchedulerPort, OnModuleDestroy {
-  private readonly connection: IORedis;
+  private readonly connection: {
+    host: string;
+    port: number;
+    password?: string;
+    maxRetriesPerRequest: null;
+    enableReadyCheck: boolean;
+  };
   private readonly queue: Queue;
   private readonly queueEvents: QueueEvents;
 
   constructor() {
-    this.connection = new IORedis({
+    this.connection = {
       host: process.env.REDIS_HOST ?? '127.0.0.1',
       port: +(process.env.REDIS_PORT ?? 6379),
       password: process.env.REDIS_PASSWORD || undefined,
       maxRetriesPerRequest: null,
       enableReadyCheck: true,
-    });
+    };
 
     const queueName = process.env.AUTOMATION_QUEUE ?? 'automation';
     this.queue = new Queue(queueName, { connection: this.connection });
@@ -46,7 +51,6 @@ export class BullMqSchedulerAdapter implements SchedulerPort, OnModuleDestroy {
     await Promise.allSettled([
       this.queue.close(),
       this.queueEvents.close(),
-      this.connection.quit(),
     ]);
   }
 }

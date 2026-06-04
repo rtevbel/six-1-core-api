@@ -35,12 +35,11 @@ export class TenantBillingInfoController {
    * @returns The created tenant billing info entity.
    */
   @MessagePattern(MICROSERVICE_CREATE_TENANT_BILLING_INFO_PATTERN)
-  //@UsePipes(AppRpcValidationPipe)
+  @UsePipes(AppRpcValidationPipe)
   async createBillingInfo(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createTenantBillingInfoDto: CreateTenantBillingInfoDto,
   ): Promise<TenantBillingInfoEntity> {
-    console.log(createTenantBillingInfoDto, 'createTenantBillingInfoDto');
     return this.tenantBillingInfoService.create(
       userId,
       createTenantBillingInfoDto,

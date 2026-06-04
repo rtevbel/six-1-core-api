@@ -63,6 +63,42 @@ describe('validateAndNormalizeRelationManifestsByKey', () => {
     expect(out?.role_permissions?.columns).toEqual(['code', 'name', 'isAssigned']);
   });
 
+  it('accepts embedded_form manifest blocks', () => {
+    const out = validateAndNormalizeRelationManifestsByKey({
+      tenant_billing_info: {
+        mode: 'embedded_form',
+        targetEntityKey: 'tenant_billing_info',
+        displayMode: 'form-section',
+        actions: {
+          loadRef: 'api.get',
+          upsertRef: 'api.upsert',
+        },
+      },
+    });
+
+    expect(out?.tenant_billing_info?.mode).toBe('embedded_form');
+    expect(out?.tenant_billing_info?.displayMode).toBe('form-section');
+    expect(out?.tenant_billing_info?.actions).toEqual({
+      loadRef: 'api.get',
+      upsertRef: 'api.upsert',
+    });
+  });
+
+  it('rejects embedded_form when required keys are missing', () => {
+    expect(() =>
+      validateAndNormalizeRelationManifestsByKey({
+        tenant_billing_info: {
+          mode: 'embedded_form',
+          targetEntityKey: 'tenant_billing_info',
+          displayMode: 'form-section',
+          actions: {
+            loadRef: 'api.get',
+          },
+        },
+      }),
+    ).toThrow(/must include upsertRef or both createRef and updateRef/);
+  });
+
   it('rejects relation_membership when required keys are missing', () => {
     expect(() =>
       validateAndNormalizeRelationManifestsByKey({

@@ -1,17 +1,28 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { TenantSubscriptionsService } from './tenant_subscriptions.service';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { TenantSubscriptionService } from './tenant_subscriptions.service';
+import { TenantSubscriptionEntity } from './entities/tenant_subscription.entity';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
 
-describe('TenantSubscriptionsService', () => {
-  let service: TenantSubscriptionsService;
+describe('TenantSubscriptionService', () => {
+  let service: TenantSubscriptionService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [TenantSubscriptionsService],
+      providers: [
+        TenantSubscriptionService,
+        {
+          provide: getRepositoryToken(TenantSubscriptionEntity),
+          useValue: {},
+        },
+        {
+          provide: ConfigObjectsService,
+          useValue: {},
+        },
+      ],
     }).compile();
 
-    service = module.get<TenantSubscriptionsService>(
-      TenantSubscriptionsService,
-    );
+    service = module.get<TenantSubscriptionService>(TenantSubscriptionService);
   });
 
   it('should be defined', () => {

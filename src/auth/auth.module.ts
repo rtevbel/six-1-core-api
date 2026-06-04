@@ -30,6 +30,7 @@ import {
   JWT_EXPIRATION_TIME_KEY,
   JWT_SECRET_KEY,
 } from './constants';
+import { resolveJwtExpiresIn } from './jwt-expiration';
 
 /**
  * AuthModule is responsible for authentication and authorization.
@@ -91,7 +92,9 @@ import {
           JWT_SECRET_KEY,
         ),
         signOptions: {
-          expiresIn: configService.get<string>(JWT_EXPIRATION_TIME_KEY),
+          expiresIn: resolveJwtExpiresIn(
+            configService.get<string>(JWT_EXPIRATION_TIME_KEY),
+          ),
         },
       }),
       inject: [ConfigService],

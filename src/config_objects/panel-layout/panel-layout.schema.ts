@@ -2,6 +2,7 @@ import {
   PANEL_LAYOUT_CONFIG_SCHEMA_VERSION,
   PANEL_LAYOUT_DATA_BINDING_VALUES,
   PANEL_LAYOUT_DISPLAY_MODES,
+  PANEL_LAYOUT_RELATION_PANEL_MODES,
 } from './panel-layout.constants';
 
 /**
@@ -13,4 +14,5 @@ export const panelLayoutConfigV1SchemaMetadata = {
   schemaVersion: PANEL_LAYOUT_CONFIG_SCHEMA_VERSION,
   displayModes: [...PANEL_LAYOUT_DISPLAY_MODES],
   dataBindings: [...PANEL_LAYOUT_DATA_BINDING_VALUES],
+  relationPanelModes: [...PANEL_LAYOUT_RELATION_PANEL_MODES],
 } as const;

@@ -106,6 +106,57 @@ describe('validateAndNormalizePanelLayoutConfigJson', () => {
     expect(out?.layout).toEqual({ fieldOrder: ['a', 'b'] });
   });
 
+  it('accepts form-section with relation metadata in layout', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'form-section',
+      layout: {
+        fieldOrder: ['billingEmail', 'billingPhone'],
+        relationKey: 'tenant_billing_info',
+        targetEntityKey: 'tenant_billing_info',
+      },
+    });
+    expect(out?.layout).toEqual({
+      fieldOrder: ['billingEmail', 'billingPhone'],
+      relationKey: 'tenant_billing_info',
+      targetEntityKey: 'tenant_billing_info',
+    });
+  });
+
+  it('accepts form-section with layout.dataBinding for relation-bound forms', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'form-section',
+      layout: {
+        sections: [
+          {
+            fields: ['billingEmail', 'billingPhone'],
+            fieldConfigByKey: {
+              billingEmail: { inputType: 'email', label: 'Email', required: true },
+            },
+          },
+        ],
+        relationKey: 'tenant_billing_info',
+        targetEntityKey: 'tenant_billing_info',
+        dataBinding: 'relation',
+      },
+    });
+    expect(out?.layout).toEqual({
+      sections: [
+        {
+          fields: ['billingEmail', 'billingPhone'],
+          fieldConfigByKey: {
+            billingEmail: { inputType: 'email', label: 'Email', required: true },
+          },
+        },
+      ],
+      relationKey: 'tenant_billing_info',
+      targetEntityKey: 'tenant_billing_info',
+      dataBinding: 'relation',
+    });
+    expect(out?.dataBinding).toBeUndefined();
+  });
+
   it('accepts timeline with timeField', () => {
     const out = validateAndNormalizePanelLayoutConfigJson({
       schemaVersion: 1,
@@ -213,5 +264,74 @@ describe('validateAndNormalizePanelLayoutConfigJson', () => {
       targetEntityKey: 'roles',
       selectionControl: 'checkbox',
     });
+  });
+
+  it('accepts table layout with relation form/list authoring blocks', () => {
+    const out = validateAndNormalizePanelLayoutConfigJson({
+      schemaVersion: 1,
+      displayMode: 'table',
+      dataBinding: 'relation',
+      layout: {
+        columns: ['billingEmail', 'billingPhone'],
+        dataBinding: 'relation',
+        relationKey: 'tenant_billing_info',
+        targetEntityKey: 'tenant_billing_info',
+        relationPanelMode: 'related_list',
+        form: {
+          sections: [
+            {
+              fields: ['billingEmail'],
+              title: 'Billing Info',
+              fieldConfigByKey: {
+                billingEmail: { inputType: 'email', label: 'Email', required: true },
+              },
+            },
+          ],
+        },
+        list: {
+          filters: [
+            {
+              source: 'core',
+              field: 'billingCurrency',
+              operator: 'in',
+              value: ['USD'],
+            },
+          ],
+          defaultSort: {
+            field: 'billingEmail',
+            sortBy: 'billingEmail',
+            direction: 'asc',
+          },
+        },
+        fieldLabelByKey: { billingEmail: 'Email' },
+      },
+      actions: [],
+      pagination: { limit: 10 },
+    });
+    expect(out?.dataBinding).toBe('relation');
+    expect(out?.layout).toMatchObject({
+      columns: ['billingEmail', 'billingPhone'],
+      dataBinding: 'relation',
+      relationKey: 'tenant_billing_info',
+      targetEntityKey: 'tenant_billing_info',
+      relationPanelMode: 'related_list',
+      fieldLabelByKey: { billingEmail: 'Email' },
+    });
+    expect(out?.layout.form).toBeDefined();
+    expect(out?.layout.list).toBeDefined();
+    expect(out?.pagination).toEqual({ limit: 10 });
+  });
+
+  it('rejects invalid layout.relationPanelMode for table', () => {
+    expect(() =>
+      validateAndNormalizePanelLayoutConfigJson({
+        schemaVersion: 1,
+        displayMode: 'table',
+        layout: {
+          columns: ['a'],
+          relationPanelMode: 'bogus',
+        },
+      }),
+    ).toThrow(/layout.relationPanelMode/);
   });
 });

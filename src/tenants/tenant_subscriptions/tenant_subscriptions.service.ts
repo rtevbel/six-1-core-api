@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantSubscriptionEntity } from './entities/tenant_subscription.entity';
 import { CreateTenantSubscriptionDto } from './dto/create-tenant_subscription.dto';
@@ -11,18 +11,45 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { ConfigObjectsService } from '../../config_objects/config_objects.service';
+import { canonicalListObjectTypeForEntity } from '../../config_objects/list-query/catalog-list-object-type.util';
+import {
+  executeCatalogBackedDynamicListQuery,
+  type CatalogBackedDynamicListContext,
+} from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 @Injectable()
 export class TenantSubscriptionService {
+  private static readonly FALLBACK_FIELDS = new Set([
+    'subscriptionId',
+    'tenantId',
+    'plan',
+    'startDate',
+    'endDate',
+    'isActive',
+    'createdAt',
+    'updatedAt',
+  ]);
+
+  private static readonly FALLBACK_EXPR: Record<string, string> = {
+    subscriptionId: 'ts.subscriptionId',
+    tenantId: 'ts.tenantId',
+    plan: 'ts.plan',
+    startDate: 'ts.startDate',
+    endDate: 'ts.endDate',
+    isActive: 'ts.isActive',
+    createdAt: 'ts.createdAt',
+    updatedAt: 'ts.updatedAt',
+  };
+
   constructor(
     @InjectRepository(TenantSubscriptionEntity)
     private readonly tenantSubscriptionRepository: Repository<TenantSubscriptionEntity>,
+    private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
   /**
@@ -45,21 +72,63 @@ export class TenantSubscriptionService {
   }
 
   /**
-   * Finds subscriptions based on filters and pagination.
+   * Finds subscriptions based on catalog-backed dynamic filters.
    * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters and pagination options.
+   * @param filtersDto - Filters for searching, structured filtering, sorting, and pagination.
    * @returns Filtered subscriptions and pagination details.
    */
   async findAllByFilter(
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
-    const findQuery = this.buildFindQuery(filtersDto);
+    if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
+      filtersDto.limit = Math.min(filtersDto.limit, 10);
+    }
+    if (!filtersDto.page || filtersDto.page < 1) {
+      filtersDto.page = 1;
+    }
 
-    const [subscriptions, total] =
-      await this.tenantSubscriptionRepository.findAndCount(findQuery);
+    const canonical = canonicalListObjectTypeForEntity(
+      TenantSubscriptionEntity,
+    );
 
-    if (subscriptions.length === 0) {
+    const ctx: CatalogBackedDynamicListContext<TenantSubscriptionEntity> = {
+      repository: this.tenantSubscriptionRepository,
+      configObjectsService: this.configObjectsService,
+      canonicalObjectType: canonical,
+      rootAlias: 'ts',
+      rootEntityClass: TenantSubscriptionEntity,
+      denyCatalogCanonicalType: canonical,
+      searchCorePropertyNames: ['plan'],
+      fallbackCoreFields: TenantSubscriptionService.FALLBACK_FIELDS,
+      fallbackCoreColumnExpressions: TenantSubscriptionService.FALLBACK_EXPR,
+      defaultSortCoreField: 'subscriptionId',
+      tieBreakOrderBySql: 'ts.subscriptionId',
+      catalogTenantResolver: (f) => {
+        const row = f as FiltersDto;
+        if (
+          typeof row.catalogTenantId === 'number' &&
+          row.catalogTenantId > 0
+        ) {
+          return row.catalogTenantId;
+        }
+        return typeof row.tenantId === 'number' && row.tenantId > 0
+          ? row.tenantId
+          : null;
+      },
+      applyMandatoryScope: (qb, filters) => {
+        const row = filters as FiltersDto;
+        qb.andWhere('ts.tenantId = :tsTenantId', { tsTenantId: row.tenantId });
+      },
+      schemaMissingForRelatedFiltersMessage:
+        'Tenant subscription configuration schema is required for related list filters.',
+      maxPageSize: 10,
+    };
+
+    const { rows: subscriptions, total } =
+      await executeCatalogBackedDynamicListQuery(ctx, filtersDto);
+
+    if (!subscriptions.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -71,7 +140,7 @@ export class TenantSubscriptionService {
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: subscriptions,
-      tennantSubscriptions: subscriptions,
+      tenantSubscriptions: subscriptions,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -171,47 +240,8 @@ export class TenantSubscriptionService {
     });
   }
 
-  /**
-   * Builds the query for filtering subscriptions.
-   * @param filtersDto - Filters and pagination options.
-   * @returns The query object for filtering.
-   */
-  private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {};
-
-    if (filtersDto.tenantId) {
-      query.where = [{ tenantId: filtersDto.tenantId }];
-    }
-
-    if (filtersDto.search) {
-      query.where = [{ plan: Like(`%${filtersDto.search}%`) }];
-    }
-
-    if (filtersDto.sortBy) {
-      query.order = {
-        [filtersDto.sortBy]: filtersDto.sortOrder || 'ASC',
-      };
-    }
-
-    if (filtersDto.limit) {
-      filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
-
-      query.take = filtersDto.limit;
-      query.skip = (filtersDto.page - 1) * filtersDto.limit;
-    }
-
-    return query;
-  }
-
-  /**
-   * Builds pagination details for the filtered results.
-   * @param filtersDto - Filters and pagination options.
-   * @param total - Total number of records.
-   * @returns Pagination details.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(

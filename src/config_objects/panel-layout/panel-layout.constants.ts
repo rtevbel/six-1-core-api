@@ -29,3 +29,12 @@ export const PANEL_LAYOUT_DATA_BINDING_VALUES = [
   'relation',
   'derived',
 ] as const;
+
+/** Optional `layout.relationPanelMode` on table panels (relation UI manifest). */
+export const PANEL_LAYOUT_RELATION_PANEL_MODES = [
+  'relation_membership',
+  'related_list',
+  'inline_required',
+  'inline_optional',
+  'embedded_form',
+] as const;
