@@ -92,6 +92,14 @@ export interface SorBoundDynamicListContext<TRoot extends object> {
     filters: SorDynamicListFilters,
   ) => readonly string[];
 
+  /**
+   * Full SQL predicates OR'd with core/meta search (e.g. `EXISTS` on child tables).
+   * Use `:_sorSearch` for the bound `%search%` value.
+   */
+  augmentSearchRawOrClauses?: (
+    filters: SorDynamicListFilters,
+  ) => readonly string[];
+
   /** Optional hydration (e.g. reload projects with nested relations after filtered id query). */
   hydrateRoots?: (
     roots: TRoot[],
@@ -222,6 +230,7 @@ function applySearchCoreAndMeta(
   metaKeys: Set<string>,
   searchColumnExpressions: readonly string[],
   metaAlias: string | undefined,
+  rawOrClauses: readonly string[] = [],
 ): void {
   const search = filters.search?.trim();
   if (!search) {
@@ -231,7 +240,11 @@ function applySearchCoreAndMeta(
   const sortedMetaKeys =
     includeMeta && metaKeys.size && metaAlias ? [...metaKeys].sort() : [];
 
-  if (!searchColumnExpressions.length && !sortedMetaKeys.length) {
+  if (
+    !searchColumnExpressions.length &&
+    !sortedMetaKeys.length &&
+    !rawOrClauses.length
+  ) {
     return;
   }
 
@@ -255,6 +268,9 @@ function applySearchCoreAndMeta(
 
       for (const expr of searchColumnExpressions) {
         addClause(`LOWER(${expr}) LIKE LOWER(:_sorSearch)`);
+      }
+      for (const sql of rawOrClauses) {
+        addClause(sql);
       }
       for (let i = 0; i < sortedMetaKeys.length; i++) {
         const pathParam = `searchMetaPath_${i}`;
@@ -496,6 +512,11 @@ export async function executeSorBoundDynamicListQuery<TRoot extends object>(
       ? ctx.augmentSearchExpressions(qb, filters)
       : [];
 
+  const rawSearchOrClauses =
+    filters.search?.trim() && ctx.augmentSearchRawOrClauses
+      ? ctx.augmentSearchRawOrClauses(filters)
+      : [];
+
   const mergedSearchExprs = [...searchExprs, ...augmentedMain];
 
   const fallbackMap = ctx.fallbackCoreColumnExpressions ?? {};
@@ -507,6 +528,7 @@ export async function executeSorBoundDynamicListQuery<TRoot extends object>(
     catalog.meta,
     mergedSearchExprs,
     includeMeta ? metaAlias : undefined,
+    rawSearchOrClauses,
   );
 
   applyStructuredFilters(
@@ -552,6 +574,10 @@ export async function executeSorBoundDynamicListQuery<TRoot extends object>(
     filters.search?.trim() && ctx.augmentSearchExpressions
       ? ctx.augmentSearchExpressions(qbCount, filters)
       : [];
+  const rawCountSearchOrClauses =
+    filters.search?.trim() && ctx.augmentSearchRawOrClauses
+      ? ctx.augmentSearchRawOrClauses(filters)
+      : [];
   const mergedCountSearchExprs = [...searchExprs, ...augmentedCount];
 
   applySearchCoreAndMeta(
@@ -561,6 +587,7 @@ export async function executeSorBoundDynamicListQuery<TRoot extends object>(
     catalogForCount.meta,
     mergedCountSearchExprs,
     includeMeta ? metaAlias : undefined,
+    rawCountSearchOrClauses,
   );
   applyStructuredFilters(
     qbCount,

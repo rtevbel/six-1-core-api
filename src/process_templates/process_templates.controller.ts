@@ -19,7 +19,11 @@ import {
   MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_PATTERN,
   MICROSERVICE_UPDATE_PROCESS_TEMPLATE_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_TEMPLATE_PATTERN,
+  MICROSERVICE_DEACTIVATE_PROCESS_TEMPLATE_PATTERN,
 } from './constants';
+import { DeactivateProcessTemplateDto } from './dto/deactivate-process_template.dto';
+import { FindOneProcessTemplateDto } from './dto/find-one-process_template.dto';
+import { RemoveProcessTemplateDto } from './dto/remove-process_template.dto';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
@@ -43,10 +47,6 @@ export class ProcessTemplatesController {
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
-    console.log(
-      createProcessTemplateDto.descriptions,
-      'descriptions in controller',
-    );
     return this.processTemplatesService.create(
       userId,
       createProcessTemplateDto,
@@ -77,11 +77,12 @@ export class ProcessTemplatesController {
    */
   @MessagePattern(MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_PATTERN)
   @RequirePermissions('process_templates.read')
+  @UsePipes(AppRpcValidationPipe)
   findOneProcessTemplate(
     @Payload('userId') userId: number,
-    @Payload('data') id: number,
+    @Payload('data') data: number | FindOneProcessTemplateDto,
   ): Promise<ProcessTemplateEntity | NotFoundException> {
-    return this.processTemplatesService.findOne(userId, id);
+    return this.processTemplatesService.findOne(userId, data);
   }
 
   /**
@@ -105,6 +106,19 @@ export class ProcessTemplatesController {
   }
 
   /**
+   * Deactivates (archives) a process template.
+   */
+  @MessagePattern(MICROSERVICE_DEACTIVATE_PROCESS_TEMPLATE_PATTERN)
+  @RequirePermissions('process_templates.manage')
+  @UsePipes(AppRpcValidationPipe)
+  deactivateProcessTemplate(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: DeactivateProcessTemplateDto,
+  ): Promise<ProcessTemplateEntity> {
+    return this.processTemplatesService.deactivate(userId, dto);
+  }
+
+  /**
    * Deletes a process template by ID.
    * @param userId - ID of the user making the request.
    * @param id - ID of the process template to delete.
@@ -112,10 +126,11 @@ export class ProcessTemplatesController {
    */
   @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_PATTERN)
   @RequirePermissions('process_templates.delete')
+  @UsePipes(AppRpcValidationPipe)
   removeProcessTemplate(
     @Payload('userId') userId: number,
-    @Payload('data') id: number,
+    @Payload('data') data: number | RemoveProcessTemplateDto,
   ): Promise<DeleteResult> {
-    return this.processTemplatesService.remove(userId, id);
+    return this.processTemplatesService.remove(userId, data);
   }
 }

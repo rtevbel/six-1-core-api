@@ -1,7 +1,7 @@
 import { PartialType, OmitType } from '@nestjs/mapped-types';
 import { CreateProcessTemplateStepDto } from './create-process_template_step.dto';
 import { UpdateProcessTemplateStepDescriptionDto } from './update-process_template_step_description.dto';
-import { IsArray, ValidateNested, IsNumber } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -19,6 +19,7 @@ export class UpdateProcessTemplateStepDto extends PartialType(
   /**
    * List of descriptions associated with the step (optional).
    */
+  @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => UpdateProcessTemplateStepDescriptionDto)

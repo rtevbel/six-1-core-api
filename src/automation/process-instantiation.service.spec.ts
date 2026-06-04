@@ -1,6 +1,8 @@
+import { RpcException } from '@nestjs/microservices';
 import { DataSource } from 'typeorm';
 import { ProcessInstantiationService } from './process-instantiation.service';
 import { PROCESS_SUBJECT_TYPE_PROJECT } from './process-subject.constants';
+import { PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE } from '../common/constants';
 
 describe('ProcessInstantiationService', () => {
   const query = jest.fn();
@@ -17,6 +19,13 @@ describe('ProcessInstantiationService', () => {
 
     query.mockImplementation(async (sql: string) => {
       const normalized = sql.replace(/\s+/g, ' ').trim();
+
+      if (
+        normalized.includes('FROM process_templates') &&
+        normalized.includes('SELECT status')
+      ) {
+        return [{ status: 'PUBLISHED' }];
+      }
 
       if (normalized.startsWith('INSERT INTO process_instances')) {
         return { insertId: 500 };
@@ -80,6 +89,28 @@ describe('ProcessInstantiationService', () => {
       }
 
       return [];
+    });
+  });
+
+  it('rejects instantiation when template is not PUBLISHED', async () => {
+    query.mockImplementation(async (sql: string) => {
+      const normalized = sql.replace(/\s+/g, ' ').trim();
+      if (
+        normalized.includes('FROM process_templates') &&
+        normalized.includes('SELECT status')
+      ) {
+        return [{ status: 'ARCHIVED' }];
+      }
+      return [];
+    });
+
+    await expect(
+      service.instantiateProcess(7, 1, 2, {
+        subjectType: PROCESS_SUBJECT_TYPE_PROJECT,
+        subjectId: 10,
+      }),
+    ).rejects.toMatchObject({
+      message: PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE,
     });
   });
 

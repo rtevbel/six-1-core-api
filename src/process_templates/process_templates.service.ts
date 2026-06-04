@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
@@ -7,6 +7,7 @@ import { ProcessTemplateCategoryEntity } from './entities/process_template_categ
 import { CreateProcessTemplateDto } from './dto/create-process_template.dto';
 import { UpdateProcessTemplateDto } from './dto/update-process_template.dto';
 import { FiltersDto } from './dto/filters.dto';
+import { DeactivateProcessTemplateDto } from './dto/deactivate-process_template.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import {
@@ -23,6 +24,13 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
+import {
+  getEffectiveTenantId,
+  processTemplateWhereForTenantScope,
+  resolveProcessTemplateStoredTenantId,
+} from '../common/utils/tenant-scope.util';
+import { FindOneProcessTemplateDto } from './dto/find-one-process_template.dto';
+import { RemoveProcessTemplateDto } from './dto/remove-process_template.dto';
 
 @Injectable()
 export class ProcessTemplatesService {
@@ -31,6 +39,7 @@ export class ProcessTemplatesService {
     'tenantId',
     'createdBy',
     'updatedBy',
+    'status',
     'createdAt',
     'updatedAt',
   ]);
@@ -40,6 +49,7 @@ export class ProcessTemplatesService {
     tenantId: 'pt.tenantId',
     createdBy: 'pt.createdBy',
     updatedBy: 'pt.updatedBy',
+    status: 'pt.status',
     createdAt: 'pt.createdAt',
     updatedAt: 'pt.updatedAt',
   };
@@ -64,8 +74,13 @@ export class ProcessTemplatesService {
     userId: number,
     createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
+    const { status, tenantId, ...rest } = createProcessTemplateDto;
     return await this.processTemplateRepository.save(
-      this.processTemplateRepository.create(createProcessTemplateDto),
+      this.processTemplateRepository.create({
+        ...rest,
+        tenantId: resolveProcessTemplateStoredTenantId(tenantId),
+        status: status ?? 'DRAFT',
+      }),
     );
   }
 
@@ -96,7 +111,7 @@ export class ProcessTemplatesService {
       rootAlias: 'pt',
       rootEntityClass: ProcessTemplateEntity,
       denyCatalogCanonicalType: canonical,
-      searchCorePropertyNames: [],
+      searchCorePropertyNames: ['processTemplateId', 'tenantId', 'status'],
       fallbackCoreFields: ProcessTemplatesService.FALLBACK_FIELDS,
       fallbackCoreColumnExpressions: ProcessTemplatesService.FALLBACK_EXPR,
       defaultSortCoreField: 'processTemplateId',
@@ -113,10 +128,27 @@ export class ProcessTemplatesService {
           ? row.tenantId
           : null;
       },
+      augmentSearchRawOrClauses: () => [
+        `EXISTS (SELECT 1 FROM process_template_descriptions pt_s_desc WHERE pt_s_desc.process_template_id = pt.processTemplateId AND (LOWER(pt_s_desc.name) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(pt_s_desc.description, '')) LIKE LOWER(:_sorSearch) OR CAST(pt_s_desc.language_id AS CHAR) LIKE LOWER(:_sorSearch)))`,
+      ],
+      hydrateRoots: (roots) => this.hydrateProcessTemplatesForList(roots),
       applyMandatoryScope: (qb, filters) => {
         const row = filters as FiltersDto;
-        if (typeof row.tenantId === 'number' && row.tenantId > 0) {
-          qb.andWhere('pt.tenantId = :ptTenantId', { ptTenantId: row.tenantId });
+        if (typeof row.tenantId === 'number') {
+          if (row.tenantId > 0) {
+            qb.andWhere('pt.tenantId = :ptTenantId', {
+              ptTenantId: row.tenantId,
+            });
+          } else if (row.tenantId === 0) {
+            qb.andWhere('pt.tenantId = 0');
+          }
+        }
+        if (row.status) {
+          qb.andWhere('pt.status = :ptStatus', { ptStatus: row.status });
+        } else if (row.statuses?.length) {
+          qb.andWhere('pt.status IN (:...ptStatuses)', {
+            ptStatuses: row.statuses,
+          });
         }
       },
       schemaMissingForRelatedFiltersMessage:
@@ -148,6 +180,23 @@ export class ProcessTemplatesService {
     };
   }
 
+  private async hydrateProcessTemplatesForList(
+    roots: ProcessTemplateEntity[],
+  ): Promise<ProcessTemplateEntity[]> {
+    const ids = roots.map((row) => row.processTemplateId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.processTemplateRepository.find({
+      where: { processTemplateId: In(ids) },
+      relations: ['descriptions'],
+    });
+    const byId = new Map(loaded.map((row) => [row.processTemplateId, row]));
+    return ids
+      .map((id) => byId.get(id)!)
+      .filter(Boolean) as ProcessTemplateEntity[];
+  }
+
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
@@ -167,9 +216,19 @@ export class ProcessTemplatesService {
    * @returns The ProcessTemplateEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId: number, id: number): Promise<ProcessTemplateEntity> {
+  async findOne(
+    userId: number,
+    payload: number | FindOneProcessTemplateDto,
+  ): Promise<ProcessTemplateEntity> {
+    const { processTemplateId, tenantId } =
+      this.normalizeProcessTemplateIdPayload(payload);
+    const effectiveTenantId = getEffectiveTenantId(tenantId);
+
     const processTemplate = await this.processTemplateRepository.findOne({
-      where: { processTemplateId: id },
+      where: processTemplateWhereForTenantScope(
+        processTemplateId,
+        effectiveTenantId,
+      ),
       relations: [
         'descriptions',
         'categories',
@@ -204,10 +263,12 @@ export class ProcessTemplatesService {
     id: number,
     updateProcessTemplateDto: UpdateProcessTemplateDto,
   ): Promise<UpdateResult> {
-    const processTemplate =
-      await this.processTemplateRepository.findOneByOrFail({
-        processTemplateId: id,
-      });
+    const effectiveTenantId = getEffectiveTenantId(
+      updateProcessTemplateDto.tenantId,
+    );
+    const processTemplate = await this.processTemplateRepository.findOne({
+      where: processTemplateWhereForTenantScope(id, effectiveTenantId),
+    });
 
     if (!processTemplate) {
       throw new RpcException(
@@ -218,7 +279,7 @@ export class ProcessTemplatesService {
       );
     }
 
-    const { descriptions, categories, ...processTemplateUpdateData } =
+    const { descriptions, categories, tenantId: _scopeTenantId, ...processTemplateUpdateData } =
       updateProcessTemplateDto;
 
     if (descriptions) {
@@ -255,14 +316,79 @@ export class ProcessTemplatesService {
   }
 
   /**
+   * Deactivates (archives) a process template so it cannot be used for new processes.
+   */
+  async deactivate(
+    userId: number,
+    dto: DeactivateProcessTemplateDto,
+  ): Promise<ProcessTemplateEntity> {
+    const updatedBy = dto.updatedBy ?? userId;
+    const effectiveTenantId = getEffectiveTenantId(dto.tenantId);
+    const processTemplate = await this.processTemplateRepository.findOne({
+      where: processTemplateWhereForTenantScope(
+        dto.processTemplateId,
+        effectiveTenantId,
+      ),
+    });
+
+    if (!processTemplate) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ProcessTemplateEntity.name,
+        ),
+      );
+    }
+
+    processTemplate.status = 'ARCHIVED';
+    processTemplate.updatedBy = updatedBy;
+    return await this.processTemplateRepository.save(processTemplate);
+  }
+
+  /**
    * Deletes a process template record by ID.
    * @param userId - ID of the user deleting the record.
    * @param id - ID of the process template to delete.
    * @returns The result of the delete operation.
    */
-  async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.processTemplateRepository.delete({
-      processTemplateId: id,
+  async remove(
+    userId: number,
+    payload: number | RemoveProcessTemplateDto,
+  ): Promise<DeleteResult> {
+    const { processTemplateId, tenantId } =
+      this.normalizeProcessTemplateIdPayload(payload);
+    const effectiveTenantId = getEffectiveTenantId(tenantId);
+
+    const existing = await this.processTemplateRepository.findOne({
+      where: processTemplateWhereForTenantScope(
+        processTemplateId,
+        effectiveTenantId,
+      ),
     });
+
+    if (!existing) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ProcessTemplateEntity.name,
+        ),
+      );
+    }
+
+    return await this.processTemplateRepository.delete({
+      processTemplateId,
+    });
+  }
+
+  private normalizeProcessTemplateIdPayload(
+    payload: number | FindOneProcessTemplateDto | RemoveProcessTemplateDto,
+  ): { processTemplateId: number; tenantId?: number } {
+    if (typeof payload === 'number') {
+      return { processTemplateId: payload };
+    }
+    return {
+      processTemplateId: payload.processTemplateId,
+      tenantId: payload.tenantId,
+    };
   }
 }

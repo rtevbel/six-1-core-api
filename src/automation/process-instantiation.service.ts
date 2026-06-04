@@ -2,7 +2,9 @@
 // Independent class: ProcessInstantiationService (safer TX + clean copies)
 // ──────────────────────────────────────────────────────────────────────────────
 import { Injectable } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { DataSource, EntityManager } from 'typeorm';
+import { PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE } from '../common/constants';
 import { PROCESS_SUBJECT_TYPE_WORKFLOW } from './process-subject.constants';
 import type {
   ProcessInstanceSubjectInput,
@@ -75,6 +77,18 @@ export class ProcessInstantiationService {
       options.context !== undefined && options.context !== null
         ? JSON.stringify(options.context)
         : null;
+
+    const templateRows: Array<{ status: string }> = await em.query(
+      `SELECT status
+         FROM process_templates
+        WHERE process_template_id = ?
+          AND (tenant_id = ? OR tenant_id = 0)
+        LIMIT 1`,
+      [templateId, tenantId],
+    );
+    if (!templateRows.length || templateRows[0].status !== 'PUBLISHED') {
+      throw new RpcException(PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE);
+    }
 
     // 1) Create process instance (subject required after migration 1710000000015)
     const res: any = await em.query(

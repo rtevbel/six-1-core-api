@@ -1,16 +1,27 @@
-import { PartialType } from '@nestjs/mapped-types';
-import { CreateProcessTemplateStepDescriptionDto } from './create-process_template_step_description.dto';
-import { IsNumber } from 'class-validator';
+import {
+  IsNumber,
+  IsOptional,
+  IsString,
+  MaxLength,
+} from 'class-validator';
 
 /**
  * DTO for updating an existing ProcessTemplateStepDescription.
+ * Fields are explicit (not PartialType) so RPC whitelist retains validators.
  */
-export class UpdateProcessTemplateStepDescriptionDto extends PartialType(
-  CreateProcessTemplateStepDescriptionDto,
-) {
-  /**
-   * ID of the process template step description to be updated.
-   */
+export class UpdateProcessTemplateStepDescriptionDto {
+  @IsOptional()
   @IsNumber()
-  processTemplateStepDescriptionId!: number;
+  processTemplateStepDescriptionId?: number;
+
+  @IsNumber()
+  languageId!: number;
+
+  @IsString()
+  @MaxLength(255)
+  name!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

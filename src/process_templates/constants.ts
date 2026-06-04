@@ -9,6 +9,8 @@ export const MICROSERVICE_UPDATE_PROCESS_TEMPLATE_PATTERN =
   'v0.1_update_process_template';
 export const MICROSERVICE_REMOVE_PROCESS_TEMPLATE_PATTERN =
   'v0.1_remove_process_template';
+export const MICROSERVICE_DEACTIVATE_PROCESS_TEMPLATE_PATTERN =
+  'v0.1_deactivate_process_template';
 
 export const MESSAGE_BROKER_PROCESS_TEMPLATE_SERVICE_CLIENT_TOKEN =
   'process_template_service_token';

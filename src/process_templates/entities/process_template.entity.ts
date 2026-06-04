@@ -16,6 +16,12 @@ import { ProcessTemplateStepEntity } from '../process_template_steps/entities/pr
 import { ProjectEntity } from '../../projects/entities/project.entity';
 import { ProcessInstanceEntity } from '../../process_instances/entities/process_instance.entity';
 
+export type ProcessTemplateStatus =
+  | 'DRAFT'
+  | 'PUBLISHED'
+  | 'ARCHIVED'
+  | 'CONFLICT';
+
 /**
  * Entity class for `process_templates` table.
  *
@@ -57,6 +63,14 @@ export class ProcessTemplateEntity {
     comment: 'Tenant User ID',
   })
   updatedBy!: number;
+
+  @Column({
+    name: 'status',
+    type: 'enum',
+    enum: ['DRAFT', 'PUBLISHED', 'ARCHIVED', 'CONFLICT'],
+    default: 'DRAFT',
+  })
+  status!: ProcessTemplateStatus;
 
   @CreateDateColumn({
     name: 'created_at',

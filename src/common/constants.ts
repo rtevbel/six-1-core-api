@@ -17,6 +17,9 @@ export const ENVIRONMENT_VARIABLE_NOT_FOUND_ERROR_MESSAGE =
   'No value found from environment file for you passed key:{key}.';
 export const NOT_DEFINED_ERROR_MESSAGE = 'The passed value is not defined';
 
+export const PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE =
+  'Process template must be PUBLISHED before it can be used to start a process.';
+
 export const DEFAULT_ENVIRONMENT_FILE_NAME = '.env.production';
 export const DATABASE_SERVICE_TYPE = 'mysql';
 
