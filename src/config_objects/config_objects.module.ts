@@ -26,6 +26,7 @@ import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 import { ConfigObjectsController } from './config_objects.controller';
+import { EventsModule } from '../events/events.module';
 
 /**
  * ConfigObjectsModule wires together the configurable object metadata layer.
@@ -39,6 +40,7 @@ import { ConfigObjectsController } from './config_objects.controller';
  */
 @Module({
   imports: [
+    EventsModule,
     TypeOrmModule.forFeature([
       ConfigTemplateSetEntity,
       ConfigObjectEntity,

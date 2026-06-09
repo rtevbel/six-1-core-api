@@ -13,6 +13,7 @@ import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { GetProcessInstanceRunnerDto } from './dto/get-process-instance-runner.dto';
 import { StartProcessDto } from './dto/start-process.dto';
+import { CompleteProcessInstanceStepDto } from './dto/complete-process-instance-step.dto';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RequirePermissions } from '../authorization/authorization.decorator';
@@ -25,6 +26,7 @@ import {
   MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN,
   MICROSERVICE_START_PROCESS_PATTERN,
+  MICROSERVICE_COMPLETE_PROCESS_INSTANCE_STEP_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
@@ -179,5 +181,36 @@ export class ProcessInstancesController {
     }
 
     return result;
+  }
+
+  /**
+   * Marks a manual (or ready) process step completed via the orchestrator.
+   * Gateway: POST /process-instances/:processInstanceId/steps/:stepInstanceId/complete
+   */
+  @MessagePattern(MICROSERVICE_COMPLETE_PROCESS_INSTANCE_STEP_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  async completeProcessInstanceStep(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: CompleteProcessInstanceStepDto,
+  ): Promise<{
+    processInstanceId: number;
+    stepInstanceId: number;
+    status: 'completed';
+  }> {
+    await this.orchestrator.markCompleted(dto.stepInstanceId, {
+      cause: 'manual',
+      correlationId: dto.correlationId,
+      actorTenantUserId: userId,
+      failOnPrecondition: true,
+      expectedProcessInstanceId: dto.processInstanceId,
+      expectedTenantId: dto.tenantId,
+    });
+
+    return {
+      processInstanceId: dto.processInstanceId,
+      stepInstanceId: dto.stepInstanceId,
+      status: 'completed',
+    };
   }
 }

@@ -12,6 +12,8 @@ export const MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN =
 export const MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN =
   'v0.1_get_process_instance_runner';
 export const MICROSERVICE_START_PROCESS_PATTERN = 'v0.1_start_process';
+export const MICROSERVICE_COMPLETE_PROCESS_INSTANCE_STEP_PATTERN =
+  'v0.1_complete_process_instance_step';
 
 export const MESSAGE_BROKER_PROCESS_INSTANCE_SERVICE_CLIENT_TOKEN =
   'process_instance_service_token';

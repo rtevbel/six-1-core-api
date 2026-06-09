@@ -1,24 +1,62 @@
-import { PartialType, OmitType } from '@nestjs/mapped-types';
-import { CreateProcessTemplateStepDto } from './create-process_template_step.dto';
 import { UpdateProcessTemplateStepDescriptionDto } from './update-process_template_step_description.dto';
-import { IsArray, IsNumber, IsOptional, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsIn,
+  IsNumber,
+  IsObject,
+  IsOptional,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
  * DTO for updating an existing ProcessTemplateStep.
+ * Fields are explicit (not PartialType) so RPC whitelist retains validators.
  */
-export class UpdateProcessTemplateStepDto extends PartialType(
-  OmitType(CreateProcessTemplateStepDto, ['descriptions'] as const),
-) {
-  /**
-   * ID of the process template step to be updated.
-   */
+export class UpdateProcessTemplateStepDto {
   @IsNumber()
+  @Type(() => Number)
   processTemplateStepId!: number;
 
-  /**
-   * List of descriptions associated with the step (optional).
-   */
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  processTemplateId?: number;
+
+  @IsOptional()
+  @IsIn(['manual', 'automated', 'call_process', 'config_object'])
+  taskType?: 'manual' | 'automated' | 'call_process' | 'config_object';
+
+  @IsOptional()
+  @ValidateIf((o) => o.taskType === 'call_process')
+  @IsNumber()
+  @Type(() => Number)
+  childTemplateId?: number;
+
+  @IsOptional()
+  @IsIn(['inherit', 'workflow', 'config_instance'])
+  childSubjectPolicy?: 'inherit' | 'workflow' | 'config_instance';
+
+  @IsOptional()
+  @IsObject()
+  childContextPatch?: Record<string, unknown>;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  stepOrder?: number;
+
+  @IsOptional()
+  @IsBoolean()
+  isOptional?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  @Type(() => Number)
+  updatedBy?: number;
+
   @IsOptional()
   @IsArray()
   @ValidateNested({ each: true })

@@ -10,6 +10,7 @@ describe('ProcessInstancesController', () => {
   const buildPayload = jest.fn();
   const startProcess = jest.fn();
   const attemptAdvance = jest.fn();
+  const markCompleted = jest.fn();
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -19,7 +20,10 @@ describe('ProcessInstancesController', () => {
         { provide: ProcessInstancesService, useValue: {} },
         { provide: ProcessRunnerService, useValue: { buildPayload } },
         { provide: ProcessLifecycleFacade, useValue: { startProcess } },
-        { provide: StepOrchestratorService, useValue: { attemptAdvance } },
+        {
+          provide: StepOrchestratorService,
+          useValue: { attemptAdvance, markCompleted },
+        },
       ],
     }).compile();
 
@@ -63,6 +67,34 @@ describe('ProcessInstancesController', () => {
     expect(attemptAdvance).toHaveBeenCalledWith(
       101,
       expect.objectContaining({ cause: 'manual', actorTenantUserId: 7 }),
+    );
+  });
+
+  it('completeProcessInstanceStep delegates to orchestrator with strict preconditions', async () => {
+    markCompleted.mockResolvedValueOnce(undefined);
+
+    const result = await controller.completeProcessInstanceStep(7, {
+      processInstanceId: 9,
+      stepInstanceId: 101,
+      tenantId: 1,
+      correlationId: 'c1',
+    });
+
+    expect(result).toEqual({
+      processInstanceId: 9,
+      stepInstanceId: 101,
+      status: 'completed',
+    });
+    expect(markCompleted).toHaveBeenCalledWith(
+      101,
+      expect.objectContaining({
+        cause: 'manual',
+        actorTenantUserId: 7,
+        correlationId: 'c1',
+        failOnPrecondition: true,
+        expectedProcessInstanceId: 9,
+        expectedTenantId: 1,
+      }),
     );
   });
 });

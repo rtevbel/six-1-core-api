@@ -20,6 +20,17 @@ export const NOT_DEFINED_ERROR_MESSAGE = 'The passed value is not defined';
 export const PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE =
   'Process template must be PUBLISHED before it can be used to start a process.';
 
+export const PROCESS_STEP_NOT_FOUND_MESSAGE = 'Process step not found.';
+
+export const PROCESS_INSTANCE_STEP_MISMATCH_MESSAGE =
+  'Process step does not belong to the specified process instance.';
+
+export const PROCESS_STEP_INVALID_STATE_MESSAGE =
+  'Process step cannot be completed in its current state.';
+
+export const PROCESS_STEP_GATES_NOT_MET_MESSAGE =
+  'Process step cannot be completed until mandatory requirements and object bindings are satisfied.';
+
 export const DEFAULT_ENVIRONMENT_FILE_NAME = '.env.production';
 export const DATABASE_SERVICE_TYPE = 'mysql';
 

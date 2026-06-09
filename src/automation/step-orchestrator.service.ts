@@ -1,5 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { RpcException } from '@nestjs/microservices';
 import { DataSource, QueryRunner } from 'typeorm';
+import {
+  NO_RECORD_FOUND_MESSAGE,
+  PROCESS_INSTANCE_STEP_MISMATCH_MESSAGE,
+  PROCESS_STEP_GATES_NOT_MET_MESSAGE,
+  PROCESS_STEP_INVALID_STATE_MESSAGE,
+  PROCESS_STEP_NOT_FOUND_MESSAGE,
+} from '../common/constants';
+import { ProcessInstanceEntity } from '../process_instances/entities/process_instance.entity';
 import { TriggerEngineService } from './trigger-engine.service';
 import { EventsService } from '../events/events.service';
 import type { ProcessEngineState } from './process-engine-state';
@@ -18,6 +27,10 @@ type AdvanceOptions = {
   cause?: 'event' | 'manual' | 'timer';
   correlationId?: string;
   actorTenantUserId?: number;
+  /** When true, failed preconditions throw RpcException (Runner / explicit complete API). */
+  failOnPrecondition?: boolean;
+  expectedProcessInstanceId?: number;
+  expectedTenantId?: number;
 };
 
 type StepRow = {
@@ -219,11 +232,52 @@ export class StepOrchestratorService {
     let childTerminalId: number | null = null;
     try {
       const s = await this.loadStepLocked(qr, stepInstanceId);
-      if (!s) return await this.rollback(qr);
-      if (!['ready', 'in_progress'].includes(s.status))
+      if (!s) {
+        if (opts.failOnPrecondition) {
+          throw new RpcException(PROCESS_STEP_NOT_FOUND_MESSAGE);
+        }
         return await this.rollback(qr);
+      }
+
+      if (
+        opts.expectedProcessInstanceId != null &&
+        s.process_instance_id !== opts.expectedProcessInstanceId
+      ) {
+        if (opts.failOnPrecondition) {
+          throw new RpcException(PROCESS_INSTANCE_STEP_MISMATCH_MESSAGE);
+        }
+        return await this.rollback(qr);
+      }
+
+      if (opts.expectedTenantId != null) {
+        const proc = await loadProcessInstanceRow(
+          qr.manager,
+          s.process_instance_id,
+        );
+        if (!proc || proc.tenant_id !== opts.expectedTenantId) {
+          if (opts.failOnPrecondition) {
+            throw new RpcException(
+              NO_RECORD_FOUND_MESSAGE.replaceAll(
+                '{entity_name}',
+                ProcessInstanceEntity.name,
+              ),
+            );
+          }
+          return await this.rollback(qr);
+        }
+      }
+
+      if (!['ready', 'in_progress'].includes(s.status)) {
+        if (opts.failOnPrecondition) {
+          throw new RpcException(PROCESS_STEP_INVALID_STATE_MESSAGE);
+        }
+        return await this.rollback(qr);
+      }
 
       if (!(await this.checkStepGates(qr, s.step_instance_id))) {
+        if (opts.failOnPrecondition) {
+          throw new RpcException(PROCESS_STEP_GATES_NOT_MET_MESSAGE);
+        }
         return await this.rollback(qr);
       }
 

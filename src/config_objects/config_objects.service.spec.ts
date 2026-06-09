@@ -26,6 +26,7 @@ import { ResourceEntity } from '../scheduler/entities/resource.entity';
 import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
+import { EventsService } from '../events/events.service';
 
 describe('ConfigObjectsService', () => {
   let service: ConfigObjectsService;
@@ -134,6 +135,10 @@ describe('ConfigObjectsService', () => {
           useValue: {
             transaction: jest.fn(),
           },
+        },
+        {
+          provide: EventsService,
+          useValue: { emit: jest.fn() },
         },
       ],
     }).compile();

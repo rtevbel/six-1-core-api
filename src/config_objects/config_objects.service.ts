@@ -121,6 +121,7 @@ import type {
   ObjectListFieldCatalogEntry,
   ObjectListFieldCatalogView,
 } from './list-field-catalog/object-list-field-catalog.interface';
+import { EventsService } from '../events/events.service';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -257,6 +258,7 @@ export class ConfigObjectsService {
     @InjectRepository(ConfigObjectStatusMappingEntity)
     private readonly configObjectStatusMappingRepository: Repository<ConfigObjectStatusMappingEntity>,
     private readonly dataSource: DataSource,
+    private readonly eventsService: EventsService,
   ) {}
 
   /**
@@ -2782,6 +2784,21 @@ export class ConfigObjectsService {
         payload: saved.payload,
       },
     );
+
+    this.eventsService.emit('six1-event.config_object_instance.updated', {
+      entity: {
+        entityType: 'ConfigCustomObjectInstance',
+        entityId: saved.configCustomObjectInstanceId,
+      },
+      data: {
+        configCustomObjectInstanceId: saved.configCustomObjectInstanceId,
+        config_custom_object_instance_id: saved.configCustomObjectInstanceId,
+        configObjectId: saved.configObjectId,
+        tenantId: saved.tenantId,
+        updatedBy,
+        status: saved.status,
+      },
+    });
 
     return saved;
   }

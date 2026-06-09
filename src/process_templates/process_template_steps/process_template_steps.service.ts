@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessTemplateStepEntity } from './entities/process_template_step.entity';
@@ -122,11 +122,15 @@ export class ProcessTemplateStepsService {
           ptsProcessTemplateId: row.processTemplateId,
         });
       },
+      augmentSearchRawOrClauses: () => [
+        `EXISTS (SELECT 1 FROM process_template_step_descriptions pts_s_desc WHERE pts_s_desc.process_template_step_id = pts.processTemplateStepId AND (LOWER(pts_s_desc.name) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(pts_s_desc.description, '')) LIKE LOWER(:_sorSearch) OR CAST(pts_s_desc.language_id AS CHAR) LIKE LOWER(:_sorSearch)))`,
+      ],
+      hydrateRoots: (roots) => this.hydrateProcessTemplateStepsForList(roots),
       schemaMissingForRelatedFiltersMessage:
         'Process template step configuration schema is required for related list filters.',
       maxPageSize: 10,
     };
-
+    
     const { rows: steps, total } = await executeCatalogBackedDynamicListQuery(
       ctx,
       filtersDto,
@@ -140,7 +144,7 @@ export class ProcessTemplateStepsService {
         ),
       );
     }
-
+    
     const pagination = this.buildPagination(filtersDto, total);
     return {
       items: steps,
@@ -215,9 +219,11 @@ export class ProcessTemplateStepsService {
             description,
           );
         } else {
-          description.processTemplateStepId = id;
           await this.processTemplateStepDescriptionRepository.save(
-            this.processTemplateStepDescriptionRepository.create(description),
+            this.processTemplateStepDescriptionRepository.create({
+              ...description,
+              processTemplateStepId: id,
+            }),
           );
         }
       }
@@ -241,6 +247,25 @@ export class ProcessTemplateStepsService {
       processTemplateStepId: id,
       processTemplateId,
     });
+  }
+
+  private async hydrateProcessTemplateStepsForList(
+    roots: ProcessTemplateStepEntity[],
+  ): Promise<ProcessTemplateStepEntity[]> {
+    const ids = roots.map((row) => row.processTemplateStepId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.processTemplateStepRepository.find({
+      where: { processTemplateStepId: In(ids) },
+      relations: ['descriptions'],
+    });
+    const byId = new Map(
+      loaded.map((row) => [row.processTemplateStepId, row]),
+    );
+    return ids
+      .map((id) => byId.get(id)!)
+      .filter(Boolean) as ProcessTemplateStepEntity[];
   }
 
   private buildPagination(
