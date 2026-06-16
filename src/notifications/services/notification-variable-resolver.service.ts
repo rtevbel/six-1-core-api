@@ -2,6 +2,12 @@ import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 import { UserService } from '../../users/users.service';
+import { parseOptionalPositiveInt } from '../context/notification-context-source.util';
+import { ConfigObjectVariableProvider } from '../context/providers/config-object-variable.provider';
+import {
+  LEGACY_SOR_ENTITY_FIELD_MAPS,
+  LEGACY_SOR_ENTITY_TYPES,
+} from '../context/legacy-sor-field-maps.constants';
 import { ProjectEntity } from '../../projects/entities/project.entity';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 import { TaskCommentsEntity } from '../../projects/tasks/comments/entities/comment.entity';
@@ -10,9 +16,8 @@ import { TenantTeamEntity } from '../../tenants/tenant_teams/entities/tenant_tea
 import { NotificationUrlBuilderService } from './notification-url-builder.service';
 
 /**
- * NotificationVariableResolverService
- *
- * Resolves template variables from event logs, users, and related entities.
+ * Legacy flat-key variable resolver for templates when NV context flag is off.
+ * Sor-bound entities delegate to {@link ConfigObjectVariableProvider} (NV6.3).
  */
 @Injectable()
 export class NotificationVariableResolverService {
@@ -20,12 +25,11 @@ export class NotificationVariableResolverService {
     private readonly dataSource: DataSource,
     private readonly userService: UserService,
     private readonly urlBuilder: NotificationUrlBuilderService,
+    private readonly configObjectVariableProvider: ConfigObjectVariableProvider,
   ) {}
 
   /**
    * Builds a variable map for template rendering.
-   * @param eventLog - Event log containing payload and metadata.
-   * @returns Variable map for template rendering.
    */
   async resolve(eventLog: EventLogEntity): Promise<Record<string, unknown>> {
     const variables: Record<string, unknown> = {
@@ -51,11 +55,6 @@ export class NotificationVariableResolverService {
     return variables;
   }
 
-  /**
-   * Resolves actor and recipient user metadata.
-   * @param eventLog - Event log containing user IDs.
-   * @param variables - Variable map to enrich.
-   */
   private async resolveActorAndRecipient(
     eventLog: EventLogEntity,
     variables: Record<string, unknown>,
@@ -82,11 +81,6 @@ export class NotificationVariableResolverService {
     }
   }
 
-  /**
-   * Resolves variables for related entities like project, task, comment, attachment.
-   * @param eventLog - Event log containing entity details.
-   * @param variables - Variable map to enrich.
-   */
   private async resolveEntityDetails(
     eventLog: EventLogEntity,
     variables: Record<string, unknown>,
@@ -98,13 +92,8 @@ export class NotificationVariableResolverService {
       return;
     }
 
-    if (entityType === 'project') {
-      await this.resolveProject(entityId, variables);
-      return;
-    }
-
-    if (entityType === 'task') {
-      await this.resolveTask(entityId, variables);
+    if (LEGACY_SOR_ENTITY_TYPES.has(entityType)) {
+      await this.resolveSorBoundEntity(entityType, entityId, variables);
       return;
     }
 
@@ -124,15 +113,81 @@ export class NotificationVariableResolverService {
   }
 
   /**
-   * Resolves project variables.
+   * Delegates sor_bound hydration to {@link ConfigObjectVariableProvider}; falls back to TypeORM for project/task.
    */
-  private async resolveProject(
+  private async resolveSorBoundEntity(
+    objectType: string,
+    coreId: number,
+    variables: Record<string, unknown>,
+  ): Promise<void> {
+    const tenantId = this.resolveTenantId(variables);
+    const legacyFieldMap = LEGACY_SOR_ENTITY_FIELD_MAPS[objectType];
+
+    if (tenantId && legacyFieldMap) {
+      const hydrated =
+        await this.configObjectVariableProvider.hydrateLegacyFlatVariables(
+          variables,
+          tenantId,
+          objectType,
+          coreId,
+          legacyFieldMap,
+        );
+
+      if (hydrated) {
+        this.setIfMissing(variables, 'tenantId', tenantId);
+        this.applySorBoundUrls(objectType, coreId, variables);
+        if (objectType === 'task') {
+          const projectId = parseOptionalPositiveInt(variables.projectId);
+          if (projectId) {
+            await this.resolveSorBoundEntity('project', projectId, variables);
+          }
+        }
+        return;
+      }
+    }
+
+    if (objectType === 'project') {
+      await this.resolveProjectFromRepository(coreId, variables);
+      return;
+    }
+
+    if (objectType === 'task') {
+      await this.resolveTaskFromRepository(coreId, variables);
+    }
+  }
+
+  private applySorBoundUrls(
+    objectType: string,
+    coreId: number,
+    variables: Record<string, unknown>,
+  ): void {
+    if (objectType === 'project') {
+      this.setIfMissing(
+        variables,
+        'projectUrl',
+        this.urlBuilder.buildProjectUrl(coreId),
+      );
+      return;
+    }
+
+    if (objectType === 'task') {
+      this.setIfMissing(
+        variables,
+        'taskUrl',
+        this.urlBuilder.buildTaskUrl(coreId),
+      );
+    }
+  }
+
+  private async resolveProjectFromRepository(
     projectId: number,
     variables: Record<string, unknown>,
   ): Promise<void> {
     const repo = this.dataSource.getRepository(ProjectEntity);
     const project = await repo.findOne({ where: { projectId } });
-    if (!project) return;
+    if (!project) {
+      return;
+    }
 
     this.setIfMissing(variables, 'projectId', project.projectId);
     this.setIfMissing(variables, 'projectName', project.name);
@@ -145,16 +200,15 @@ export class NotificationVariableResolverService {
     );
   }
 
-  /**
-   * Resolves task and related project variables.
-   */
-  private async resolveTask(
+  private async resolveTaskFromRepository(
     taskId: number,
     variables: Record<string, unknown>,
   ): Promise<void> {
     const repo = this.dataSource.getRepository(TaskEntity);
     const task = await repo.findOne({ where: { taskId } });
-    if (!task) return;
+    if (!task) {
+      return;
+    }
 
     this.setIfMissing(variables, 'taskId', task.taskId);
     this.setIfMissing(variables, 'taskName', task.name);
@@ -168,20 +222,19 @@ export class NotificationVariableResolverService {
     );
 
     if (task.projectId) {
-      await this.resolveProject(task.projectId, variables);
+      await this.resolveSorBoundEntity('project', task.projectId, variables);
     }
   }
 
-  /**
-   * Resolves comment and related task variables.
-   */
   private async resolveComment(
     commentId: number,
     variables: Record<string, unknown>,
   ): Promise<void> {
     const repo = this.dataSource.getRepository(TaskCommentsEntity);
     const comment = await repo.findOne({ where: { commentId } });
-    if (!comment) return;
+    if (!comment) {
+      return;
+    }
 
     this.setIfMissing(variables, 'commentId', comment.commentId);
     this.setIfMissing(
@@ -196,23 +249,19 @@ export class NotificationVariableResolverService {
         'commentUrl',
         this.urlBuilder.buildCommentUrl(comment.taskId, comment.commentId),
       );
-    }
-
-    if (comment.taskId) {
-      await this.resolveTask(comment.taskId, variables);
+      await this.resolveSorBoundEntity('task', comment.taskId, variables);
     }
   }
 
-  /**
-   * Resolves attachment and related task/comment variables.
-   */
   private async resolveAttachment(
     attachmentId: number,
     variables: Record<string, unknown>,
   ): Promise<void> {
     const repo = this.dataSource.getRepository(TaskAttachmentsEntity);
     const attachment = await repo.findOne({ where: { attachmentId } });
-    if (!attachment) return;
+    if (!attachment) {
+      return;
+    }
 
     this.setIfMissing(variables, 'fileName', attachment.fileName);
     this.setIfMissing(variables, 'filePath', attachment.filePath);
@@ -223,20 +272,19 @@ export class NotificationVariableResolverService {
       await this.resolveComment(attachment.commentId, variables);
     }
     if (attachment.taskId) {
-      await this.resolveTask(attachment.taskId, variables);
+      await this.resolveSorBoundEntity('task', attachment.taskId, variables);
     }
   }
 
-  /**
-   * Resolves team variables.
-   */
   private async resolveTeam(
     teamId: number,
     variables: Record<string, unknown>,
   ): Promise<void> {
     const repo = this.dataSource.getRepository(TenantTeamEntity);
     const team = await repo.findOne({ where: { tenantTeamId: teamId } });
-    if (!team) return;
+    if (!team) {
+      return;
+    }
 
     this.setIfMissing(variables, 'teamId', team.tenantTeamId);
     this.setIfMissing(variables, 'teamName', team.name);
@@ -249,17 +297,17 @@ export class NotificationVariableResolverService {
     );
   }
 
-  /**
-   * Normalizes entity type into a simple lower-case name.
-   */
+  private resolveTenantId(variables: Record<string, unknown>): number | null {
+    return parseOptionalPositiveInt(variables.tenantId);
+  }
+
   private normalizeEntityType(entityType?: string | null): string | null {
-    if (!entityType) return null;
+    if (!entityType) {
+      return null;
+    }
     return entityType.toLowerCase().replace(/entity$/, '');
   }
 
-  /**
-   * Sets a variable only if it's missing or empty.
-   */
   private setIfMissing(
     variables: Record<string, unknown>,
     key: string,
@@ -270,9 +318,6 @@ export class NotificationVariableResolverService {
     }
   }
 
-  /**
-   * Resolves a display name for a user.
-   */
   private getDisplayName(user: {
     displayName?: string | null;
     firstName?: string | null;
@@ -280,20 +325,23 @@ export class NotificationVariableResolverService {
     username?: string | null;
     email?: string | null;
   }): string {
-    if (user.displayName) return user.displayName;
+    if (user.displayName) {
+      return user.displayName;
+    }
     const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
-    if (fullName) return fullName;
+    if (fullName) {
+      return fullName;
+    }
     return user.username ?? user.email ?? 'User';
   }
 
-  /**
-   * Safely fetches a user by ID.
-   */
   private async safeFindUser(userId?: number): Promise<any | null> {
-    if (!userId) return null;
+    if (!userId) {
+      return null;
+    }
     try {
       return await this.userService.findOne(userId, userId);
-    } catch (error) {
+    } catch {
       return null;
     }
   }

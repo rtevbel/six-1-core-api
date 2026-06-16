@@ -25,4 +25,11 @@ export class CompleteProcessInstanceStepDto {
   @IsString()
   @MaxLength(64)
   correlationId?: string;
+
+  /** Tenant-scoped user id for step-level permission checks (optional). */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Type(() => Number)
+  tenantUserId?: number;
 }

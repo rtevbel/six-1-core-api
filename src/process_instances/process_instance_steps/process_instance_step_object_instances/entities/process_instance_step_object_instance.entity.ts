@@ -55,6 +55,14 @@ export class ProcessInstanceStepObjectInstanceEntity {
   configCustomObjectInstanceId!: number | null;
 
   @Column({
+    name: 'core_id',
+    type: 'bigint',
+    unsigned: true,
+    nullable: true,
+  })
+  coreId!: number | null;
+
+  @Column({
     name: 'status',
     type: 'enum',
     enum: ['pending', 'active', 'valid', 'failed', 'skipped'],

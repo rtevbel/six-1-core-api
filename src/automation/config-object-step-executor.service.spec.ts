@@ -10,6 +10,14 @@ import {
 describe('ConfigObjectStepExecutor', () => {
   const emit = jest.fn();
   const flags = { isConfigObjectStepsEnabled: jest.fn().mockReturnValue(true) };
+  const configObjectsService = {
+    resolveObjectInstance: jest.fn(),
+    loadCoreRecord: jest.fn(),
+  };
+  const completenessService = {
+    isBindingComplete: jest.fn(),
+    buildFieldSnapshot: jest.fn(),
+  };
 
   const managerQuery = jest.fn();
   const transaction = jest.fn(async (fn) => fn({ query: managerQuery }));
@@ -28,6 +36,8 @@ describe('ConfigObjectStepExecutor', () => {
       ds,
       { emit } as unknown as EventsService,
       flags as unknown as ProcessFeatureFlagsService,
+      configObjectsService as never,
+      completenessService as never,
     );
   });
 
@@ -70,6 +80,10 @@ describe('ConfigObjectStepExecutor', () => {
           { payload: { amount: 100 }, status: 'DRAFT' },
         ])
         .mockResolvedValueOnce(undefined);
+
+      completenessService.isBindingComplete.mockResolvedValue({
+        valid: true,
+      });
 
       const result = await executor.validateByCustomInstanceId(77, 2, 'corr-1');
 

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { ProcessInstanceStepTriggersService } from './process_instance_step_trigger_conditions.service';
@@ -18,7 +18,7 @@ import { ConfigObjectsModule } from '../../../config_objects/config_objects.modu
   imports: [
     // Registers the ProcessInstanceStepTriggerEntity for TypeORM.
     TypeOrmModule.forFeature([ProcessInstanceStepTriggerEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [ProcessInstanceStepTriggersController],
   providers: [ProcessInstanceStepTriggersService],

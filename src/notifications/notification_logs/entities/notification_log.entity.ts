@@ -44,11 +44,11 @@ export class NotificationLogEntity {
   @Column({
     name: 'status',
     type: 'enum',
-    enum: ['pending', 'sent', 'failed'],
+    enum: ['pending', 'sent', 'failed', 'dead_letter'],
     nullable: false,
     comment: 'Status of the notification attempt',
   })
-  status!: 'pending' | 'sent' | 'failed';
+  status!: 'pending' | 'sent' | 'failed' | 'dead_letter';
 
   @Column({
     name: 'response',

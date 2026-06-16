@@ -27,10 +27,12 @@ import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 import { EventsService } from '../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
 
 describe('ConfigObjectsService', () => {
   let service: ConfigObjectsService;
   let dataSource: DataSource;
+  let eventsService: { emit: jest.Mock };
 
   let templateSetRepo: Repository<ConfigTemplateSetEntity>;
   let configObjectRepo: Repository<ConfigObjectEntity>;
@@ -145,6 +147,7 @@ describe('ConfigObjectsService', () => {
 
     service = module.get<ConfigObjectsService>(ConfigObjectsService);
     dataSource = module.get<DataSource>(DataSource);
+    eventsService = module.get(EventsService);
 
     templateSetRepo = module.get(getRepositoryToken(ConfigTemplateSetEntity));
     configObjectRepo = module.get(getRepositoryToken(ConfigObjectEntity));
@@ -529,6 +532,18 @@ describe('ConfigObjectsService', () => {
     expect((result.core as { name: string }).name).toBe('New');
     expect(result.metaJson).toEqual({ dyn1: 'x' });
     expect(mockManager.save).toHaveBeenCalled();
+    expect(eventsService.emit).toHaveBeenCalledWith(
+      PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
+      expect.objectContaining({
+        tenantId: 1,
+        data: expect.objectContaining({
+          objectType: 'project',
+          coreId: 5,
+          resolutionMode: 'sor_bound',
+          changedFields: expect.arrayContaining(['name', 'dyn1']),
+        }),
+      }),
+    );
   });
 
   it('applySorBoundInstancePatch should apply meta under global schema when tenantId is omitted', async () => {
@@ -2274,6 +2289,30 @@ describe('ConfigObjectsService', () => {
         relationBlocks: {},
       }),
     ).rejects.toThrow('Missing inline_required relation blocks');
+  });
+
+  it('composeRuntimeSubmitPayload should reject invalid attachment field payloads', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'role' },
+      fieldRegistry: [
+        {
+          fieldKey: 'evidence',
+          canCreate: true,
+          requiredOnCreate: true,
+          fieldType: 'attachment',
+        },
+      ],
+      relations: [],
+    } as any);
+
+    await expect(
+      service.composeRuntimeSubmitPayload({
+        tenantId: 1,
+        entityKey: 'role',
+        operation: 'create',
+        fieldValues: { evidence: {} },
+      }),
+    ).rejects.toThrow('Invalid attachment value');
   });
 
   it('getRuntimeManifest should clamp unsafe relation query defaults', async () => {

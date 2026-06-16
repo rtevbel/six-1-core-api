@@ -1,11 +1,17 @@
 import { RpcException } from '@nestjs/microservices';
 import type { Repository } from 'typeorm';
 import {
+  PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING,
   PROCESS_TEMPLATE_OBJECT_BINDING_MODES_V1,
+  PROCESS_CONFIG_OBJECT_CORE_LINKED_BINDING_MODES,
   type ProcessTemplateObjectBindingMode,
 } from '../../../automation/process-step-object-binding.constants';
 import { ConfigObjectEntity } from '../../../config_objects/entities/config_object.entity';
 import { ProcessTemplateStepEntity } from '../entities/process_template_step.entity';
+
+const CORE_LINKED_CONFIG_BINDING_MODES = new Set<string>(
+  PROCESS_CONFIG_OBJECT_CORE_LINKED_BINDING_MODES,
+);
 
 export async function assertProcessTemplateStepObjectBindingAllowed(
   stepRepository: Repository<ProcessTemplateStepEntity>,
@@ -16,7 +22,9 @@ export async function assertProcessTemplateStepObjectBindingAllowed(
     bindingMode: ProcessTemplateObjectBindingMode;
   },
 ): Promise<void> {
-  if (!PROCESS_TEMPLATE_OBJECT_BINDING_MODES_V1.includes(params.bindingMode)) {
+  if (params.bindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING) {
+    // use_existing is validated after config object load (core-linked only).
+  } else if (!PROCESS_TEMPLATE_OBJECT_BINDING_MODES_V1.includes(params.bindingMode)) {
     throw new RpcException(
       `binding_mode "${params.bindingMode}" is not supported in v1; use create_on_enter`,
     );
@@ -40,9 +48,12 @@ export async function assertProcessTemplateStepObjectBindingAllowed(
     throw new RpcException('Config object not found');
   }
 
-  if (configObject.bindingMode === 'system_table') {
+  if (
+    params.bindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING &&
+    !CORE_LINKED_CONFIG_BINDING_MODES.has(configObject.bindingMode)
+  ) {
     throw new RpcException(
-      'Process step object bindings cannot reference system_table config objects',
+      'use_existing binding mode is only supported for sor_bound and system_table config objects',
     );
   }
 

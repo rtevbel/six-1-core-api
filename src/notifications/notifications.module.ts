@@ -9,9 +9,10 @@ import { NotificationLogsModule } from './notification_logs/notification_logs.mo
 import { EventListenersModule } from '../events/event_listeners/event_listeners.module';
 import { EventLogsModule } from '../events/event_logs/event_logs.module';
 import { UserNotificationPreferencesModule } from '../users/user-notification-preferences/user-notification-preferences.module';
-import { NotificationTemplateRendererService } from './services/notification-template-renderer.service';
 import { NotificationDispatcherService } from './services/notification-dispatcher.service';
 import { NotificationJobService } from './services/notification-job.service';
+import { NotificationDispatchPipelineService } from './services/notification-dispatch-pipeline.service';
+import { NotificationImmediateDispatchService } from './services/notification-immediate-dispatch.service';
 import { NotificationVariableResolverService } from './services/notification-variable-resolver.service';
 import { NotificationTemplateBindingService } from './services/notification-template-binding.service';
 import { NotificationUrlBuilderService } from './services/notification-url-builder.service';
@@ -23,6 +24,9 @@ import {
   SmsNotificationSender,
   SystemNotificationSender,
 } from './services/notification-senders.service';
+import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { NotificationContextModule } from './context/notification-context.module';
+import { NotificationCatalogModule } from './catalog/notification-catalog.module';
 
 /**
  * NotificationsModule is responsible for managing notifications.
@@ -42,13 +46,17 @@ import {
     UserNotificationPreferencesModule,
     UsersModule,
     UserMetaModule,
+    ConfigObjectsModule,
+    NotificationContextModule,
+    NotificationCatalogModule,
   ],
   controllers: [NotificationsController],
   providers: [
     NotificationsService,
-    NotificationTemplateRendererService,
     NotificationDispatcherService,
     NotificationJobService,
+    NotificationDispatchPipelineService,
+    NotificationImmediateDispatchService,
     NotificationVariableResolverService,
     NotificationTemplateBindingService,
     NotificationUrlBuilderService,
@@ -57,6 +65,12 @@ import {
     PushNotificationSender,
     SystemNotificationSender,
   ],
-  exports: [NotificationUrlBuilderService],
+  exports: [
+    NotificationsService,
+    NotificationUrlBuilderService,
+    NotificationCatalogModule,
+    NotificationImmediateDispatchService,
+    NotificationDispatchPipelineService,
+  ],
 })
 export class NotificationsModule {}

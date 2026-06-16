@@ -1,0 +1,9 @@
+export const MICROSERVICE_GET_PROCESS_TEMPLATE_STEP_EXTENSION_PATTERN =
+  'v0.1_get_process_template_step_extension';
+export const MICROSERVICE_UPSERT_PROCESS_TEMPLATE_STEP_EXTENSION_PATTERN =
+  'v0.1_upsert_process_template_step_extension';
+export const MICROSERVICE_DELETE_PROCESS_TEMPLATE_STEP_EXTENSION_PATTERN =
+  'v0.1_delete_process_template_step_extension';
+
+export const MESSAGE_BROKER_PROCESS_TEMPLATE_STEP_EXTENSION_SERVICE_CLIENT_TOKEN =
+  'process_template_step_extension_service_token';

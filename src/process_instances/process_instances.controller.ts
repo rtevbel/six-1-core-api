@@ -8,12 +8,25 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { ProcessInstancesService } from './process_instances.service';
 import { ProcessRunnerService } from './process-runner.service';
 import type { ProcessRunnerPayload } from './interfaces/process-runner-payload.interface';
+import type { ProcessInstanceTimelineResult } from './interfaces/process-instance-timeline.interface';
+import type { ProcessStepExecutionLogResult } from './interfaces/process-step-execution-log.interface';
 import { CreateProcessInstanceDto } from './dto/create-process_instance.dto';
 import { UpdateProcessInstanceDto } from './dto/update-process_instance.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { GetProcessInstanceRunnerDto } from './dto/get-process-instance-runner.dto';
+import { GetProcessInstanceTimelineDto } from './dto/get-process-instance-timeline.dto';
+import { GetProcessInstanceStepExecutionLogDto } from './dto/get-process-instance-step-execution-log.dto';
 import { StartProcessDto } from './dto/start-process.dto';
+import { BatchStartProcessDto } from './dto/batch-start-process.dto';
+import {
+  AcquireProcessStepLockDto,
+  HeartbeatProcessStepLockDto,
+  ReleaseProcessStepLockDto,
+} from './dto/step-lock.dto';
 import { CompleteProcessInstanceStepDto } from './dto/complete-process-instance-step.dto';
+import { SkipProcessInstanceStepDto } from './dto/skip-process-instance-step.dto';
+import { RetryProcessInstanceStepDto } from './dto/retry-process-instance-step.dto';
+import { RollbackProcessInstanceStepDto } from './dto/rollback-process-instance-step.dto';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RequirePermissions } from '../authorization/authorization.decorator';
@@ -25,15 +38,29 @@ import {
   MICROSERVICE_UPDATE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_INSTANCE_PATTERN,
   MICROSERVICE_GET_PROCESS_INSTANCE_RUNNER_PATTERN,
+  MICROSERVICE_GET_PROCESS_INSTANCE_TIMELINE_PATTERN,
+  MICROSERVICE_GET_PROCESS_INSTANCE_STEP_EXECUTION_LOG_PATTERN,
   MICROSERVICE_START_PROCESS_PATTERN,
+  MICROSERVICE_BATCH_START_PROCESS_PATTERN,
+  MICROSERVICE_ACQUIRE_PROCESS_STEP_LOCK_PATTERN,
+  MICROSERVICE_RELEASE_PROCESS_STEP_LOCK_PATTERN,
+  MICROSERVICE_HEARTBEAT_PROCESS_STEP_LOCK_PATTERN,
   MICROSERVICE_COMPLETE_PROCESS_INSTANCE_STEP_PATTERN,
+  MICROSERVICE_SKIP_PROCESS_INSTANCE_STEP_PATTERN,
+  MICROSERVICE_RETRY_PROCESS_INSTANCE_STEP_PATTERN,
+  MICROSERVICE_ROLLBACK_PROCESS_INSTANCE_STEP_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
+import { resolveProcessTemplateStoredTenantId } from '../common/utils/tenant-scope.util';
 import { ProcessLifecycleFacade } from '../automation/process-lifecycle.facade';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
+import { ProcessStepPermissionService } from './process-step-permission.service';
+import { ProcessInstanceTimelineService } from './process-instance-timeline.service';
+import { ProcessStepExecutionLogService } from '../automation/process-step-execution-log.service';
 import type { StartProcessResult } from '../automation/process-host/process-host.context';
+import { ProcessStepLocksService } from './process_step_locks/process-step-locks.service';
 
 @Controller('process-instances')
 export class ProcessInstancesController {
@@ -42,6 +69,10 @@ export class ProcessInstancesController {
     private readonly processRunnerService: ProcessRunnerService,
     private readonly processLifecycle: ProcessLifecycleFacade,
     private readonly orchestrator: StepOrchestratorService,
+    private readonly stepPermissions: ProcessStepPermissionService,
+    private readonly processInstanceTimelineService: ProcessInstanceTimelineService,
+    private readonly processStepExecutionLogService: ProcessStepExecutionLogService,
+    private readonly stepLocks: ProcessStepLocksService,
   ) {}
 
   /**
@@ -147,7 +178,35 @@ export class ProcessInstancesController {
       userId,
       dto.processInstanceId,
       dto.tenantId,
+      dto.tenantUserId,
+      dto.childDepth,
     );
+  }
+
+  /**
+   * Process-scoped audit timeline for the Runner panel (not platform P7 event timeline).
+   */
+  @MessagePattern(MICROSERVICE_GET_PROCESS_INSTANCE_TIMELINE_PATTERN)
+  @RequirePermissions('process_instances.read')
+  @UsePipes(AppRpcValidationPipe)
+  getProcessInstanceTimeline(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: GetProcessInstanceTimelineDto,
+  ): Promise<ProcessInstanceTimelineResult> {
+    return this.processInstanceTimelineService.getTimeline(userId, dto);
+  }
+
+  /**
+   * Append-only step lifecycle execution log for a process instance (E2).
+   */
+  @MessagePattern(MICROSERVICE_GET_PROCESS_INSTANCE_STEP_EXECUTION_LOG_PATTERN)
+  @RequirePermissions('process_instances.read')
+  @UsePipes(AppRpcValidationPipe)
+  getProcessInstanceStepExecutionLog(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: GetProcessInstanceStepExecutionLogDto,
+  ): Promise<ProcessStepExecutionLogResult> {
+    return this.processStepExecutionLogService.getExecutionLog(userId, dto);
   }
 
   /**
@@ -162,11 +221,11 @@ export class ProcessInstancesController {
     @Payload('data') dto: StartProcessDto,
   ): Promise<StartProcessResult> {
     const result = await this.processLifecycle.startProcess({
-      tenantId: dto.tenantId,
+      tenantId: resolveProcessTemplateStoredTenantId(dto.tenantId),
       createdBy: dto.createdBy ?? userId,
       templateId: dto.templateId,
       subjectType: dto.subjectType,
-      subjectId: dto.subjectId,
+      subjectId: dto.subjectId ?? 0,
       subjectMetadata: dto.subjectMetadata ?? null,
       context: dto.context ?? null,
       correlationId: dto.correlationId ?? null,
@@ -175,12 +234,107 @@ export class ProcessInstancesController {
     if (result.firstStepInstanceId) {
       await this.orchestrator.attemptAdvance(result.firstStepInstanceId, {
         cause: 'manual',
-        correlationId: dto.correlationId ?? undefined,
+        correlationId: result.correlationId,
         actorTenantUserId: dto.createdBy ?? userId,
       });
     }
 
     return result;
+  }
+
+  /**
+   * Bulk start semantics (G2): starts many process instances for the same template.
+   */
+  @MessagePattern(MICROSERVICE_BATCH_START_PROCESS_PATTERN)
+  @RequirePermissions('process_instances.create')
+  @UsePipes(AppRpcValidationPipe)
+  async batchStartProcess(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: BatchStartProcessDto,
+  ): Promise<
+    | {
+        status: 'queued';
+        requested: number;
+        deduped: number;
+      }
+    | {
+        status: 'started';
+        requested: number;
+        deduped: number;
+        results: Array<StartProcessResult & { itemIndex: number }>;
+      }
+  > {
+    const result = await this.processLifecycle.batchStartProcess({
+      tenantId: resolveProcessTemplateStoredTenantId(dto.tenantId),
+      createdBy: dto.createdBy ?? userId,
+      templateId: dto.templateId,
+      async: dto.async ?? false,
+      items: dto.items.map((item, index) => ({
+        itemIndex: index,
+        subjectType: item.subjectType,
+        subjectId: item.subjectId ?? 0,
+        subjectMetadata: item.subjectMetadata ?? null,
+        context: item.context ?? null,
+        correlationId: item.correlationId ?? null,
+      })),
+    });
+
+    if (result.status === 'queued') {
+      return {
+        status: 'queued',
+        requested: result.requested,
+        deduped: result.deduped,
+      };
+    }
+
+    return {
+      status: 'started',
+      requested: result.requested,
+      deduped: result.deduped,
+      results: result.results,
+    };
+  }
+
+  @MessagePattern(MICROSERVICE_ACQUIRE_PROCESS_STEP_LOCK_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  acquireProcessStepLock(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: AcquireProcessStepLockDto,
+  ): Promise<{ lockHolder: number; lockExpiresAt: string }> {
+    return this.stepLocks.acquire({
+      stepInstanceId: dto.stepInstanceId,
+      tenantUserId: dto.tenantUserId,
+      ttlMs: dto.ttlMs,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_RELEASE_PROCESS_STEP_LOCK_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  async releaseProcessStepLock(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ReleaseProcessStepLockDto,
+  ): Promise<{ released: boolean }> {
+    await this.stepLocks.release({
+      stepInstanceId: dto.stepInstanceId,
+      tenantUserId: dto.tenantUserId,
+    });
+    return { released: true };
+  }
+
+  @MessagePattern(MICROSERVICE_HEARTBEAT_PROCESS_STEP_LOCK_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  heartbeatProcessStepLock(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: HeartbeatProcessStepLockDto,
+  ): Promise<{ lockHolder: number; lockExpiresAt: string }> {
+    return this.stepLocks.heartbeat({
+      stepInstanceId: dto.stepInstanceId,
+      tenantUserId: dto.tenantUserId,
+      ttlMs: dto.ttlMs,
+    });
   }
 
   /**
@@ -198,6 +352,16 @@ export class ProcessInstancesController {
     stepInstanceId: number;
     status: 'completed';
   }> {
+    await this.stepPermissions.assertCallerCanCompleteStep(
+      userId,
+      dto.stepInstanceId,
+      dto.tenantUserId,
+    );
+    await this.stepLocks.assertCanMutateStep({
+      stepInstanceId: dto.stepInstanceId,
+      tenantUserId: dto.tenantUserId,
+    });
+
     await this.orchestrator.markCompleted(dto.stepInstanceId, {
       cause: 'manual',
       correlationId: dto.correlationId,
@@ -211,6 +375,105 @@ export class ProcessInstancesController {
       processInstanceId: dto.processInstanceId,
       stepInstanceId: dto.stepInstanceId,
       status: 'completed',
+    };
+  }
+
+  /**
+   * Skips a process step when allowed (`allowSkip` or `is_optional`).
+   * Gateway: POST /process-instances/:processInstanceId/steps/:stepInstanceId/skip
+   */
+  @MessagePattern(MICROSERVICE_SKIP_PROCESS_INSTANCE_STEP_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  async skipProcessInstanceStep(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: SkipProcessInstanceStepDto,
+  ): Promise<{
+    processInstanceId: number;
+    stepInstanceId: number;
+    status: 'skipped';
+  }> {
+    await this.stepPermissions.assertCallerCanCompleteStep(
+      userId,
+      dto.stepInstanceId,
+      dto.tenantUserId,
+    );
+    await this.stepLocks.assertCanMutateStep({
+      stepInstanceId: dto.stepInstanceId,
+      tenantUserId: dto.tenantUserId,
+    });
+
+    await this.orchestrator.markSkipped(dto.stepInstanceId, {
+      cause: 'manual',
+      correlationId: dto.correlationId,
+      actorTenantUserId: userId,
+      failOnPrecondition: true,
+      expectedProcessInstanceId: dto.processInstanceId,
+      expectedTenantId: dto.tenantId,
+    });
+
+    return {
+      processInstanceId: dto.processInstanceId,
+      stepInstanceId: dto.stepInstanceId,
+      status: 'skipped',
+    };
+  }
+
+  @MessagePattern(MICROSERVICE_RETRY_PROCESS_INSTANCE_STEP_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  async retryProcessInstanceStep(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: RetryProcessInstanceStepDto,
+  ): Promise<{ processInstanceId: number; stepInstanceId: number; status: 'ready' }> {
+    await this.stepPermissions.assertCallerCanCompleteStep(
+      userId,
+      dto.stepInstanceId,
+      dto.tenantUserId,
+    );
+
+    await this.orchestrator.retry(dto.stepInstanceId, {
+      cause: 'manual',
+      correlationId: dto.correlationId,
+      actorTenantUserId: userId,
+      failOnPrecondition: true,
+      expectedProcessInstanceId: dto.processInstanceId,
+      expectedTenantId: dto.tenantId,
+    });
+
+    return {
+      processInstanceId: dto.processInstanceId,
+      stepInstanceId: dto.stepInstanceId,
+      status: 'ready',
+    };
+  }
+
+  @MessagePattern(MICROSERVICE_ROLLBACK_PROCESS_INSTANCE_STEP_PATTERN)
+  @RequirePermissions('process_instances.update')
+  @UsePipes(AppRpcValidationPipe)
+  async rollbackProcessInstanceStep(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: RollbackProcessInstanceStepDto,
+  ): Promise<{ processInstanceId: number; stepInstanceId: number; status: 'pending' }> {
+    await this.stepPermissions.assertCallerCanCompleteStep(
+      userId,
+      dto.stepInstanceId,
+      dto.tenantUserId,
+    );
+
+    await this.orchestrator.rollback(dto.stepInstanceId, {
+      cause: 'manual',
+      correlationId: dto.correlationId,
+      actorTenantUserId: userId,
+      failOnPrecondition: true,
+      expectedProcessInstanceId: dto.processInstanceId,
+      expectedTenantId: dto.tenantId,
+    });
+
+    return {
+      processInstanceId: dto.processInstanceId,
+      stepInstanceId: dto.stepInstanceId,
+      status: 'pending',
     };
   }
 }

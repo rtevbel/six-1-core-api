@@ -1,5 +1,11 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
-import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
+import { Injectable, Inject, forwardRef, Logger } from '@nestjs/common';
+import {
+  Repository,
+  Like,
+  UpdateResult,
+  DeleteResult,
+} from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EventEntity } from './entities/event.entity';
 import { CreateEventDto } from './dto/create-event.dto';
@@ -8,9 +14,19 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EventEnvelope, EntityRef, normalizeEntityRef } from './types';
+import {
+  EventEnvelope,
+  buildEventEnvelope,
+  normalizeEntityRef,
+} from './types';
+import type { EventEmitOptions } from './interfaces/event-emit-options.interface';
 import { EventLogsService } from './event_logs/event_logs.service';
 import { CreateEventLogsDto } from './event_logs/dto/create-event_logs.dto';
+import { PlatformEventFlagsService } from './config/platform-event-flags.service';
+import { PlatformEventBusService } from './platform-bus/platform-event-bus.service';
+import { validatePlatformEventEnvelope } from './validation/event-envelope.validation';
+import { EventEnvelopeValidationError } from './validation/event-envelope-validation.error';
+import { getDeprecatedEventEmitWarning } from './platform-event-naming.util';
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
@@ -22,14 +38,26 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../common/constants';
 
+/**
+ * Domain event emission and catalog CRUD.
+ *
+ * **Producer contract:** all feature modules emit via this service — not `EventEmitter2` directly.
+ * @see docs/platform-event-catalog.md — naming, catalog, checklist
+ * @see docs/platform-event-envelope.md — envelope shape & validation
+ */
 @Injectable()
 export class EventsService {
+  private readonly logger = new Logger(EventsService.name);
+
   constructor(
     @InjectRepository(EventEntity)
     private readonly eventRepository: Repository<EventEntity>,
     private readonly emitter: EventEmitter2,
     @Inject(forwardRef(() => EventLogsService))
     private readonly eventLogsService: EventLogsService,
+    private readonly platformEventFlags: PlatformEventFlagsService,
+    @Inject(forwardRef(() => PlatformEventBusService))
+    private readonly platformEventBus: PlatformEventBusService,
   ) {}
 
   /**
@@ -170,7 +198,10 @@ export class EventsService {
     }
 
     updateEventDto.updatedBy = userId;
-    return await this.eventRepository.update(id, updateEventDto);
+    return await this.eventRepository.update(
+      id,
+      updateEventDto as QueryDeepPartialEntity<EventEntity>,
+    );
   }
 
   /**
@@ -191,7 +222,7 @@ export class EventsService {
    * @throws RpcException if no record is found.
    */
   async findOneByName(userId: number, name: string): Promise<EventEntity> {
-    const event = await this.eventRepository.findOne({ where: { name } });
+    const event = await this.findOptionalByName(name);
 
     if (!event) {
       throw new RpcException(
@@ -203,14 +234,21 @@ export class EventsService {
   }
 
   /**
+   * Retrieves a catalog row by name, or null when not registered.
+   */
+  async findOptionalByName(name: string): Promise<EventEntity | null> {
+    return this.eventRepository.findOne({ where: { name } });
+  }
+
+  /**
    * Retrieves a single event id by name.
    * @param userId - ID of the user requesting the data.
    * @param name - Name of the event to retrieve.
-   * @returns  event id
+   * @returns event id
    * @throws RpcException if no record is found.
    */
   async findIdByName(userId: number, name: string): Promise<number | null> {
-    const event = await this.eventRepository.findOne({ where: { name } });
+    const event = await this.findOptionalByName(name);
 
     if (!event) {
       throw new RpcException(
@@ -221,132 +259,67 @@ export class EventsService {
   }
 
   /**
-   * Emits a domain event with the specified name and options.
+   * Retrieves an event id by name without throwing when absent.
+   */
+  async findIdByNameOrNull(name: string): Promise<number | null> {
+    const event = await this.findOptionalByName(name);
+    return event?.eventId ?? null;
+  }
+
+  /**
+   * Emits a domain event asynchronously and awaits listener completion.
    *
-   * @param eventName - The name of the event to emit.
-   * @param opts - Additional options for the event, including:
-   *   - entity: The entity associated with the event (can be an object or EntityRef).
-   *   - userId: The ID of the user responsible for the event.
-   *   - createdBy: The ID of the user who created the event (defaults to userId if not provided).
-   *   - data: The payload or data associated with the event.
-   *   - correlationId: An ID to correlate this event with other events.
-   *   - causationId: An ID to indicate the cause of this event.
-   *   - externalId: An external identifier for the event.
-   *   - tenantId: The tenant ID associated with the event.
-   *   - occurredAt: The timestamp when the event occurred (defaults to the current date/time).
+   * Use {@link PLATFORM_EVENT_NAMES} for canonical names.
+   * @see docs/platform-event-catalog.md
+   * @see docs/platform-event-envelope.md
    */
   async emitAsync<TData = unknown>(
     eventName: string,
-    opts: {
-      entity?: object | EntityRef;
-      userId?: number;
-      createdBy?: number;
-      data?: TData;
-      correlationId?: string;
-      causationId?: string;
-      externalId?: string;
-      tenantId?: number | string;
-      occurredAt?: Date;
-    } = {},
+    opts: EventEmitOptions<TData> = {},
   ): Promise<any> {
-    // Create an EventEnvelope object with the provided options and defaults
-    const envelope: EventEnvelope<TData> = {
-      eventName,
-      userId: opts.userId,
-      createdBy: opts.createdBy ?? opts.userId,
-      entity: normalizeEntityRef(opts.entity),
-      data: opts.data,
-      correlationId: opts.correlationId,
-      causationId: opts.causationId,
-      externalId: opts.externalId,
-      tenantId: opts.tenantId,
-      occurredAt: opts.occurredAt ?? new Date(),
-    };
-    // Emit the event using the EventEmitter2 instance
-    return await this.emitter.emitAsync(eventName, envelope);
+    const envelope = this.prepareEnvelope(eventName, opts);
+    return this.dispatchEnvelope(eventName, envelope);
   }
 
   /**
-   * Emits a domain event with the specified name and options.
+   * Emits a domain event (fire-and-forget).
    *
-   * @param eventName - The name of the event to emit.
-   * @param opts - Additional options for the event, including:
-   *   - entity: The entity associated with the event (can be an object or EntityRef).
-   *   - userId: The ID of the user responsible for the event.
-   *   - createdBy: The ID of the user who created the event (defaults to userId if not provided).
-   *   - data: The payload or data associated with the event.
-   *   - correlationId: An ID to correlate this event with other events.
-   *   - causationId: An ID to indicate the cause of this event.
-   *   - externalId: An external identifier for the event.
-   *   - tenantId: The tenant ID associated with the event.
-   *   - occurredAt: The timestamp when the event occurred (defaults to the current date/time).
+   * Use {@link PLATFORM_EVENT_NAMES} for canonical names.
+   * @see docs/platform-event-catalog.md
+   * @see docs/platform-event-envelope.md
    */
   emit<TData = unknown>(
     eventName: string,
-    opts: {
-      entity?: object | EntityRef;
-      userId?: number;
-      createdBy?: number;
-      data?: TData;
-      correlationId?: string;
-      causationId?: string;
-      externalId?: string;
-      tenantId?: number | string;
-      occurredAt?: Date;
-    } = {},
+    opts: EventEmitOptions<TData> = {},
   ): void {
-    // Create an EventEnvelope object with the provided options and defaults
-    const envelope: EventEnvelope<TData> = {
-      eventName,
-      userId: opts.userId,
-      createdBy: opts.createdBy ?? opts.userId,
-      entity: normalizeEntityRef(opts.entity),
-      data: opts.data,
-      correlationId: opts.correlationId,
-      causationId: opts.causationId,
-      externalId: opts.externalId,
-      tenantId: opts.tenantId,
-      occurredAt: opts.occurredAt ?? new Date(),
-    };
-
-    // Emit the event using the EventEmitter2 instance
-    this.emitter.emit(eventName, envelope);
+    const envelope = this.prepareEnvelope(eventName, opts);
+    void this.dispatchEnvelope(eventName, envelope).catch((error) => {
+      this.logger.error(
+        `Failed to dispatch event ${eventName}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+    });
   }
 
   /**
-   * Emits a domain event and optionally creates event logs for recipients.
+   * Emits a domain event and optionally creates `event_logs` for explicit recipients.
    *
-   * @param eventName - The name of the event to emit.
-   * @param opts - Additional options for the event and log creation.
+   * @see docs/platform-event-catalog.md — when to use vs notification bridge
    */
   async emitWithLogs<TData = Record<string, unknown>>(
     eventName: string,
-    opts: {
+    opts: EventEmitOptions<TData> & {
       actorId: number;
       recipientIds?: number[];
-      entity?: object | EntityRef;
-      data?: TData;
-      correlationId?: string;
-      causationId?: string;
-      externalId?: string;
-      tenantId?: number | string;
-      occurredAt?: Date;
     },
   ): Promise<void> {
-    const envelope: EventEnvelope<TData> = {
-      eventName,
+    const envelope = this.prepareEnvelope(eventName, {
+      ...opts,
       userId: opts.actorId,
       createdBy: opts.actorId,
-      entity: normalizeEntityRef(opts.entity),
-      data: opts.data,
-      correlationId: opts.correlationId,
-      causationId: opts.causationId,
-      externalId: opts.externalId,
-      tenantId: opts.tenantId,
-      occurredAt: opts.occurredAt ?? new Date(),
-    };
+    });
 
-    await this.emitter.emitAsync(eventName, envelope);
+    await this.dispatchEnvelope(eventName, envelope);
 
     if (opts.recipientIds && opts.recipientIds.length > 0) {
       const entityRef = normalizeEntityRef(opts.entity);
@@ -371,5 +344,59 @@ export class EventsService {
         createEventLogsDto,
       );
     }
+  }
+
+  private async dispatchEnvelope(
+    eventName: string,
+    envelope: EventEnvelope,
+  ): Promise<unknown> {
+    if (this.platformEventFlags.isEventBusEnabled()) {
+      await this.platformEventBus.publish(envelope);
+      return undefined;
+    }
+    return this.emitter.emitAsync(eventName, envelope);
+  }
+
+  private prepareEnvelope<TData>(
+    eventName: string,
+    opts: EventEmitOptions<TData>,
+  ): EventEnvelope<TData> {
+    this.warnDeprecatedEventName(eventName);
+    const envelope = buildEventEnvelope(eventName, opts);
+    this.applyEnvelopeValidation(envelope);
+    return envelope;
+  }
+
+  private warnDeprecatedEventName(eventName: string): void {
+    const warning = getDeprecatedEventEmitWarning(eventName);
+    if (warning) {
+      this.logger.warn(warning.message);
+    }
+  }
+
+  private applyEnvelopeValidation(envelope: EventEnvelope): void {
+    const mode = this.platformEventFlags.getEnvelopeValidationMode();
+    if (mode === 'off') {
+      return;
+    }
+
+    const result = validatePlatformEventEnvelope(envelope);
+
+    if (mode === 'strict') {
+      const issues = [...result.errors, ...result.warnings];
+      if (issues.length > 0) {
+        throw new EventEnvelopeValidationError(envelope.eventName, issues);
+      }
+      return;
+    }
+
+    const issues = [...result.errors, ...result.warnings];
+    if (issues.length === 0) {
+      return;
+    }
+
+    this.logger.warn(
+      `Platform event envelope validation (${envelope.eventName}): ${issues.join('; ')}`,
+    );
   }
 }

@@ -4,6 +4,7 @@ import { EventsService } from '../events/events.service';
 import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 import { ProcessLifecycleFacade } from './process-lifecycle.facade';
 import { ChildProcessOrchestrationService } from './child-process-orchestration.service';
+import { ProcessStepActionOrchestrationService } from './process-step-action-orchestration.service';
 import { PROCESS_BLOCKED_REASON_WAITING_CHILD } from './process-step-task-type.constants';
 
 describe('ChildProcessOrchestrationService', () => {
@@ -13,6 +14,8 @@ describe('ChildProcessOrchestrationService', () => {
 
   const emit = jest.fn();
   const startProcess = jest.fn().mockResolvedValue({ processInstanceId: 200 });
+  const runStepCompleted = jest.fn().mockResolvedValue(undefined);
+  const runStepFailed = jest.fn().mockResolvedValue(undefined);
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -39,6 +42,10 @@ describe('ChildProcessOrchestrationService', () => {
         {
           provide: ProcessFeatureFlagsService,
           useValue: { isCallProcessEnabled: jest.fn().mockReturnValue(true) },
+        },
+        {
+          provide: ProcessStepActionOrchestrationService,
+          useValue: { runStepCompleted, runStepFailed, runProcessCompleted: jest.fn() },
         },
       ],
     }).compile();
@@ -147,6 +154,10 @@ describe('ChildProcessOrchestrationService', () => {
         expect.stringContaining('process_instance_steps'),
         expect.arrayContaining([parentStepId]),
       );
+      expect(runStepFailed).toHaveBeenCalledWith(
+        parentStepId,
+        expect.objectContaining({ correlationId: undefined }),
+      );
     });
 
     it('ignore on cancel completes parent call_process step', async () => {
@@ -180,6 +191,10 @@ describe('ChildProcessOrchestrationService', () => {
         expect.objectContaining({
           data: expect.objectContaining({ resumedParent: true }),
         }),
+      );
+      expect(runStepCompleted).toHaveBeenCalledWith(
+        parentStepId,
+        expect.any(Object),
       );
     });
   });

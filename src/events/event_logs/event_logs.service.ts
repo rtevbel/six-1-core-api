@@ -260,6 +260,16 @@ export class EventLogsService {
   }
 
   /**
+   * Loads an event log with relations for notification dispatch (P8).
+   */
+  async findByIdForDispatch(logId: number): Promise<EventLogEntity | null> {
+    return this.eventLogRepository.findOne({
+      where: { logId },
+      relations: ['event', 'user'],
+    });
+  }
+
+  /**
    * Retrieves all event logs without any filters.
    * @returns An array of all EventLogEntity records.
    */

@@ -1,5 +1,6 @@
 import {
   Controller,
+  Logger,
   NotFoundException,
   ParseIntPipe,
   UsePipes,
@@ -8,13 +9,14 @@ import { MessagePattern, Payload } from '@nestjs/microservices';
 import { EventLogsService } from './event_logs.service';
 import { CreateEventLogDto } from './dto/create-event_log.dto';
 import { UpdateEventLogDto } from './dto/update-event_log.dto';
-import { CreateEventLogsDto } from './dto/create-event_logs.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { EventLogEntity } from './entities/event_log.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { OnEvent } from '@nestjs/event-emitter';
-import { plainToInstance } from 'class-transformer';
-import { EventCatalogService } from '../event-catalog.service';
+import { PLATFORM_EVENT_NAMES } from '../constants/platform-event-names.constants';
+import type { EventEnvelope } from '../types';
+import { PlatformEventFlagsService } from '../config/platform-event-flags.service';
+import { PlatformEventNotificationBridgeService } from '../platform-event-notification-bridge.service';
 
 import {
   MICROSERVICE_CREATE_EVENT_LOG_PATTERN,
@@ -29,17 +31,14 @@ import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe
 
 @Controller('event-logs')
 export class EventLogsController {
+  private readonly logger = new Logger(EventLogsController.name);
+
   constructor(
     private readonly logs: EventLogsService,
-    private readonly catalog: EventCatalogService,
+    private readonly notificationBridge: PlatformEventNotificationBridgeService,
+    private readonly platformFlags: PlatformEventFlagsService,
   ) {}
 
-  /**
-   * Handles the creation of a new event log.
-   * @param userId - ID of the user making the request.
-   * @param createEventLogDto - Data transfer object containing event log details.
-   * @returns The created event log entity.
-   */
   @MessagePattern(MICROSERVICE_CREATE_EVENT_LOG_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   createEventLog(
@@ -49,12 +48,6 @@ export class EventLogsController {
     return this.logs.create(userId, createEventLogDto);
   }
 
-  /**
-   * Retrieves all event logs based on filters.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for querying event logs.
-   * @returns A list of event logs matching the filters.
-   */
   @MessagePattern(MICROSERVICE_FIND_ALL_EVENT_LOG_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   findAllEventLogs(
@@ -64,12 +57,6 @@ export class EventLogsController {
     return this.logs.findAll(userId, filtersDto);
   }
 
-  /**
-   * Retrieves a single event log by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the event log to retrieve.
-   * @returns The event log entity or a NotFoundException.
-   */
   @MessagePattern(MICROSERVICE_FIND_ONE_EVENT_LOG_PATTERN)
   findOneEventLog(
     @Payload('userId') userId: number,
@@ -78,12 +65,6 @@ export class EventLogsController {
     return this.logs.findOne(userId, id);
   }
 
-  /**
-   * Updates an existing event log.
-   * @param userId - ID of the user making the request.
-   * @param updateEventLogDto - Data transfer object containing updated event log details.
-   * @returns The result of the update operation.
-   */
   @MessagePattern(MICROSERVICE_UPDATE_EVENT_LOG_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   updateEventLog(
@@ -93,12 +74,6 @@ export class EventLogsController {
     return this.logs.update(userId, updateEventLogDto.logId, updateEventLogDto);
   }
 
-  /**
-   * Deletes an event log by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the event log to delete.
-   * @returns The result of the delete operation.
-   */
   @MessagePattern(MICROSERVICE_REMOVE_EVENT_LOG_PATTERN)
   removeEventLog(
     @Payload('userId') userId: number,
@@ -107,45 +82,26 @@ export class EventLogsController {
     return this.logs.remove(userId, id);
   }
 
-  /**
-   * Dynamically handles all other events with a specific prefix.
-   * @param envelope - The envelope of the event.
-   * @param eventName - The name of the event.
-   */
+  /** @deprecated Shim — active when platform bus is off. */
   @OnEvent('six1-event.notification.*', { async: true })
-  async handle(envelope: any): Promise<void> {
-    let eventName: string = envelope.eventName;
-    if (eventName) {
-      eventName = eventName.replace('six1-event.notification.', '');
+  async handleDeprecatedNotificationEvent(envelope: EventEnvelope): Promise<void> {
+    if (this.platformFlags.isEventBusEnabled()) {
+      return;
     }
-    console.log(
-      `Event Bridge-> six1-event.notification.* ->Received event: ${eventName} with payload:`,
-      envelope,
-    );
-    const eventId = await this.catalog.getIdByName(eventName);
+    await this.notificationBridge.handle(envelope);
+  }
 
-    const entityId = envelope?.entity?.entityId ?? envelope?.entity?.id ?? null;
-    const entityType =
-      envelope?.entity?.entityType ??
-      envelope?.entity?.constructor?.name ??
-      null;
-
-    const dto = plainToInstance(CreateEventLogDto, {
-      eventId,
-      userId: envelope?.userId ?? 1,
-      entityId: entityId ?? undefined,
-      entityType: entityType ?? undefined,
-      externalId: envelope?.externalId ?? undefined,
-      createdBy: envelope?.createdBy ?? envelope?.userId ?? 1,
-    });
-
-    await this.logs.create(1, dto, {
-      payload: envelope?.data,
-      eventName,
-      correlationId: envelope?.correlationId,
-      causationId: envelope?.causationId,
-      tenantId: envelope?.tenantId,
-      occurredAt: envelope?.occurredAt ?? new Date(),
-    });
+  /** @deprecated Shim — active when platform bus is off. */
+  @OnEvent(PLATFORM_EVENT_NAMES.PROJECT_CREATED, { async: true })
+  @OnEvent(PLATFORM_EVENT_NAMES.PROJECT_STATUS_CHANGED, { async: true })
+  @OnEvent(PLATFORM_EVENT_NAMES.TASK_STATUS_CHANGED, { async: true })
+  @OnEvent(PLATFORM_EVENT_NAMES.PROCESS_STEP_COMPLETED, { async: true })
+  async handleCanonicalNotificationEvent(
+    envelope: EventEnvelope,
+  ): Promise<void> {
+    if (this.platformFlags.isEventBusEnabled()) {
+      return;
+    }
+    await this.notificationBridge.handle(envelope);
   }
 }

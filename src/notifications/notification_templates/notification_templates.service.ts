@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Repository, Like, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { NotificationTemplateEntity } from './entities/notification_template.entity';
@@ -11,7 +11,8 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
+import { NotificationTemplateValidationService } from '../catalog/notification-template-validation.service';
+import { extractTemplatePathsFromMany } from '../template-engine/template-ast-path-extractor';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -20,9 +21,12 @@ import {
 
 @Injectable()
 export class NotificationTemplatesService {
+  private readonly logger = new Logger(NotificationTemplatesService.name);
+
   constructor(
     @InjectRepository(NotificationTemplateEntity)
     private readonly notificationTemplateRepository: Repository<NotificationTemplateEntity>,
+    private readonly templateValidationService: NotificationTemplateValidationService,
   ) {}
 
   /**
@@ -36,9 +40,21 @@ export class NotificationTemplatesService {
     createNotificationTemplateDto: CreateNotificationTemplateDto,
   ): Promise<NotificationTemplateEntity> {
     createNotificationTemplateDto.createdBy = userId;
+    const requiredPaths = extractTemplatePathsFromMany([
+      createNotificationTemplateDto.subject,
+      createNotificationTemplateDto.message,
+    ]);
+    await this.warnUnknownTemplatePaths(
+      createNotificationTemplateDto.subject,
+      createNotificationTemplateDto.message,
+      { tenantId: 1 },
+    );
 
     return await this.notificationTemplateRepository.save(
-      this.notificationTemplateRepository.create(createNotificationTemplateDto),
+      this.notificationTemplateRepository.create({
+        ...createNotificationTemplateDto,
+        requiredPaths,
+      }),
     );
   }
 
@@ -193,11 +209,22 @@ export class NotificationTemplatesService {
     }
 
     updateNotificationTemplateDto.updatedBy = userId;
+    const nextSubject =
+      updateNotificationTemplateDto.subject ?? template.subject ?? null;
+    const nextMessage =
+      updateNotificationTemplateDto.message ?? template.message;
+    const requiredPaths = extractTemplatePathsFromMany([
+      nextSubject,
+      nextMessage,
+    ]);
+    await this.warnUnknownTemplatePaths(nextSubject, nextMessage, {
+      tenantId: 1,
+    });
 
-    return await this.notificationTemplateRepository.update(
-      id,
-      updateNotificationTemplateDto,
-    );
+    return await this.notificationTemplateRepository.update(id, {
+      ...updateNotificationTemplateDto,
+      requiredPaths,
+    });
   }
 
   /**
@@ -208,5 +235,22 @@ export class NotificationTemplatesService {
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
     return await this.notificationTemplateRepository.delete({ templateId: id });
+  }
+
+  private async warnUnknownTemplatePaths(
+    subject: string | null | undefined,
+    message: string,
+    catalogOptions: { tenantId: number; eventName?: string; objectType?: string },
+  ): Promise<void> {
+    const validation = await this.templateValidationService.validateTemplates(
+      subject,
+      message,
+      catalogOptions,
+    );
+    if (validation.unknownPaths.length > 0) {
+      this.logger.warn(
+        `Notification template references unknown variable paths: ${validation.unknownPaths.join(', ')}`,
+      );
+    }
   }
 }

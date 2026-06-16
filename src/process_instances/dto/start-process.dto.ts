@@ -20,15 +20,21 @@ export class StartProcessDto {
   @Type(() => Number)
   templateId!: number;
 
+  /**
+   * Tenant scope for the new instance. Omit or use `0` for super-admin /
+   * system scope (stored as `tenant_id = 0`); positive id for tenant-scoped starts.
+   */
+  @IsOptional()
   @IsInt()
-  @Min(1)
+  @Min(0)
   @Type(() => Number)
-  tenantId!: number;
+  tenantId?: number;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Type(() => Number)
-  createdBy!: number;
+  createdBy?: number;
 
   @IsString()
   @MaxLength(64)
@@ -36,10 +42,14 @@ export class StartProcessDto {
   @Validate(IsProcessSubjectTypeConstraint)
   subjectType!: string;
 
+  /**
+   * Subject entity id. Use `0` or omit for `workflow` (self-subject applied during instantiation).
+   */
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Type(() => Number)
-  subjectId!: number;
+  subjectId?: number;
 
   @IsOptional()
   @IsObject()

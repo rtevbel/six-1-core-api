@@ -23,6 +23,7 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { assertProcessTemplateStepTaskTypeAllowed } from './process-template-step-task-type.validation';
 
 @Injectable()
 export class ProcessTemplateStepsService {
@@ -69,6 +70,7 @@ export class ProcessTemplateStepsService {
     createProcessTemplateStepDto: CreateProcessTemplateStepDto,
   ): Promise<ProcessTemplateStepEntity> {
     this.assertCallProcessConfig(createProcessTemplateStepDto);
+    assertProcessTemplateStepTaskTypeAllowed(createProcessTemplateStepDto.taskType);
     const step = this.processTemplateStepRepository.create(
       createProcessTemplateStepDto,
     );
@@ -210,6 +212,9 @@ export class ProcessTemplateStepsService {
       childTemplateId:
         stepUpdateData.childTemplateId ?? step.childTemplateId ?? undefined,
     });
+    if (stepUpdateData.taskType) {
+      assertProcessTemplateStepTaskTypeAllowed(stepUpdateData.taskType);
+    }
 
     if (descriptions) {
       for (const description of descriptions) {

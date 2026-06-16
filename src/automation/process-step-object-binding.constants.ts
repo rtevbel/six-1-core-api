@@ -12,9 +12,22 @@ export const PROCESS_TEMPLATE_OBJECT_BINDING_MODES = [
 export type ProcessTemplateObjectBindingMode =
   (typeof PROCESS_TEMPLATE_OBJECT_BINDING_MODES)[number];
 
-/** v1 authoring: only create_on_enter is supported at runtime (Phase 5). */
+/** v1 authoring: create_on_enter for standalone; use_existing allowed for core-linked objects. */
 export const PROCESS_TEMPLATE_OBJECT_BINDING_MODES_V1: ProcessTemplateObjectBindingMode[] =
   [PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER];
+
+export const PROCESS_CONFIG_OBJECT_BINDING_MODE_STANDALONE = 'standalone' as const;
+export const PROCESS_CONFIG_OBJECT_BINDING_MODE_SOR_BOUND = 'sor_bound' as const;
+export const PROCESS_CONFIG_OBJECT_BINDING_MODE_SYSTEM_TABLE =
+  'system_table' as const;
+
+export const PROCESS_CONFIG_OBJECT_CORE_LINKED_BINDING_MODES = [
+  PROCESS_CONFIG_OBJECT_BINDING_MODE_SOR_BOUND,
+  PROCESS_CONFIG_OBJECT_BINDING_MODE_SYSTEM_TABLE,
+] as const;
+
+export type ProcessConfigObjectCoreLinkedBindingMode =
+  (typeof PROCESS_CONFIG_OBJECT_CORE_LINKED_BINDING_MODES)[number];
 
 export const PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING = 'pending' as const;
 export const PROCESS_INSTANCE_STEP_OBJECT_STATUS_ACTIVE = 'active' as const;

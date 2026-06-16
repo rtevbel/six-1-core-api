@@ -4,22 +4,16 @@ import { EventLogsController } from './event_logs.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventLogEntity } from './entities/event_log.entity';
 import { EventsModule } from '../events.module';
-import { EventCatalogService } from '../event-catalog.service';
+import { PlatformEventBusModule } from '../platform-bus/platform-event-bus.module';
 
-/**
- * EventLogsModule is responsible for managing event logs.
- * It includes the controller and service for handling operations related to event logs.
- *
- * @version 0.0.1
- */
 @Module({
   imports: [
-    // Registers the EventLogEntity for TypeORM.
     TypeOrmModule.forFeature([EventLogEntity]),
     forwardRef(() => EventsModule),
+    forwardRef(() => PlatformEventBusModule),
   ],
   controllers: [EventLogsController],
-  providers: [EventLogsService, EventCatalogService],
+  providers: [EventLogsService],
   exports: [EventLogsService],
 })
 export class EventLogsModule {}

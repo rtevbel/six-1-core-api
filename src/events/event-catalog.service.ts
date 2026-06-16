@@ -1,72 +1,73 @@
 import { Injectable } from '@nestjs/common';
 import { EventsService } from './events.service';
 import { CreateEventDto } from './dto/create-event.dto';
+import {
+  getPlatformEventCatalogSeedEntry,
+  resolveCanonicalEventName,
+} from './seed/platform-event-catalog.seed';
+import { DEFAULT_EVENT_SCHEMA_VERSION } from './constants/event-catalog.constants';
 
 /**
- * Service for managing and caching event IDs based on event names.
- * This service provides functionality to retrieve event IDs from a database
- * or create new entries for unknown events, with caching for performance.
+ * Platform event catalog — resolves event IDs by name with in-memory caching.
+ * Auto-registers unknown events using seed metadata when available (P0.2).
  */
 @Injectable()
 export class EventCatalogService {
-  // In-memory cache to store event name-to-ID mappings
-  private cache = new Map<string, number>();
+  private readonly cache = new Map<string, number>();
 
-  /**
-   * Constructor for the EventCatalogService.
-   * Dependencies such as a repository, database client, or cache client
-   * (e.g., Redis) can be injected here as needed.
-   */
   constructor(private readonly eventsService: EventsService) {}
 
   /**
-   * Retrieves the ID of an event by its name. If the event is not found in the cache,
-   * it attempts to fetch it from the database. If the event is still not found,
-   * it optionally creates a new entry in the database.
-   *
-   * @param eventName - The name of the event.
-   * @returns A promise that resolves to the event ID.
+   * Returns the catalog row id for an event name, creating a row when absent.
    */
   async getIdByName(eventName: string): Promise<number> {
-    // Check if the event ID is already cached
     const cached = this.cache.get(eventName);
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
 
-    // 1) Attempt to find the event ID in the database
-    let id = await this.findIdInDb(eventName);
+    let id = await this.eventsService.findIdByNameOrNull(eventName);
+    if (!id) {
+      id = await this.createInDb(eventName);
+    }
 
-    // 2) If the event is not found, optionally create a new entry in the database
-    if (!id) id = await this.createInDb(eventName);
-
-    // Cache the event ID for future lookups
     this.cache.set(eventName, id);
     return id;
   }
 
   /**
-   * Attempts to find the ID of an event in the database by its name.
-   *
-   * @param eventName - The name of the event.
-   * @returns A promise that resolves to the event ID, or null if not found.
+   * Resolves deprecated `six1-event.notification.*` names to canonical catalog names.
    */
-  private async findIdInDb(eventName: string): Promise<number | null> {
-    return await this.eventsService.findIdByName(1, eventName);
+  resolveCanonicalEventName(eventName: string): string {
+    return resolveCanonicalEventName(eventName);
   }
 
   /**
-   * Creates a new event entry in the database and returns its ID.
-   *
-   * @param eventName - The name of the event to create.
-   * @returns A promise that resolves to the newly created event ID.
+   * Clears the in-memory name → id cache (for tests).
    */
-  private async createInDb(eventName: string): Promise<number> {
-    const creatDto: CreateEventDto = {
-      name: eventName,
-      description: eventName,
-      createdBy: 1,
-    };
+  clearCache(): void {
+    this.cache.clear();
+  }
 
-    const eventData = await this.eventsService.create(1, creatDto);
+  private async createInDb(eventName: string): Promise<number> {
+    const seed = getPlatformEventCatalogSeedEntry(eventName);
+    const createDto: CreateEventDto = seed
+      ? {
+          name: seed.name,
+          description: seed.description,
+          category: seed.category,
+          schemaVersion: seed.schemaVersion ?? DEFAULT_EVENT_SCHEMA_VERSION,
+          payloadSchema: seed.payloadSchema,
+          isSystem: seed.isSystem,
+          createdBy: 1,
+        }
+      : {
+          name: eventName,
+          description: eventName,
+          createdBy: 1,
+        };
+
+    const eventData = await this.eventsService.create(1, createDto);
     return eventData.eventId ?? 0;
   }
 }

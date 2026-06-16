@@ -26,8 +26,8 @@ export class UpdateProcessTemplateStepDto {
   processTemplateId?: number;
 
   @IsOptional()
-  @IsIn(['manual', 'automated', 'call_process', 'config_object'])
-  taskType?: 'manual' | 'automated' | 'call_process' | 'config_object';
+  @IsIn(['manual', 'automated', 'call_process'])
+  taskType?: 'manual' | 'automated' | 'call_process';
 
   @IsOptional()
   @ValidateIf((o) => o.taskType === 'call_process')

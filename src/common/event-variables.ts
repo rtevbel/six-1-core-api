@@ -1,4 +1,7 @@
 /**
+ * @deprecated Prefer `NotificationVariableCatalogService` + event `payload_schema` for new events.
+ * Legacy flat-key hints only — do not add new entries here (NV6.4).
+ *
  * Notes:
  * - Common keys you'll reuse often:
  *   projectId, projectName, projectIdentifier, projectUrl, tenantId, tenantName,

@@ -72,6 +72,14 @@ export class ProcessTemplateEntity {
   })
   status!: ProcessTemplateStatus;
 
+  @Column({
+    name: 'context_schema',
+    type: 'json',
+    nullable: true,
+    comment: 'Optional JSON Schema for process_instances.context at start',
+  })
+  contextSchema!: Record<string, unknown> | null;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',

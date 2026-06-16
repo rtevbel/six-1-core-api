@@ -7,6 +7,7 @@ import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
 import { ProcessTemplateCategoryEntity } from './entities/process_template_category.entity';
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { AjvModule } from '../automation/ajv.module';
 
 /**
  * ProcessTemplatesModule is responsible for managing process templates.
@@ -25,6 +26,7 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
     ]),
     ProcessTemplateStepsModule, // Module for managing process template steps
     ConfigObjectsModule,
+    AjvModule,
   ],
   controllers: [ProcessTemplatesController],
   providers: [ProcessTemplatesService],

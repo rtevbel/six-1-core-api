@@ -2,8 +2,14 @@ import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, QueryRunner } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { EventsService } from '../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import {
+  buildProcessChildEventOptions,
+  buildProcessStepEventOptions,
+} from '../events/platform-process-event.util';
 import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 import { ProcessLifecycleFacade } from './process-lifecycle.facade';
+import { ProcessStepActionOrchestrationService } from './process-step-action-orchestration.service';
 import type { StartProcessParams } from './process-host/process-host.context';
 import {
   CHILD_SUBJECT_POLICY_CONFIG_INSTANCE,
@@ -59,6 +65,7 @@ export class ChildProcessOrchestrationService {
     private readonly lifecycle: ProcessLifecycleFacade,
     private readonly events: EventsService,
     private readonly flags: ProcessFeatureFlagsService,
+    private readonly stepActions: ProcessStepActionOrchestrationService,
   ) {}
 
   isEnabled(): boolean {
@@ -125,18 +132,16 @@ export class ChildProcessOrchestrationService {
 
     await this.blockParentStep(em, step.step_instance_id);
 
-    this.events.emit('six1-event.process_child_started', {
-      entity: {
-        entityType: 'ProcessInstance',
-        entityId: childProcessInstanceId,
-      },
-      data: {
+    this.events.emit(
+      PLATFORM_EVENT_NAMES.PROCESS_CHILD_STARTED,
+      buildProcessChildEventOptions({
+        tenantId: Number(parent.tenant_id),
         childProcessInstanceId,
         parentProcessInstanceId: parent.process_instance_id,
         parentStepInstanceId: step.step_instance_id,
-      },
-      correlationId: opts.correlationId,
-    });
+        correlationId: opts.correlationId,
+      }),
+    );
 
     this.logger.debug(
       `Spawned child process ${childProcessInstanceId} for parent step ${step.step_instance_id}`,
@@ -156,6 +161,9 @@ export class ChildProcessOrchestrationService {
     if (!this.isEnabled()) {
       return;
     }
+
+    let completedParentStepId: number | null = null;
+    let failedParentStepId: number | null = null;
 
     await this.ds.transaction('READ COMMITTED', async (em) => {
       const child = await this.loadProcessRow(em, childProcessInstanceId);
@@ -202,6 +210,7 @@ export class ChildProcessOrchestrationService {
             WHERE step_instance_id = ?`,
           [child.parent_step_id],
         );
+        failedParentStepId = Number(child.parent_step_id);
         this.emitChildTerminalEvent(child, parent, terminalStatus, opts, false);
         return;
       }
@@ -218,9 +227,24 @@ export class ChildProcessOrchestrationService {
           Number(child.parent_step_id),
           opts,
         );
+        completedParentStepId = Number(child.parent_step_id);
         this.emitChildTerminalEvent(child, parent, terminalStatus, opts, true);
       }
     });
+
+    const actionOpts = {
+      correlationId: opts.correlationId,
+      actorUserId: opts.actorTenantUserId,
+    };
+    if (completedParentStepId) {
+      await this.stepActions.runStepCompleted(
+        completedParentStepId,
+        actionOpts,
+      );
+    }
+    if (failedParentStepId) {
+      await this.stepActions.runStepFailed(failedParentStepId, actionOpts);
+    }
   }
 
   /**
@@ -269,23 +293,21 @@ export class ChildProcessOrchestrationService {
   ): void {
     const eventName =
       terminalStatus === 'completed'
-        ? 'six1-event.process_child_completed'
-        : 'six1-event.process_child_canceled';
+        ? PLATFORM_EVENT_NAMES.PROCESS_CHILD_COMPLETED
+        : PLATFORM_EVENT_NAMES.PROCESS_CHILD_CANCELED;
 
-    this.events.emit(eventName, {
-      entity: {
-        entityType: 'ProcessInstance',
-        entityId: child.process_instance_id,
-      },
-      data: {
+    this.events.emit(
+      eventName,
+      buildProcessChildEventOptions({
+        tenantId: Number(parent.tenant_id),
         childProcessInstanceId: child.process_instance_id,
         parentProcessInstanceId: parent.process_instance_id,
-        parentStepInstanceId: child.parent_step_id,
+        parentStepInstanceId: Number(child.parent_step_id),
         terminalStatus,
         resumedParent,
-      },
-      correlationId: opts.correlationId,
-    });
+        correlationId: opts.correlationId,
+      }),
+    );
   }
 
   private async completeParentCallProcessStep(
@@ -304,24 +326,32 @@ export class ChildProcessOrchestrationService {
     );
 
     const [step] = await em.query(
-      `SELECT process_instance_id, step_order
-         FROM process_instance_steps
-        WHERE step_instance_id = ?`,
+      `SELECT pis.process_instance_id,
+              pis.step_order,
+              pi.tenant_id,
+              pi.process_template_id
+         FROM process_instance_steps pis
+         JOIN process_instances pi
+           ON pi.process_instance_id = pis.process_instance_id
+        WHERE pis.step_instance_id = ?`,
       [parentStepInstanceId],
     );
     if (!step) {
       return;
     }
 
-    this.events.emit('six1-event.process_step_completed', {
-      entity: { entityType: 'ProcessStep', entityId: parentStepInstanceId },
-      data: {
+    this.events.emit(
+      PLATFORM_EVENT_NAMES.PROCESS_STEP_COMPLETED,
+      buildProcessStepEventOptions({
+        tenantId: Number(step.tenant_id),
+        processTemplateId: Number(step.process_template_id),
+        stepInstanceId: parentStepInstanceId,
         processInstanceId: step.process_instance_id,
         stepOrder: step.step_order,
+        correlationId: opts.correlationId,
         cause: 'child_process',
-      },
-      correlationId: opts.correlationId,
-    });
+      }),
+    );
   }
 
   private async blockParentStep(

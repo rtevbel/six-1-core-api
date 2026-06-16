@@ -134,12 +134,16 @@ export class ProcessInstantiationService {
       step_order: number;
       task_type: string | null;
       is_optional: 0 | 1 | null;
+      required_permissions: string[] | null;
+      step_extensions_json: Record<string, unknown> | string | null;
       name: string | null;
     }> = await em.query(
       `SELECT pts.process_template_step_id,
               pts.step_order,
               pts.task_type,
               pts.is_optional,
+              pts.required_permissions,
+              pts.step_extensions_json,
               (SELECT d.name
                  FROM process_template_step_descriptions d
                 WHERE d.process_template_step_id = pts.process_template_step_id
@@ -156,10 +160,13 @@ export class ProcessInstantiationService {
     for (const s of steps) {
       const isFirst = s.step_order === 1;
       const status = isFirst ? 'ready' : 'pending';
+      const parallelGroupId = resolveParallelGroupIdFromExtensions(
+        s.step_extensions_json,
+      );
       const insert: any = await em.query(
         `INSERT INTO process_instance_steps
-           (process_instance_id, process_template_step_id, name, task_type, step_order, is_optional, status, blocked_reason, ready_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, '', ${isFirst ? 'NOW()' : 'NULL'}, NOW(), NOW())`,
+           (process_instance_id, process_template_step_id, name, task_type, step_order, is_optional, required_permissions, step_extensions_json, parallel_group_id, status, blocked_reason, ready_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ${isFirst ? 'NOW()' : 'NULL'}, NOW(), NOW())`,
         [
           processInstanceId,
           s.process_template_step_id,
@@ -167,6 +174,11 @@ export class ProcessInstantiationService {
           s.task_type ?? null,
           s.step_order,
           s.is_optional ?? 0,
+          s.required_permissions != null
+            ? JSON.stringify(s.required_permissions)
+            : null,
+          serializeStepExtensionsJsonForCopy(s.step_extensions_json),
+          parallelGroupId,
           status,
         ],
       );
@@ -292,6 +304,94 @@ export class ProcessInstantiationService {
           );
         }
       }
+
+      // 7) Bulk copy template step actions → instance rows (snapshot config)
+      const stepActions: Array<{
+        step_action_id: number;
+        process_template_step_id: number;
+        action_type: string;
+        run_on: string;
+        config: Record<string, unknown> | string;
+        order_index: number;
+        is_active: number;
+      }> = await em.query(
+        `SELECT step_action_id,
+                process_template_step_id,
+                action_type,
+                run_on,
+                config,
+                order_index,
+                is_active
+           FROM process_template_step_actions
+          WHERE process_template_step_id IN (${tplIds.map(() => '?').join(',')})
+            AND is_active = 1
+          ORDER BY order_index ASC, step_action_id ASC`,
+        tplIds,
+      );
+
+      if (stepActions.length) {
+        const actionPlaceholders: string[] = [];
+        const actionValues: unknown[] = [];
+        for (const action of stepActions) {
+          const stepInstanceId = tplToInst.get(action.process_template_step_id);
+          if (!stepInstanceId) continue;
+          actionPlaceholders.push('(?, ?, ?, ?, ?, ?, ?)');
+          actionValues.push(
+            stepInstanceId,
+            action.step_action_id,
+            action.action_type,
+            action.run_on,
+            JSON.stringify(action.config ?? {}),
+            action.order_index ?? 0,
+            action.is_active ?? 1,
+          );
+        }
+        if (actionPlaceholders.length) {
+          await em.query(
+            `INSERT INTO process_instance_step_actions
+               (step_instance_id, template_step_action_id, action_type, run_on, config, order_index, is_active)
+             VALUES ${actionPlaceholders.join(',')}`,
+            actionValues,
+          );
+        }
+      }
+
+      const templateAssignees: Array<{
+        process_template_step_id: number;
+        tenant_user_id: number;
+        assignment_order: number;
+      }> = await em.query(
+        `SELECT process_template_step_id,
+                tenant_user_id,
+                assignment_order
+           FROM process_template_step_assignees
+          WHERE process_template_step_id IN (${tplIds.map(() => '?').join(',')})
+          ORDER BY assignment_order ASC, step_assignee_id ASC`,
+        tplIds,
+      );
+
+      if (templateAssignees.length) {
+        const assigneePlaceholders: string[] = [];
+        const assigneeValues: unknown[] = [];
+        for (const assignee of templateAssignees) {
+          const stepInstanceId = tplToInst.get(assignee.process_template_step_id);
+          if (!stepInstanceId) continue;
+          assigneePlaceholders.push('(?, ?, ?)');
+          assigneeValues.push(
+            stepInstanceId,
+            assignee.tenant_user_id,
+            assignee.assignment_order ?? 0,
+          );
+        }
+        if (assigneePlaceholders.length) {
+          await em.query(
+            `INSERT INTO process_instance_step_assignees
+               (step_instance_id, tenant_user_id, assignment_order)
+             VALUES ${assigneePlaceholders.join(',')}`,
+            assigneeValues,
+          );
+        }
+      }
     }
 
     return processInstanceId;
@@ -308,4 +408,54 @@ function normalizeInstantiationOptions(
     return { subject: input };
   }
   return input;
+}
+
+/** Snapshot template `step_extensions_json` for instance row (plain object only). */
+function serializeStepExtensionsJsonForCopy(
+  raw: Record<string, unknown> | string | null | undefined,
+): string | null {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    return trimmed.length ? trimmed : null;
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    return JSON.stringify(raw);
+  }
+  return null;
+}
+
+function resolveParallelGroupIdFromExtensions(
+  raw: Record<string, unknown> | string | null | undefined,
+): string | null {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw === 'object' && !Array.isArray(raw)) {
+    const value = (raw as Record<string, unknown>).parallelGroupId;
+    if (value == null) {
+      return null;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length ? trimmed.slice(0, 64) : null;
+  }
+  if (typeof raw === 'string') {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      const value = parsed.parallelGroupId;
+      if (typeof value !== 'string') {
+        return null;
+      }
+      const trimmed = value.trim();
+      return trimmed.length ? trimmed.slice(0, 64) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
 }

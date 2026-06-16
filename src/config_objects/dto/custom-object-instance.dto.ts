@@ -73,6 +73,15 @@ export class UpdateCustomObjectInstanceDto {
   @IsOptional()
   updatedBy?: number;
 
+  /**
+   * When this instance is bound to a process step (Object Runner),
+   * step mutation is guarded by collaboration locks (G3).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  tenantUserId?: number;
+
   @IsObject()
   @IsOptional()
   payload?: Record<string, unknown>;

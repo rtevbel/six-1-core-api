@@ -114,6 +114,16 @@ export class NotificationUrlBuilderService {
   }
 
   /**
+   * Builds a Process Runner URL for a process instance.
+   * @param processInstanceId - Process instance ID.
+   */
+  buildProcessRunnerUrl(processInstanceId: number): string | null {
+    const base = this.getBaseUrl();
+    if (!base) return null;
+    return `${base}/process-instances/${processInstanceId}/runner`;
+  }
+
+  /**
    * Resolves the public base URL for frontend links.
    */
   private getBaseUrl(): string | null {

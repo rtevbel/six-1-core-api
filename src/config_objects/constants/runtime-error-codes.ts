@@ -13,6 +13,7 @@ export const RuntimeErrorCode = {
   RelationKeyUnresolved: 'SIX1_RUNTIME_RELATION_KEY_UNRESOLVED',
   SubmitFieldForbidden: 'SIX1_RUNTIME_SUBMIT_FIELD_FORBIDDEN',
   SubmitRequiredFieldMissing: 'SIX1_RUNTIME_SUBMIT_REQUIRED_FIELD_MISSING',
+  SubmitFieldInvalid: 'SIX1_RUNTIME_SUBMIT_FIELD_INVALID',
   SubmitRequiredRelationMissing: 'SIX1_RUNTIME_SUBMIT_REQUIRED_RELATION_MISSING',
   RelationQueryDepthExceeded: 'SIX1_RUNTIME_RELATION_QUERY_DEPTH_EXCEEDED',
   RelationActionForbidden: 'SIX1_RUNTIME_RELATION_ACTION_FORBIDDEN',

@@ -20,5 +20,5 @@ export const SOR_BOUND_OBJECT_TYPE_ENTITIES: Record<string, Function> = {
   resource: ResourceEntity,
   customer_invitation: CustomerInvitationEntity,
   customer_project_member: CustomerProjectMemberEntity,
-  customer_task_member: CustomerTaskMemberEntity,
+  customer_task_member: CustomerTaskMemberEntity
 };

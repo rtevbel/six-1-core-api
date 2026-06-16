@@ -5,7 +5,9 @@ export type ProcessEngineState =
   | 'in_progress'
   | 'completed'
   | 'blocked'
-  | 'canceled';
+  | 'canceled'
+  | 'skipped'
+  | 'failed';
 
 export interface ProcessHostAdvanceOptions {
   actorTenantUserId?: number;

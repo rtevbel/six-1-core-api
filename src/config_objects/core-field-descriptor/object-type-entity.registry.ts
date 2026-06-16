@@ -43,6 +43,12 @@ import { ProcessTemplateStepDescriptionEntity } from '../../process_templates/pr
 import { ProcessTemplateStepRequirementSubmissionEntity } from '../../process_templates/process_template_steps/process_template_step_requirement_submissions/entities/process_template_step_requirement_submission.entity';
 import { ProcessTemplateStepRequirementEntity } from '../../process_templates/process_template_steps/process_template_step_requirements/entities/process_template_step_requirement.entity';
 import { ProcessTemplateStepObjectBindingEntity } from '../../process_templates/process_template_steps/process_template_step_object_bindings/entities/process_template_step_object_binding.entity';
+import { ProcessTemplateStepActionEntity } from '../../process_templates/process_template_steps/process_template_step_actions/entities/process_template_step_action.entity';
+import { ProcessInstanceStepActionEntity } from '../../process_instances/process_instance_steps/process_instance_step_actions/entities/process_instance_step_action.entity';
+import { ProcessActionExecutionLogEntity } from '../../process_instances/process_instance_steps/process_instance_step_actions/entities/process_action_execution_log.entity';
+import { ProcessTemplateStepAssigneeEntity } from '../../process_templates/process_template_steps/process_template_step_assignees/entities/process_template_step_assignee.entity';
+import { ProcessInstanceStepAssigneeEntity } from '../../process_instances/process_instance_steps/entities/process_instance_step_assignee.entity';
+import { ProcessStepExecutionLogEntity } from '../../process_instances/entities/process_step_execution_log.entity';
 import { ProcessInstanceStepObjectInstanceEntity } from '../../process_instances/process_instance_steps/process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
 import { ProcessTemplateStepTriggerConditionSubmissionEntity } from '../../process_templates/process_template_steps/process_template_step_trigger_condition_submissions/entities/process_template_step_trigger_condition_submission.entity';
 import { ProcessTemplateStepTriggerConditionEntity } from '../../process_templates/process_template_steps/process_template_step_trigger_conditions/entities/process_template_step_trigger_condition.entity';
@@ -143,7 +149,13 @@ const ENTITY_CLASSES: Function[] = [
   ProcessTemplateStepRequirementSubmissionEntity,
   ProcessTemplateStepRequirementEntity,
   ProcessTemplateStepObjectBindingEntity,
+  ProcessTemplateStepActionEntity,
   ProcessInstanceStepObjectInstanceEntity,
+  ProcessInstanceStepActionEntity,
+  ProcessActionExecutionLogEntity,
+  ProcessStepExecutionLogEntity,
+  ProcessTemplateStepAssigneeEntity,
+  ProcessInstanceStepAssigneeEntity,
   ProcessTemplateStepTriggerConditionSubmissionEntity,
   ProcessTemplateStepTriggerConditionEntity,
   ProjectEntity,

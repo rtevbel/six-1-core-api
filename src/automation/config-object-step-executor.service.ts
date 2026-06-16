@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource, EntityManager, QueryRunner } from 'typeorm';
+import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { ConfigObjectCompletenessService } from '../config_objects/config-object-completeness.service';
 import { EventsService } from '../events/events.service';
 import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 import {
@@ -8,8 +10,14 @@ import {
   PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
   PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID,
   PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER,
+  PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING,
 } from './process-step-object-binding.constants';
-import { evaluateCompletionRule } from './completion-rule.util';
+import type { ConfigObjectResolutionMode } from '../config_objects/config-object-completeness-fields.util';
+import {
+  isCoreLinkedConfigBindingMode,
+  resolveCoreIdForObjectType,
+  type ProcessStepAnchorContext,
+} from './process-step-core-ref.util';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -17,6 +25,7 @@ export type StepObjectBindingRow = {
   binding_id: number | null;
   config_object_id: number;
   config_custom_object_instance_id: number | null;
+  core_id: number | null;
   status: string;
   binding_mode: string | null;
   is_mandatory: number | null;
@@ -29,6 +38,10 @@ type ProcessContextRow = {
   tenant_id: number;
   created_by: number;
   process_instance_id: number;
+  subject_type: string;
+  subject_id: number;
+  subject_metadata: unknown;
+  context: unknown;
 };
 
 @Injectable()
@@ -39,16 +52,14 @@ export class ConfigObjectStepExecutor {
     private readonly ds: DataSource,
     private readonly events: EventsService,
     private readonly flags: ProcessFeatureFlagsService,
+    private readonly configObjectsService: ConfigObjectsService,
+    private readonly completenessService: ConfigObjectCompletenessService,
   ) {}
 
   isEnabled(): boolean {
     return this.flags.isConfigObjectStepsEnabled();
   }
 
-  /**
-   * Returns true when all mandatory object bindings for the step are `valid` or `skipped`.
-   * Option B gating — orchestrator calls this alongside requirement checks.
-   */
   async areMandatoryBindingsValid(
     em: EntityManager,
     stepInstanceId: number,
@@ -71,6 +82,27 @@ export class ConfigObjectStepExecutor {
     return Number(rows[0]?.blocking ?? 0) === 0;
   }
 
+  /**
+   * Marks non-terminal object bindings as skipped when a step is manually skipped (F4).
+   */
+  async skipBindingsForStep(
+    em: EntityManager,
+    stepInstanceId: number,
+  ): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
+    await em.query(
+      `UPDATE process_instance_step_object_instances
+          SET status = 'skipped',
+              updated_at = NOW()
+        WHERE step_instance_id = ?
+          AND status NOT IN ('valid', 'skipped')`,
+      [stepInstanceId],
+    );
+  }
+
   async stepHasObjectBindings(
     em: EntityManager,
     stepInstanceId: number,
@@ -85,7 +117,7 @@ export class ConfigObjectStepExecutor {
   }
 
   /**
-   * Creates standalone instances for pending `create_on_enter` bindings when a step becomes ready.
+   * Provisions pending bindings when a step becomes ready (standalone + core-linked).
    */
   async provisionBindingsOnStepReady(
     qr: QueryRunner,
@@ -104,12 +136,10 @@ export class ConfigObjectStepExecutor {
       return;
     }
 
+    const anchor = this.toAnchorContext(ctx);
     const rows = await this.loadBindingRows(em, params.stepInstanceId);
     const pending = rows.filter(
-      (r) =>
-        r.status === PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING &&
-        (r.binding_mode ?? PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER) ===
-          PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER,
+      (row) => row.status === PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
     );
 
     if (!pending.length) {
@@ -117,16 +147,36 @@ export class ConfigObjectStepExecutor {
     }
 
     for (const row of pending) {
-      if (row.config_binding_mode && row.config_binding_mode !== 'standalone') {
-        await em.query(
-          `UPDATE process_instance_step_object_instances
-              SET status = ?, last_error = ?, updated_at = NOW()
-            WHERE step_object_instance_id = ?`,
-          [
-            PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED,
-            'Only standalone config objects are supported in Phase 5',
-            row.step_object_instance_id,
-          ],
+      const templateBindingMode =
+        row.binding_mode ?? PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER;
+      const configBindingMode = row.config_binding_mode ?? 'standalone';
+
+      if (isCoreLinkedConfigBindingMode(configBindingMode)) {
+        await this.provisionCoreLinkedBinding(
+          em,
+          anchor,
+          ctx,
+          row,
+          templateBindingMode,
+          params,
+        );
+        continue;
+      }
+
+      if (templateBindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING) {
+        await this.failBindingRow(
+          em,
+          row.step_object_instance_id,
+          'use_existing is only supported for sor_bound and system_table config objects',
+        );
+        continue;
+      }
+
+      if (configBindingMode !== 'standalone') {
+        await this.failBindingRow(
+          em,
+          row.step_object_instance_id,
+          `Unsupported config object binding mode: ${configBindingMode}`,
         );
         continue;
       }
@@ -153,18 +203,8 @@ export class ConfigObjectStepExecutor {
           ],
         );
 
-        this.events.emit('six1-event.process_step_object_created', {
-          entity: {
-            entityType: 'ProcessStepObjectInstance',
-            entityId: row.step_object_instance_id,
-          },
-          data: {
-            stepInstanceId: params.stepInstanceId,
-            processInstanceId: ctx.process_instance_id,
-            stepObjectInstanceId: row.step_object_instance_id,
-            configObjectId: row.config_object_id,
-            configCustomObjectInstanceId: instanceId,
-          },
+        this.emitObjectCreated(params.stepInstanceId, ctx, row, {
+          configCustomObjectInstanceId: instanceId,
           correlationId: params.correlationId,
         });
       } catch (err: unknown) {
@@ -173,26 +213,14 @@ export class ConfigObjectStepExecutor {
         this.logger.warn(
           `Provision failed for step_object_instance_id=${row.step_object_instance_id}: ${message}`,
         );
-        await em.query(
-          `UPDATE process_instance_step_object_instances
-              SET status = ?, last_error = ?, updated_at = NOW()
-            WHERE step_object_instance_id = ?`,
-          [
-            PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED,
-            message.slice(0, 2000),
-            row.step_object_instance_id,
-          ],
-        );
+        await this.failBindingRow(em, row.step_object_instance_id, message);
       }
     }
   }
 
-  /**
-   * Validates payload against completion_rule and marks the binding row valid/failed.
-   */
   async validateByCustomInstanceId(
     configCustomObjectInstanceId: number,
-    updatedBy: number,
+    _updatedBy: number,
     correlationId?: string,
   ): Promise<{ stepInstanceId: number | null; valid: boolean }> {
     if (!this.isEnabled()) {
@@ -205,7 +233,6 @@ export class ConfigObjectStepExecutor {
                 oi.step_instance_id,
                 oi.config_object_id,
                 oi.binding_id,
-                oi.status AS link_status,
                 b.completion_rule,
                 co.object_type,
                 pi.tenant_id,
@@ -242,58 +269,127 @@ export class ConfigObjectStepExecutor {
         };
       }
 
-      const completionRule =
-        typeof link.completion_rule === 'string'
-          ? (JSON.parse(link.completion_rule) as Record<string, unknown>)
-          : (link.completion_rule as Record<string, unknown> | null);
-
-      const evaluation = evaluateCompletionRule(completionRule, {
-        payload: instance.payload ?? {},
-        status: instance.status,
+      const completionRule = this.parseCompletionRule(link.completion_rule);
+      const evaluation = await this.completenessService.isBindingComplete({
+        tenantId: Number(link.tenant_id),
+        objectType: String(link.object_type ?? ''),
+        resolutionMode: 'standalone',
+        completionRule,
+        instanceId: configCustomObjectInstanceId,
+        snapshot: {
+          fields: (instance.payload ?? {}) as Record<string, unknown>,
+          status: String(instance.status),
+        },
       });
 
-      const nextStatus = evaluation.valid
-        ? PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID
-        : PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED;
+      return this.finalizeBindingValidation(
+        em,
+        link,
+        evaluation,
+        evaluation.valid ? JSON.stringify(instance.payload ?? {}) : null,
+        {
+          configCustomObjectInstanceId,
+          correlationId,
+        },
+      );
+    });
+  }
 
-      await em.query(
-        `UPDATE process_instance_step_object_instances
-            SET status = ?,
-                last_error = ?,
-                payload_snapshot = ?,
-                updated_at = NOW()
-          WHERE step_object_instance_id = ?`,
-        [
-          nextStatus,
-          evaluation.valid ? null : (evaluation.error ?? 'Validation failed'),
-          evaluation.valid ? JSON.stringify(instance.payload ?? {}) : null,
-          link.step_object_instance_id,
-        ],
+  /**
+   * Re-validates active core-linked bindings after SoR / system_table updates.
+   */
+  async validateByCoreLink(
+    tenantId: number,
+    objectType: string,
+    coreId: number,
+    correlationId?: string,
+  ): Promise<{ stepInstanceIds: number[]; anyValid: boolean }> {
+    if (!this.isEnabled()) {
+      return { stepInstanceIds: [], anyValid: false };
+    }
+
+    const stepInstanceIds: number[] = [];
+    let anyValid = false;
+
+    await this.ds.transaction(async (em) => {
+      const links = await em.query(
+        `SELECT oi.step_object_instance_id,
+                oi.step_instance_id,
+                oi.config_object_id,
+                oi.binding_id,
+                oi.core_id,
+                b.completion_rule,
+                co.object_type,
+                co.binding_mode AS config_binding_mode,
+                pi.tenant_id,
+                pi.process_instance_id
+           FROM process_instance_step_object_instances oi
+           JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+           JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
+           JOIN config_objects co ON co.config_object_id = oi.config_object_id
+           LEFT JOIN process_template_step_object_bindings b
+             ON b.binding_id = oi.binding_id
+          WHERE oi.core_id = ?
+            AND co.object_type = ?
+            AND pi.tenant_id = ?
+            AND oi.status IN ('active', 'failed')
+          FOR UPDATE`,
+        [coreId, objectType, tenantId],
       );
 
-      if (evaluation.valid) {
-        this.events.emit('six1-event.process_step_object_validated', {
-          entity: {
-            entityType: 'ProcessStepObjectInstance',
-            entityId: link.step_object_instance_id,
-          },
-          data: {
-            stepInstanceId: link.step_instance_id,
-            processInstanceId: link.process_instance_id,
-            stepObjectInstanceId: link.step_object_instance_id,
-            configCustomObjectInstanceId,
-            configObjectId: link.config_object_id,
-            objectType: link.object_type,
-          },
-          correlationId,
-        });
+      if (!links?.length) {
+        return;
       }
 
-      return {
-        stepInstanceId: Number(link.step_instance_id),
-        valid: evaluation.valid,
-      };
+      for (const link of links) {
+        const resolutionMode = this.normalizeResolutionMode(
+          link.config_binding_mode,
+        );
+        const completionRule = this.parseCompletionRule(link.completion_rule);
+        const evaluation = await this.completenessService.isBindingComplete({
+          tenantId,
+          objectType,
+          resolutionMode,
+          completionRule,
+          coreId,
+        });
+
+        const fields = evaluation.valid
+          ? (
+              await this.completenessService.buildFieldSnapshot({
+                tenantId,
+                objectType,
+                resolutionMode,
+                coreId,
+              })
+            )?.fields ?? {}
+          : {};
+
+        const result = await this.finalizeBindingValidation(
+          em,
+          link,
+          evaluation,
+          evaluation.valid ? JSON.stringify(fields) : null,
+          {
+            coreId,
+            objectType,
+            correlationId,
+          },
+        );
+
+        if (result.stepInstanceId) {
+          stepInstanceIds.push(result.stepInstanceId);
+        }
+        if (result.valid) {
+          anyValid = true;
+        }
+      }
     });
+
+    return {
+      stepInstanceIds: Array.from(new Set(stepInstanceIds)),
+      anyValid,
+    };
   }
 
   async findStepIdForCustomInstance(
@@ -309,12 +405,278 @@ export class ConfigObjectStepExecutor {
     return row?.step_instance_id != null ? Number(row.step_instance_id) : null;
   }
 
+  private async provisionCoreLinkedBinding(
+    em: EntityManager,
+    anchor: ProcessStepAnchorContext,
+    ctx: ProcessContextRow,
+    row: StepObjectBindingRow,
+    templateBindingMode: string,
+    params: { stepInstanceId: number; correlationId?: string },
+  ): Promise<void> {
+    const objectType = String(row.object_type ?? '');
+    const coreId = resolveCoreIdForObjectType(anchor, objectType);
+
+    if (!coreId) {
+      await this.failBindingRow(
+        em,
+        row.step_object_instance_id,
+        `Could not resolve coreId for objectType=${objectType}`,
+      );
+      return;
+    }
+
+    try {
+      const resolutionMode = this.normalizeResolutionMode(row.config_binding_mode);
+      const coreRecord = await this.configObjectsService.loadCoreRecord(
+        objectType,
+        coreId,
+      );
+      if (!coreRecord) {
+        throw new Error(`Could not resolve ${objectType}#${coreId}`);
+      }
+
+      if (resolutionMode === 'sor_bound') {
+        const resolved = await this.configObjectsService.resolveObjectInstance(
+          ctx.tenant_id,
+          objectType,
+          coreId,
+        );
+        if (!resolved) {
+          throw new Error(`Could not resolve ${objectType}#${coreId}`);
+        }
+      }
+
+      await em.query(
+        `UPDATE process_instance_step_object_instances
+            SET core_id = ?,
+                status = ?,
+                last_error = NULL,
+                updated_at = NOW()
+          WHERE step_object_instance_id = ?`,
+        [
+          coreId,
+          PROCESS_INSTANCE_STEP_OBJECT_STATUS_ACTIVE,
+          row.step_object_instance_id,
+        ],
+      );
+
+      this.emitObjectCreated(params.stepInstanceId, ctx, row, {
+        coreId,
+        objectType,
+        resolutionMode: row.config_binding_mode,
+        bindingMode: templateBindingMode,
+        correlationId: params.correlationId,
+      });
+
+      if (templateBindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING) {
+        const completionRule = this.parseCompletionRule(row.completion_rule);
+        const evaluation = await this.completenessService.isBindingComplete({
+          tenantId: ctx.tenant_id,
+          objectType,
+          resolutionMode,
+          completionRule,
+          coreId,
+        });
+        if (evaluation.valid) {
+          const snapshot = await this.completenessService.buildFieldSnapshot({
+            tenantId: ctx.tenant_id,
+            objectType,
+            resolutionMode,
+            coreId,
+          });
+          const fields = snapshot?.fields ?? {};
+          await em.query(
+            `UPDATE process_instance_step_object_instances
+                SET status = ?,
+                    payload_snapshot = ?,
+                    last_error = NULL,
+                    updated_at = NOW()
+              WHERE step_object_instance_id = ?`,
+            [
+              PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID,
+              JSON.stringify(fields),
+              row.step_object_instance_id,
+            ],
+          );
+          this.events.emit('six1-event.process_step_object_validated', {
+            entity: {
+              entityType: 'ProcessStepObjectInstance',
+              entityId: row.step_object_instance_id,
+            },
+            data: {
+              stepInstanceId: params.stepInstanceId,
+              processInstanceId: ctx.process_instance_id,
+              stepObjectInstanceId: row.step_object_instance_id,
+              configObjectId: row.config_object_id,
+              objectType,
+              coreId,
+              resolutionMode: row.config_binding_mode,
+            },
+            correlationId: params.correlationId,
+          });
+        }
+      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to link core object';
+      await this.failBindingRow(em, row.step_object_instance_id, message);
+    }
+  }
+
+  private async finalizeBindingValidation(
+    em: EntityManager,
+    link: Record<string, unknown>,
+    evaluation: { valid: boolean; error?: string },
+    payloadSnapshot: string | null,
+    emitData: Record<string, unknown>,
+  ): Promise<{ stepInstanceId: number | null; valid: boolean }> {
+    const nextStatus = evaluation.valid
+      ? PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID
+      : PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED;
+
+    await em.query(
+      `UPDATE process_instance_step_object_instances
+          SET status = ?,
+              last_error = ?,
+              payload_snapshot = ?,
+              updated_at = NOW()
+        WHERE step_object_instance_id = ?`,
+      [
+        nextStatus,
+        evaluation.valid ? null : (evaluation.error ?? 'Validation failed'),
+        payloadSnapshot,
+        link.step_object_instance_id,
+      ],
+    );
+
+    if (evaluation.valid) {
+      this.events.emit('six1-event.process_step_object_validated', {
+        entity: {
+          entityType: 'ProcessStepObjectInstance',
+          entityId: link.step_object_instance_id,
+        },
+        data: {
+          stepInstanceId: link.step_instance_id,
+          processInstanceId: link.process_instance_id,
+          stepObjectInstanceId: link.step_object_instance_id,
+          configObjectId: link.config_object_id,
+          objectType: link.object_type,
+          ...emitData,
+        },
+        correlationId: emitData.correlationId as string | undefined,
+      });
+    }
+
+    return {
+      stepInstanceId: Number(link.step_instance_id),
+      valid: evaluation.valid,
+    };
+  }
+
+  private emitObjectCreated(
+    stepInstanceId: number,
+    ctx: ProcessContextRow,
+    row: StepObjectBindingRow,
+    data: Record<string, unknown>,
+  ): void {
+    this.events.emit('six1-event.process_step_object_created', {
+      entity: {
+        entityType: 'ProcessStepObjectInstance',
+        entityId: row.step_object_instance_id,
+      },
+      data: {
+        stepInstanceId,
+        processInstanceId: ctx.process_instance_id,
+        stepObjectInstanceId: row.step_object_instance_id,
+        configObjectId: row.config_object_id,
+        ...data,
+      },
+      correlationId: data.correlationId as string | undefined,
+    });
+  }
+
+  private async failBindingRow(
+    em: EntityManager,
+    stepObjectInstanceId: number,
+    message: string,
+  ): Promise<void> {
+    await em.query(
+      `UPDATE process_instance_step_object_instances
+          SET status = ?, last_error = ?, updated_at = NOW()
+        WHERE step_object_instance_id = ?`,
+      [
+        PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED,
+        message.slice(0, 2000),
+        stepObjectInstanceId,
+      ],
+    );
+  }
+
+  private normalizeResolutionMode(
+    bindingMode: string | null | undefined,
+  ): ConfigObjectResolutionMode {
+    if (bindingMode === 'system_table') {
+      return 'system_table';
+    }
+    if (bindingMode === 'sor_bound') {
+      return 'sor_bound';
+    }
+    return 'standalone';
+  }
+
+  private parseCompletionRule(
+    raw: Record<string, unknown> | string | null,
+  ): Record<string, unknown> | null {
+    if (!raw) {
+      return null;
+    }
+    if (typeof raw === 'string') {
+      return JSON.parse(raw) as Record<string, unknown>;
+    }
+    return raw;
+  }
+
+  private toAnchorContext(ctx: ProcessContextRow): ProcessStepAnchorContext {
+    return {
+      subjectType: String(ctx.subject_type ?? ''),
+      subjectId: Number(ctx.subject_id ?? 0),
+      subjectMetadata: this.parseJsonRecord(ctx.subject_metadata),
+      context: this.parseJsonRecord(ctx.context),
+    };
+  }
+
+  private parseJsonRecord(value: unknown): Record<string, unknown> | null {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
   private async loadProcessContext(
     em: EntityManager,
     stepInstanceId: number,
   ): Promise<ProcessContextRow | null> {
     const [row] = await em.query(
-      `SELECT pi.tenant_id, pi.created_by, pi.process_instance_id
+      `SELECT pi.tenant_id,
+              pi.created_by,
+              pi.process_instance_id,
+              pi.subject_type,
+              pi.subject_id,
+              pi.subject_metadata,
+              pi.context
          FROM process_instance_steps s
          JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
         WHERE s.step_instance_id = ?
@@ -334,6 +696,7 @@ export class ConfigObjectStepExecutor {
               oi.binding_id,
               oi.config_object_id,
               oi.config_custom_object_instance_id,
+              oi.core_id,
               oi.status,
               b.binding_mode,
               b.is_mandatory,
@@ -350,9 +713,6 @@ export class ConfigObjectStepExecutor {
     );
   }
 
-  /**
-   * Inserts a DRAFT standalone instance inside the orchestrator transaction.
-   */
   private async createStandaloneInstanceInTransaction(
     em: EntityManager,
     tenantId: number,

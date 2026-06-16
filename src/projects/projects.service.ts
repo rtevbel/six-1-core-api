@@ -21,6 +21,11 @@ import { RpcException } from '@nestjs/microservices';
 import { CreateProjectTaskDefaultStatusDto } from './project_task_statuses/dto/create-project_task_default_status.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EventsService } from '../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import {
+  PLATFORM_SOR_OBJECT_TYPES,
+  buildSorBoundDomainEventOptions,
+} from '../events/platform-domain-event.util';
 import { ProcessLifecycleFacade } from '../automation/process-lifecycle.facade';
 import { StepOrchestratorService } from '../automation/step-orchestrator.service';
 import { ConfigLifecycleService } from '../config_objects/config_lifecycle.service';
@@ -198,12 +203,19 @@ export class ProjectsService {
             }
 
             // 5) Dispatch event to create notifications (after commit)
-            this.events.emit('six1-event.notification.project_created', {
-              userId,
-              tenantId: createProjectDto.tenantId,
-              entity: { entityType: 'project', entityId: project.projectId },
-              data: { projectId: project.projectId, processInstanceId: piId },
-            });
+            this.events.emit(
+              PLATFORM_EVENT_NAMES.PROJECT_CREATED,
+              buildSorBoundDomainEventOptions({
+                objectType: PLATFORM_SOR_OBJECT_TYPES.PROJECT,
+                coreId: project.projectId,
+                tenantId: createProjectDto.tenantId,
+                actorUserId: userId,
+                data: {
+                  projectId: project.projectId,
+                  processInstanceId: piId,
+                },
+              }),
+            );
 
             return project;
           },
@@ -530,11 +542,16 @@ export class ProjectsService {
     userId: number,
     createDto: ProjectEntity,
   ): Promise<void> {
-    await this.events.emitWithLogs('six1-event.project_created', {
+    await this.events.emitWithLogs(PLATFORM_EVENT_NAMES.PROJECT_CREATED, {
+      ...buildSorBoundDomainEventOptions({
+        objectType: PLATFORM_SOR_OBJECT_TYPES.PROJECT,
+        coreId: createDto.projectId,
+        tenantId: createDto.tenantId,
+        actorUserId: userId,
+        data: { projectId: createDto.projectId, name: createDto.name },
+      }),
       actorId: userId,
       recipientIds: [userId],
-      entity: createDto,
-      data: { projectId: createDto.projectId, name: createDto.name },
     });
   }
 

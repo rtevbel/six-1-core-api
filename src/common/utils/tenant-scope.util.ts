@@ -40,3 +40,17 @@ export function processTemplateWhereForTenantScope(
   }
   return { processTemplateId, tenantId: effectiveTenantId };
 }
+
+/**
+ * Returns whether a process-template step is visible under tenant scope.
+ * Super-admin scope (`effectiveTenantId === null`) always passes.
+ */
+export function isProcessTemplateStepTenantAccessible(
+  templateTenantId: number | null | undefined,
+  effectiveTenantId: number | null,
+): boolean {
+  if (effectiveTenantId === null) {
+    return true;
+  }
+  return templateTenantId === effectiveTenantId;
+}

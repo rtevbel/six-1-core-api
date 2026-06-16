@@ -47,7 +47,7 @@ export class ProcessCompletionService {
 
     const [stepAgg] = await em.query(
       `SELECT COUNT(*) AS total,
-              SUM(status IN ('completed', 'canceled')) AS terminal
+              SUM(status IN ('completed', 'canceled', 'skipped')) AS terminal
          FROM process_instance_steps
         WHERE process_instance_id = ?`,
       [processInstanceId],

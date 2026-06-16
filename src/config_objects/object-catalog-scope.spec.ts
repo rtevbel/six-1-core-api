@@ -9,6 +9,8 @@ describe('object catalog scope policy', () => {
     expect(isSystemTableObjectType('users')).toBe(true);
     expect(isSystemTableObjectType('role_descriptions')).toBe(true);
     expect(isSystemTableObjectType('process_instance_steps')).toBe(true);
+    expect(isSystemTableObjectType('tenant')).toBe(true);
+    expect(isSystemTableObjectType('tenants')).toBe(true);
   });
 
   it('marks pure membership tables as junction-only', () => {
@@ -21,6 +23,7 @@ describe('object catalog scope policy', () => {
     expect(inferDefaultBindingModeForObjectType('tenant_user_meta')).toBe(
       'system_table',
     );
+    expect(inferDefaultBindingModeForObjectType('tenant')).toBe('system_table');
     expect(inferDefaultBindingModeForObjectType('projects')).toBe('sor_bound');
     expect(inferDefaultBindingModeForObjectType('role_permissions')).toBeNull();
   });

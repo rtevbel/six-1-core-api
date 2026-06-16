@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { EntityManager } from 'typeorm';
 import { ProjectHostAdapter } from './project-host.adapter';
 import { EventsService } from '../../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../../events/constants/platform-event-names.constants';
 import { PROCESS_SUBJECT_TYPE_PROJECT } from '../process-subject.constants';
 
 describe('ProjectHostAdapter', () => {
@@ -54,10 +55,22 @@ describe('ProjectHostAdapter', () => {
       [3, 1],
     );
     expect(emit).toHaveBeenCalledWith(
-      'six1-event.notification.task_status_changed',
+      PLATFORM_EVENT_NAMES.TASK_STATUS_CHANGED,
       expect.objectContaining({
         userId: 7,
-        entity: { entityType: 'Task', entityId: 1 },
+        tenantId: 1,
+        entity: {
+          entityType: 'task',
+          entityId: 1,
+          objectType: 'task',
+          resolutionMode: 'sor_bound',
+          coreId: 1,
+        },
+        data: expect.objectContaining({
+          objectType: 'task',
+          resolutionMode: 'sor_bound',
+          coreId: 1,
+        }),
       }),
     );
   });
@@ -101,10 +114,18 @@ describe('ProjectHostAdapter', () => {
       [10],
     );
     expect(emit).toHaveBeenCalledWith(
-      'six1-event.notification.project_status_changed',
+      PLATFORM_EVENT_NAMES.PROJECT_STATUS_CHANGED,
       expect.objectContaining({
         userId: 7,
         correlationId: 'corr-1',
+        tenantId: 1,
+        entity: {
+          entityType: 'project',
+          entityId: 10,
+          objectType: 'project',
+          resolutionMode: 'sor_bound',
+          coreId: 10,
+        },
       }),
     );
   });

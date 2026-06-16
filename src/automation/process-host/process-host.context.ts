@@ -51,4 +51,5 @@ export interface StepStateChangedContext extends ProcessHostContext {
 export interface StartProcessResult {
   processInstanceId: number;
   firstStepInstanceId: number | null;
+  correlationId: string;
 }

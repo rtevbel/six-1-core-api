@@ -1,9 +1,11 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProcessInstanceStepsService } from './process_instance_steps.service';
 import { ProcessInstanceStepsController } from './process_instance_steps.controller';
 import { ProcessInstanceStepEntity } from './entities/process_instance_step.entity';
 import { ProcessInstanceStepObjectInstanceEntity } from './process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
+import { ProcessInstanceStepActionEntity } from './process_instance_step_actions/entities/process_instance_step_action.entity';
+import { ProcessActionExecutionLogEntity } from './process_instance_step_actions/entities/process_action_execution_log.entity';
 import { ProcessInstanceStepRequirementsModule } from './process_instance_step_requirements/process_instance_step_requirements.module';
 import { ProcessInstanceStepRequirementSubmissionsModule } from './process_instance_step_requirement_submissions/process_instance_step_requirement_submissions.module';
 import { ProcessInstanceStepTriggerConditionsModule } from './process_instance_step_trigger_conditions/process_instance_step_trigger_conditions.module';
@@ -22,11 +24,13 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
     TypeOrmModule.forFeature([
       ProcessInstanceStepEntity,
       ProcessInstanceStepObjectInstanceEntity,
+      ProcessInstanceStepActionEntity,
+      ProcessActionExecutionLogEntity,
     ]),
     ProcessInstanceStepRequirementsModule,
     ProcessInstanceStepRequirementSubmissionsModule,
     ProcessInstanceStepTriggerConditionsModule,
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [ProcessInstanceStepsController],
   providers: [ProcessInstanceStepsService],

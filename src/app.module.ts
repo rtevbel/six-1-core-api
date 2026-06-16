@@ -38,6 +38,7 @@ import { TenantUserWorkingHoursModule } from './tenants/tenant_users/tenant_user
 import { TenantUserOffDaysModule } from './tenants/tenant_users/tenant_user_off_days/tenant_user_off_days.module';
 import { TenantsModule } from './tenants/tenants.module';
 import { ProcessTemplatesModule } from './process_templates/process_templates.module';
+import { ProcessStartRulesModule } from './process_start_rules/process_start_rules.module';
 import { ProcessInstancesModule } from './process_instances/process_Instances.module';
 import { CategoriesModule } from './categories/categories.module';
 import { ProjectsModule } from './projects/projects.module';
@@ -50,6 +51,7 @@ import { SharingModule } from './sharing/sharing.module';
 import { CustomersModule } from './customers/customers.module';
 import { AuthorizationModule } from './authorization/authorization.module';
 import { ConfigObjectsModule } from './config_objects/config_objects.module';
+import { platformEnvValidationSchema } from './config/platform-env.validation';
 
 /**
  * Root module of the application.
@@ -91,6 +93,11 @@ import { ConfigObjectsModule } from './config_objects/config_objects.module';
         ? '.env.' + process.env.NODE_ENV
         : DEFAULT_ENVIRONMENT_FILE_NAME,
       isGlobal: true,
+      validationSchema: platformEnvValidationSchema,
+      validationOptions: {
+        allowUnknown: true,
+        abortEarly: false,
+      },
     }),
     /**
      * TypeOrmModule is used for database connection setup.
@@ -139,6 +146,7 @@ import { ConfigObjectsModule } from './config_objects/config_objects.module';
     TenantUserWorkingHoursModule,
     TenantUserOffDaysModule,
     ProcessTemplatesModule,
+    ProcessStartRulesModule,
     CategoriesModule,
     ProjectsModule,
     AutomationModule,

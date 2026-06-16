@@ -1,4 +1,9 @@
 import type { ConfigObjectBindingMode } from './entities/config_object.entity';
+import {
+  canonicalizeObjectType,
+  resolveEntityClassForObjectType,
+} from './core-field-descriptor/object-type-entity.registry';
+import { getMetadataArgsStorage } from 'typeorm';
 
 /**
  * Canonical object type naming for authoring/runtime catalogs.
@@ -81,7 +86,27 @@ export function isJunctionOnlyObjectType(objectType: ConfigObjectType): boolean 
 }
 
 export function isSystemTableObjectType(objectType: ConfigObjectType): boolean {
-  return SYSTEM_TABLE_OBJECT_TYPE_SET.has(objectType);
+  const normalized = objectType.trim().toLowerCase();
+  if (SYSTEM_TABLE_OBJECT_TYPE_SET.has(normalized)) {
+    return true;
+  }
+
+  const canonical = canonicalizeObjectType(objectType);
+  if (SYSTEM_TABLE_OBJECT_TYPE_SET.has(canonical)) {
+    return true;
+  }
+
+  const entityClass = resolveEntityClassForObjectType(canonical);
+  if (!entityClass) {
+    return false;
+  }
+
+  const table = getMetadataArgsStorage().tables.find(
+    (tableMetadata) => tableMetadata.target === entityClass,
+  );
+  return Boolean(
+    table?.name && SYSTEM_TABLE_OBJECT_TYPE_SET.has(String(table.name)),
+  );
 }
 
 /**

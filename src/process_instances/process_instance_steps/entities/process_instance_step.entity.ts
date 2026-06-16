@@ -14,6 +14,7 @@ import { ProcessTemplateStepEntity } from '../../../process_templates/process_te
 import { ProcessInstanceStepRequirementEntity } from '../process_instance_step_requirements/entities/process_instance_step_requirement.entity';
 import { ProcessInstanceStepTriggerEntity } from '../process_instance_step_trigger_conditions/entities/process_instance_step_trigger_condition.entity';
 import { ProcessInstanceStepObjectInstanceEntity } from '../process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
+import { ProcessInstanceStepActionEntity } from '../process_instance_step_actions/entities/process_instance_step_action.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 
 /**
@@ -81,6 +82,33 @@ export class ProcessInstanceStepEntity {
   isOptional!: boolean;
 
   @Column({
+    name: 'required_permissions',
+    type: 'json',
+    nullable: true,
+    comment: 'Copied from template at instantiation',
+  })
+  requiredPermissions!: string[] | null;
+
+  @Column({
+    name: 'step_extensions_json',
+    type: 'json',
+    nullable: true,
+    comment:
+      'Runner extensions copied from template at instantiation (visibleWhen, allowSkip, etc.)',
+  })
+  stepExtensionsJson!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'parallel_group_id',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    comment:
+      'Runner v3: denormalized parallel group id (from step_extensions_json.parallelGroupId)',
+  })
+  parallelGroupId!: string | null;
+
+  @Column({
     name: 'status',
     type: 'enum',
     enum: [
@@ -90,6 +118,8 @@ export class ProcessInstanceStepEntity {
       'blocked',
       'completed',
       'canceled',
+      'skipped',
+      'failed',
     ],
     default: 'pending',
     comment: 'Current status of the step',
@@ -100,7 +130,9 @@ export class ProcessInstanceStepEntity {
     | 'in_progress'
     | 'blocked'
     | 'completed'
-    | 'canceled';
+    | 'canceled'
+    | 'skipped'
+    | 'failed';
 
   @Column({
     name: 'blocked_reason',
@@ -233,6 +265,16 @@ export class ProcessInstanceStepEntity {
     { cascade: true },
   )
   objectInstances!: ProcessInstanceStepObjectInstanceEntity[];
+
+  /**
+   * Copied lifecycle actions for this step instance.
+   */
+  @OneToMany(
+    () => ProcessInstanceStepActionEntity,
+    (action) => action.processInstanceStep,
+    { cascade: true },
+  )
+  stepActions!: ProcessInstanceStepActionEntity[];
 
   /**
    * Relationship to TaskEntity.

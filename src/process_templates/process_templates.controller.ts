@@ -20,10 +20,13 @@ import {
   MICROSERVICE_UPDATE_PROCESS_TEMPLATE_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_TEMPLATE_PATTERN,
   MICROSERVICE_DEACTIVATE_PROCESS_TEMPLATE_PATTERN,
+  MICROSERVICE_VALIDATE_PROCESS_TEMPLATE_CONTEXT_PATTERN,
 } from './constants';
 import { DeactivateProcessTemplateDto } from './dto/deactivate-process_template.dto';
 import { FindOneProcessTemplateDto } from './dto/find-one-process_template.dto';
 import { RemoveProcessTemplateDto } from './dto/remove-process_template.dto';
+import { ValidateProcessTemplateContextDto } from './dto/validate-process_template_context.dto';
+import type { ContextSchemaValidationResult } from './process-template-context-schema.util';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
@@ -116,6 +119,19 @@ export class ProcessTemplatesController {
     @Payload('data') dto: DeactivateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
     return this.processTemplatesService.deactivate(userId, dto);
+  }
+
+  /**
+   * Validates a process start context against the template JSON Schema.
+   */
+  @MessagePattern(MICROSERVICE_VALIDATE_PROCESS_TEMPLATE_CONTEXT_PATTERN)
+  @RequirePermissions('process_templates.read')
+  @UsePipes(AppRpcValidationPipe)
+  validateProcessTemplateContext(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ValidateProcessTemplateContextDto,
+  ): Promise<ContextSchemaValidationResult> {
+    return this.processTemplatesService.validateContext(userId, dto);
   }
 
   /**

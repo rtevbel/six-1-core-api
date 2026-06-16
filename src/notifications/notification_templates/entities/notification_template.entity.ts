@@ -53,6 +53,14 @@ export class NotificationTemplateEntity {
   message!: string;
 
   @Column({
+    name: 'required_paths',
+    type: 'json',
+    nullable: true,
+    comment: 'Handlebars dot-paths referenced by subject/message at last save',
+  })
+  requiredPaths?: string[] | null;
+
+  @Column({
     name: 'channel_id',
     type: 'bigint',
     unsigned: true,

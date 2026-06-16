@@ -59,6 +59,8 @@ export class CreateProcessInstanceStepDto {
     'blocked',
     'completed',
     'canceled',
+    'skipped',
+    'failed',
   ])
   status!:
     | 'pending'
@@ -66,7 +68,9 @@ export class CreateProcessInstanceStepDto {
     | 'in_progress'
     | 'blocked'
     | 'completed'
-    | 'canceled';
+    | 'canceled'
+    | 'skipped'
+    | 'failed';
 
   /**
    * Reason why the step is blocked (optional).

@@ -86,7 +86,7 @@ describe('ProcessTemplateStepObjectBindingsService', () => {
     expect(bindingRepository.save).toHaveBeenCalled();
   });
 
-  it('rejects system_table config objects', async () => {
+  it('allows system_table config objects', async () => {
     stepRepository.findOne.mockResolvedValue({
       processTemplateStepId: 10,
       processTemplate: { tenantId: 1 },
@@ -94,6 +94,28 @@ describe('ProcessTemplateStepObjectBindingsService', () => {
     configObjectRepository.findOne.mockResolvedValue({
       configObjectId: 20,
       bindingMode: 'system_table',
+      templateSet: { tenantId: 1 },
+    });
+
+    const result = await service.create(2, {
+      processTemplateStepId: 10,
+      configObjectId: 20,
+      bindingMode: PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER,
+      completionRule: { type: 'payload_valid' },
+      createdBy: 2,
+    });
+
+    expect(result.bindingId).toBe(1);
+  });
+
+  it('allows sor_bound config objects', async () => {
+    stepRepository.findOne.mockResolvedValue({
+      processTemplateStepId: 10,
+      processTemplate: { tenantId: 1 },
+    });
+    configObjectRepository.findOne.mockResolvedValue({
+      configObjectId: 20,
+      bindingMode: 'sor_bound',
       templateSet: { tenantId: 1 },
     });
 
@@ -105,10 +127,32 @@ describe('ProcessTemplateStepObjectBindingsService', () => {
         completionRule: { type: 'payload_valid' },
         createdBy: 2,
       }),
-    ).rejects.toThrow(RpcException);
+    ).resolves.toBeDefined();
   });
 
-  it('rejects use_existing binding mode in v1', async () => {
+  it('allows use_existing for sor_bound config objects', async () => {
+    stepRepository.findOne.mockResolvedValue({
+      processTemplateStepId: 10,
+      processTemplate: { tenantId: 1 },
+    });
+    configObjectRepository.findOne.mockResolvedValue({
+      configObjectId: 20,
+      bindingMode: 'sor_bound',
+      templateSet: { tenantId: 1 },
+    });
+
+    await expect(
+      service.create(2, {
+        processTemplateStepId: 10,
+        configObjectId: 20,
+        bindingMode: PROCESS_TEMPLATE_OBJECT_BINDING_MODE_USE_EXISTING,
+        completionRule: { type: 'payload_valid' },
+        createdBy: 2,
+      }),
+    ).resolves.toBeDefined();
+  });
+
+  it('rejects use_existing for standalone config objects', async () => {
     mockAllowedBinding();
 
     await expect(
@@ -119,6 +163,6 @@ describe('ProcessTemplateStepObjectBindingsService', () => {
         completionRule: { type: 'payload_valid' },
         createdBy: 2,
       }),
-    ).rejects.toThrow(/not supported in v1/);
+    ).rejects.toThrow(/only supported for sor_bound and system_table/);
   });
 });

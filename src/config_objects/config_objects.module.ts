@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
 import { ConfigObjectEntity } from './entities/config_object.entity';
@@ -18,6 +18,7 @@ import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ProjectStepStatusMappingEntity } from '../projects/entities/project_step_status_mappings.entity';
 import { ConfigObjectsService } from './config_objects.service';
 import { ConfigLifecycleService } from './config_lifecycle.service';
+import { ConfigObjectCompletenessService } from './config-object-completeness.service';
 import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
 import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
@@ -27,6 +28,7 @@ import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_objec
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 import { ConfigObjectsController } from './config_objects.controller';
 import { EventsModule } from '../events/events.module';
+import { ProcessInstancesModule } from '../process_instances/process_Instances.module';
 
 /**
  * ConfigObjectsModule wires together the configurable object metadata layer.
@@ -41,6 +43,7 @@ import { EventsModule } from '../events/events.module';
 @Module({
   imports: [
     EventsModule,
+    forwardRef(() => ProcessInstancesModule),
     TypeOrmModule.forFeature([
       ConfigTemplateSetEntity,
       ConfigObjectEntity,
@@ -68,7 +71,15 @@ import { EventsModule } from '../events/events.module';
     ]),
   ],
   controllers: [ConfigObjectsController],
-  providers: [ConfigObjectsService, ConfigLifecycleService],
-  exports: [ConfigObjectsService, ConfigLifecycleService],
+  providers: [
+    ConfigObjectsService,
+    ConfigLifecycleService,
+    ConfigObjectCompletenessService,
+  ],
+  exports: [
+    ConfigObjectsService,
+    ConfigLifecycleService,
+    ConfigObjectCompletenessService,
+  ],
 })
 export class ConfigObjectsModule {}

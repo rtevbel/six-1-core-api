@@ -757,6 +757,7 @@ export class ConfigObjectsController {
       tenantId: dto.tenantId,
       configCustomObjectInstanceId: dto.configCustomObjectInstanceId,
       updatedBy: dto.updatedBy ?? userId,
+      tenantUserId: dto.tenantUserId,
       payload: dto.payload,
       status: dto.status,
     });

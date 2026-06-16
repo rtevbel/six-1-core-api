@@ -1,0 +1,52 @@
+import * as Joi from 'joi';
+import {
+  PLATFORM_ACTION_EXECUTOR_ENABLED_KEY,
+  PLATFORM_EVENT_BUS_ENABLED_KEY,
+  PLATFORM_EVENT_ENVELOPE_VALIDATION_KEY,
+  PLATFORM_EVENT_ENVELOPE_VALIDATION_MODES,
+  PLATFORM_EVENT_NOTIFICATION_DEDUP_WINDOW_MINUTES_KEY,
+  PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED_KEY,
+  PLATFORM_EVENT_RECORD_RETENTION_DAYS_KEY,
+} from '../events/config/platform-event.constants';
+import {
+  PLATFORM_NOTIFICATION_CONTEXT_ENABLED_KEY,
+  PLATFORM_NOTIFICATION_IMMEDIATE_DISPATCH_ENABLED_KEY,
+  PLATFORM_NOTIFICATION_MAX_SEND_ATTEMPTS_KEY,
+  PLATFORM_NOTIFICATION_RETRY_BASE_SECONDS_KEY,
+} from '../notifications/config/notification-platform.constants';
+
+/** Matches {@link parseNotificationPlatformFlag} truthy/falsy strings; empty = unset. */
+const OPTIONAL_BOOLEAN_ENV = Joi.string()
+  .trim()
+  .empty('')
+  .valid('true', 'false', '1', '0', 'yes', 'no', 'on', 'off')
+  .optional();
+
+/** Optional positive integer env string (empty = unset; runtime parsers apply defaults). */
+const OPTIONAL_POSITIVE_INT_ENV = Joi.string()
+  .trim()
+  .empty('')
+  .pattern(/^[1-9]\d*$/)
+  .optional();
+
+/**
+ * Joi schema for platform notification + event rollout flags (NV0.1).
+ * Registered on `ConfigModule.forRoot`; unknown env keys are allowed.
+ */
+export const platformEnvValidationSchema = Joi.object({
+  [PLATFORM_NOTIFICATION_CONTEXT_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
+  [PLATFORM_NOTIFICATION_IMMEDIATE_DISPATCH_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
+  [PLATFORM_NOTIFICATION_MAX_SEND_ATTEMPTS_KEY]: OPTIONAL_POSITIVE_INT_ENV,
+  [PLATFORM_NOTIFICATION_RETRY_BASE_SECONDS_KEY]: OPTIONAL_POSITIVE_INT_ENV,
+  [PLATFORM_EVENT_ENVELOPE_VALIDATION_KEY]: Joi.string()
+    .trim()
+    .empty('')
+    .valid(...PLATFORM_EVENT_ENVELOPE_VALIDATION_MODES)
+    .optional(),
+  [PLATFORM_EVENT_BUS_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
+  [PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
+  [PLATFORM_EVENT_NOTIFICATION_DEDUP_WINDOW_MINUTES_KEY]:
+    OPTIONAL_POSITIVE_INT_ENV,
+  [PLATFORM_ACTION_EXECUTOR_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
+  [PLATFORM_EVENT_RECORD_RETENTION_DAYS_KEY]: OPTIONAL_POSITIVE_INT_ENV,
+});

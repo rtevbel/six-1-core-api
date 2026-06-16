@@ -31,6 +31,15 @@ export const PROCESS_STEP_INVALID_STATE_MESSAGE =
 export const PROCESS_STEP_GATES_NOT_MET_MESSAGE =
   'Process step cannot be completed until mandatory requirements and object bindings are satisfied.';
 
+export const PROCESS_STEP_PERMISSIONS_NOT_MET_MESSAGE =
+  'Caller does not have the permissions required to complete this process step.';
+
+export const PROCESS_STEP_SKIP_NOT_ALLOWED_MESSAGE =
+  'Process step cannot be skipped (requires is_optional or allowSkip extension).';
+
+export const PROCESS_STEP_INVALID_STATE_SKIP_MESSAGE =
+  'Process step cannot be skipped in its current state.';
+
 export const DEFAULT_ENVIRONMENT_FILE_NAME = '.env.production';
 export const DATABASE_SERVICE_TYPE = 'mysql';
 

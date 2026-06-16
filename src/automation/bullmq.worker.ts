@@ -1,12 +1,16 @@
 import { Injectable, OnModuleDestroy } from '@nestjs/common';
 import { Worker, Processor, Job } from 'bullmq';
 import { StepOrchestratorService } from './step-orchestrator.service';
+import { ProcessLifecycleFacade } from './process-lifecycle.facade';
 
 @Injectable()
 export class AutomationQueueWorker implements OnModuleDestroy {
   private readonly worker: Worker;
 
-  constructor(private readonly orchestrator: StepOrchestratorService) {
+  constructor(
+    private readonly orchestrator: StepOrchestratorService,
+    private readonly lifecycle: ProcessLifecycleFacade,
+  ) {
     const connection = {
       host: process.env.REDIS_HOST ?? '127.0.0.1',
       port: +(process.env.REDIS_PORT ?? 6379),
@@ -27,6 +31,17 @@ export class AutomationQueueWorker implements OnModuleDestroy {
             correlationId: ctx?.correlationId,
           });
         }
+        return;
+      }
+      if (job.name === 'batch-start-process') {
+        const data = job.data ?? {};
+        await this.lifecycle.batchStartProcess({
+          tenantId: Number(data.tenantId ?? 0),
+          createdBy: Number(data.createdBy ?? 0),
+          templateId: Number(data.templateId ?? 0),
+          async: false,
+          items: Array.isArray(data.items) ? data.items : [],
+        });
         return;
       }
       if (job.name.startsWith('notifications:')) {

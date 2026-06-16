@@ -1,10 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {  Repository,
   Like,
   UpdateResult,
   DeleteResult,
-  LessThanOrEqual,
-  IsNull,
 } from 'typeorm';
 
 import {
@@ -29,6 +27,8 @@ import {
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(NotificationEntity)
     private readonly notificationRepository: Repository<NotificationEntity>,
@@ -210,60 +210,13 @@ export class NotificationsService {
   }
 
   /**
-   * Processes event logs and creates notifications for users based on their event listeners.
-   * This method fetches event logs, retrieves associated listeners, and generates notifications accordingly.
+   * @deprecated Use {@link NotificationJobService} — retained for backward compatibility only.
    */
-
   async processEventLogsAndCreateNotifications(): Promise<void> {
-    // Step 1: Fetch all event logs
-    const eventLogs = await this.eventLogsService.getAllEventLogs();
-
-    // Proceed only if there are event logs to process
-    if (eventLogs.length > 0) {
-      for (const eventLog of eventLogs) {
-        //const { id: eventId, eventName, data } = eventLog;
-        const eventName: string = eventLog.event.name;
-        const eventId: number = eventLog.event.eventId;
-        const userId: number = eventLog.userId;
-
-        // Step 2: Fetch listeners for the current event
-        const listeners =
-          await this.eventListenersService.getListenersByEventId(eventId);
-
-        for (const listener of listeners) {
-          //const { userId, notificationType } = ;
-          const notificationType: string = listener.channel.name;
-          const subject = listener.template
-            ? listener.template.subject
-            : `Notification for event: ${eventName}`;
-          const message = listener.template
-            ? listener.template.message
-            : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`;
-
-          // Step 3: Create a notification DTO for each listener
-          const createNotificationDto = plainToInstance(CreateNotificationDto, {
-            userId,
-            eventId,
-            type: notificationType,
-            subject: subject ? subject : `Notification for event: ${eventName}`,
-            message: message
-              ? message
-              : `Event ${eventName} occurred with data: ${JSON.stringify(eventLog.entityType)}`,
-            status: 'pending',
-            scheduledAt: null, // Optional: Add scheduling logic if needed
-          });
-
-          // Step 4: Save the notification to the database
-          await this.create(userId, createNotificationDto);
-
-          // Step 5: Update the event log status to indicate notification has been processed
-          await this.eventLogsService.update(userId, eventLog.logId, {
-            logId: eventLog.logId,
-            status: 1,
-          });
-        }
-      }
-    }
+    this.logger.warn(
+      'processEventLogsAndCreateNotifications is deprecated; use NotificationJobService',
+    );
+    return;
   }
 
   /**
@@ -274,13 +227,46 @@ export class NotificationsService {
   async getPendingNotifications(limit = 50): Promise<NotificationEntity[]> {
     const now = new Date();
 
-    return await this.notificationRepository.find({
-      where: [
-        { status: 'pending', scheduledAt: IsNull() },
-        { status: 'pending', scheduledAt: LessThanOrEqual(now) },
-      ],
-      order: { createdAt: 'ASC' },
-      take: Math.min(limit, 200),
+    return await this.notificationRepository
+      .createQueryBuilder('notification')
+      .where('notification.status = :status', { status: 'pending' })
+      .andWhere(
+        '(notification.scheduled_at IS NULL OR notification.scheduled_at <= :now)',
+        { now },
+      )
+      .andWhere(
+        '(notification.next_retry_at IS NULL OR notification.next_retry_at <= :now)',
+        { now },
+      )
+      .orderBy('notification.created_at', 'ASC')
+      .take(Math.min(limit, 200))
+      .getMany();
+  }
+
+  async findById(notificationId: number): Promise<NotificationEntity | null> {
+    return this.notificationRepository.findOne({
+      where: { notificationId },
+    });
+  }
+
+  async recordFailedSendAttempt(
+    notificationId: number,
+    nextRetryAt: Date | null,
+  ): Promise<UpdateResult> {
+    return this.notificationRepository
+      .createQueryBuilder()
+      .update(NotificationEntity)
+      .set({
+        sendAttempts: () => 'send_attempts + 1',
+        nextRetryAt,
+      })
+      .where('notification_id = :notificationId', { notificationId })
+      .execute();
+  }
+
+  async clearRetrySchedule(notificationId: number): Promise<UpdateResult> {
+    return this.notificationRepository.update(notificationId, {
+      nextRetryAt: null,
     });
   }
 

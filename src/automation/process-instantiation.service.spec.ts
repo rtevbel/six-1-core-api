@@ -41,6 +41,11 @@ describe('ProcessInstantiationService', () => {
             step_order: 1,
             task_type: 'manual',
             is_optional: 0,
+            required_permissions: ['process_templates.manage'],
+            step_extensions_json: {
+              visibleWhen: { '==': [{ var: 'context.customerType' }, 'B2B'] },
+              allowSkip: true,
+            },
             name: 'Step 1',
           },
           {
@@ -48,6 +53,8 @@ describe('ProcessInstantiationService', () => {
             step_order: 2,
             task_type: 'manual',
             is_optional: 0,
+            required_permissions: null,
+            step_extensions_json: null,
             name: 'Step 2',
           },
         ];
@@ -82,10 +89,55 @@ describe('ProcessInstantiationService', () => {
         ];
       }
 
+      if (normalized.includes('FROM process_template_step_actions')) {
+        return [
+          {
+            step_action_id: 21,
+            process_template_step_id: 1,
+            action_type: 'emit_event',
+            run_on: 'step_completed',
+            config: { eventName: 'six1-event.process_step_completed' },
+            order_index: 0,
+            is_active: 1,
+          },
+          {
+            step_action_id: 22,
+            process_template_step_id: 2,
+            action_type: 'update_sor_field',
+            run_on: 'process_completed',
+            config: {
+              objectType: 'customer',
+              coreIdPath: 'context.customerId',
+              corePatch: { status: 'active' },
+            },
+            order_index: 1,
+            is_active: 1,
+          },
+        ];
+      }
+
+      if (normalized.includes('FROM process_template_step_assignees')) {
+        return [
+          {
+            process_template_step_id: 1,
+            tenant_user_id: 42,
+            assignment_order: 0,
+          },
+        ];
+      }
+
       if (
         normalized.includes('INSERT INTO process_instance_step_object_instances')
       ) {
         return { affectedRows: 2 };
+      }
+
+      if (normalized.includes('INSERT INTO process_instance_step_actions')) {
+        return { affectedRows: 2 };
+      }
+
+      if (normalized.includes('INSERT INTO process_instance_step_assignees')) {
+        return { affectedRows: 1 };
       }
 
       return [];
@@ -147,6 +199,117 @@ describe('ProcessInstantiationService', () => {
     );
   });
 
+  it('copies template required_permissions onto instance steps', async () => {
+    await service.instantiateProcess(7, 1, 2, {
+      subjectType: PROCESS_SUBJECT_TYPE_PROJECT,
+      subjectId: 10,
+    });
+
+    const stepInserts = query.mock.calls.filter(([sql]) =>
+      String(sql).includes('INSERT INTO process_instance_steps'),
+    );
+
+    expect(stepInserts).toHaveLength(2);
+    expect(stepInserts[0]?.[1]).toEqual(
+      expect.arrayContaining([
+        500,
+        1,
+        'Step 1',
+        'manual',
+        1,
+        0,
+        JSON.stringify(['process_templates.manage']),
+        JSON.stringify({
+          visibleWhen: { '==': [{ var: 'context.customerType' }, 'B2B'] },
+          allowSkip: true,
+        }),
+        'ready',
+      ]),
+    );
+    expect(stepInserts[1]?.[1]).toEqual(
+      expect.arrayContaining([
+        500,
+        2,
+        'Step 2',
+        'manual',
+        2,
+        0,
+        null,
+        null,
+        'pending',
+      ]),
+    );
+  });
+
+  it('copies template step_extensions_json onto instance steps', async () => {
+    await service.instantiateProcess(7, 1, 2, {
+      subjectType: PROCESS_SUBJECT_TYPE_PROJECT,
+      subjectId: 10,
+    });
+
+    const stepInserts = query.mock.calls.filter(([sql]) =>
+      String(sql).includes('INSERT INTO process_instance_steps'),
+    );
+
+    expect(stepInserts[0]?.[0]).toContain('step_extensions_json');
+    expect(stepInserts[0]?.[1]?.[7]).toBe(
+      JSON.stringify({
+        visibleWhen: { '==': [{ var: 'context.customerType' }, 'B2B'] },
+        allowSkip: true,
+      }),
+    );
+    expect(stepInserts[1]?.[1]?.[7]).toBeNull();
+  });
+
+  it('copies template step assignees onto instance steps', async () => {
+    await service.instantiateProcess(7, 1, 2, {
+      subjectType: PROCESS_SUBJECT_TYPE_PROJECT,
+      subjectId: 10,
+    });
+
+    const assigneeInsert = query.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO process_instance_step_assignees'),
+    );
+
+    expect(assigneeInsert).toBeDefined();
+    expect(assigneeInsert?.[1]).toEqual([1001, 42, 0]);
+  });
+
+  it('copies template step actions to instance rows with config snapshot', async () => {
+    const processInstanceId = await service.instantiateProcess(7, 1, 2, {
+      subjectType: PROCESS_SUBJECT_TYPE_PROJECT,
+      subjectId: 10,
+    });
+
+    expect(processInstanceId).toBe(500);
+
+    const actionInsert = query.mock.calls.find(([sql]) =>
+      String(sql).includes('INSERT INTO process_instance_step_actions'),
+    );
+
+    expect(actionInsert).toBeDefined();
+    expect(actionInsert?.[1]).toEqual([
+      1001,
+      21,
+      'emit_event',
+      'step_completed',
+      JSON.stringify({ eventName: 'six1-event.process_step_completed' }),
+      0,
+      1,
+      1002,
+      22,
+      'update_sor_field',
+      'process_completed',
+      JSON.stringify({
+        objectType: 'customer',
+        coreIdPath: 'context.customerId',
+        corePatch: { status: 'active' },
+      }),
+      1,
+      1,
+    ]);
+  });
+
   it('instantiates a 50-step template in one transaction with retry wrapper', async () => {
     const templateSteps = Array.from({ length: 50 }, (_, i) => ({
       process_template_step_id: i + 1,
@@ -185,6 +348,10 @@ describe('ProcessInstantiationService', () => {
       }
 
       if (normalized.includes('FROM process_template_step_object_bindings')) {
+        return [];
+      }
+
+      if (normalized.includes('FROM process_template_step_actions')) {
         return [];
       }
 

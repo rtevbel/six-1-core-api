@@ -11,6 +11,7 @@ import {
 } from './process-subject.constants';
 import { RpcException } from '@nestjs/microservices';
 import type { ProcessHostAdapter } from './process-host/process-host.adapter';
+import type { SchedulerPort } from './scheduler.port';
 
 describe('ProcessLifecycleFacade', () => {
   const mockEm = {
@@ -53,6 +54,10 @@ describe('ProcessLifecycleFacade', () => {
     transaction: jest.fn(),
   } as unknown as DataSource;
 
+  const scheduler = {
+    schedule: jest.fn().mockResolvedValue(undefined),
+  } as unknown as SchedulerPort;
+
   let facade: ProcessLifecycleFacade;
 
   beforeEach(() => {
@@ -67,6 +72,7 @@ describe('ProcessLifecycleFacade', () => {
       events,
       processFlags,
       processCompletion,
+      scheduler,
     );
   });
 
@@ -96,7 +102,12 @@ describe('ProcessLifecycleFacade', () => {
     expect(result).toEqual({
       processInstanceId: 99,
       firstStepInstanceId: 501,
+      correlationId: expect.any(String),
     });
+    expect(mockEm.query).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE process_instances SET correlation_id'),
+      expect.arrayContaining([expect.any(String), 99]),
+    );
     expect(ds.transaction).not.toHaveBeenCalled();
   });
 
@@ -145,5 +156,92 @@ describe('ProcessLifecycleFacade', () => {
         entityManager: mockEm,
       }),
     ).rejects.toThrow(RpcException);
+  });
+
+  it('batchStartProcess de-dupes items and starts within one transaction', async () => {
+    (ds.transaction as unknown as jest.Mock).mockImplementation(
+      async (_iso: string, fn: (em: EntityManager) => Promise<unknown>) =>
+        fn(mockEm),
+    );
+    (instantiation.instantiateProcessIn as unknown as jest.Mock)
+      .mockResolvedValueOnce(101)
+      .mockResolvedValueOnce(102);
+    (mockEm.query as jest.Mock)
+      .mockResolvedValueOnce([{ step_instance_id: 501 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ step_instance_id: 601 }])
+      .mockResolvedValueOnce([]);
+
+    const result = await facade.batchStartProcess({
+      tenantId: 1,
+      createdBy: 2,
+      templateId: 3,
+      async: false,
+      items: [
+        {
+          itemIndex: 0,
+          subjectType: 'project',
+          subjectId: 10,
+          subjectMetadata: null,
+          context: { a: 1 },
+          correlationId: null,
+        },
+        {
+          itemIndex: 1,
+          subjectType: 'project',
+          subjectId: 10,
+          subjectMetadata: null,
+          context: { a: 1 },
+          correlationId: null,
+        },
+        {
+          itemIndex: 2,
+          subjectType: 'workflow',
+          subjectId: 0,
+          subjectMetadata: null,
+          context: { b: 2 },
+          correlationId: null,
+        },
+      ],
+    });
+
+    expect(result.status).toBe('started');
+    if (result.status === 'started') {
+      expect(result.requested).toBe(3);
+      expect(result.deduped).toBe(2);
+      expect(result.results).toHaveLength(2);
+    }
+    expect(ds.transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('batchStartProcess queues when async=true', async () => {
+    const result = await facade.batchStartProcess({
+      tenantId: 1,
+      createdBy: 2,
+      templateId: 3,
+      async: true,
+      items: [
+        {
+          itemIndex: 0,
+          subjectType: 'project',
+          subjectId: 10,
+          subjectMetadata: null,
+          context: null,
+          correlationId: null,
+        },
+      ],
+    });
+
+    expect(result).toEqual({ status: 'queued', requested: 1, deduped: 1 });
+    expect(scheduler.schedule).toHaveBeenCalledWith(
+      0,
+      'batch-start-process',
+      expect.objectContaining({
+        tenantId: 1,
+        createdBy: 2,
+        templateId: 3,
+        items: expect.any(Array),
+      }),
+    );
   });
 });

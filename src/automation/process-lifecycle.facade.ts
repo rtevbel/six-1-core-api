@@ -1,9 +1,13 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { DataSource, EntityManager } from 'typeorm';
 import { EventsService } from '../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import { buildProcessInstanceEventOptions } from '../events/platform-process-event.util';
+import { resolveCorrelationId } from '../events/platform-correlation.util';
 import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 import { ProcessInstantiationService } from './process-instantiation.service';
+import { SCHEDULER_PORT, type SchedulerPort } from './scheduler.port';
 import type { ProjectHostStartData } from './process-host/project-host.adapter';
 import type {
   ProcessHostContext,
@@ -16,6 +20,7 @@ import {
   PROCESS_SUBJECT_TYPE_PROJECT,
   PROCESS_SUBJECT_TYPE_SCHEDULED_TASK,
   PROCESS_SUBJECT_TYPE_WORKFLOW,
+  PROCESS_SUBJECT_TYPE_SOR_ENTITY,
 } from './process-subject.constants';
 import { isProcessSubjectType } from './process-subject.constants';
 import type { ProcessInstanceSubjectInput } from './process-subject.types';
@@ -29,6 +34,18 @@ export interface StartProcessForProjectParams {
   projectId: number;
   statusIdByName: Record<string, number>;
   entityManager: EntityManager;
+}
+
+export interface StartProcessForSorEntityParams {
+  tenantId: number;
+  createdBy: number;
+  templateId: number;
+  objectType: string;
+  coreId: number;
+  context?: Record<string, unknown> | null;
+  correlationId?: string | null;
+  subjectMetadata?: Record<string, unknown> | null;
+  entityManager?: EntityManager;
 }
 
 export interface StartWorkflowProcessParams {
@@ -63,6 +80,7 @@ export class ProcessLifecycleFacade {
     private readonly events: EventsService,
     private readonly processFlags: ProcessFeatureFlagsService,
     private readonly processCompletion: ProcessCompletionService,
+    @Inject(SCHEDULER_PORT) private readonly scheduler: SchedulerPort,
   ) {}
 
   /**
@@ -111,6 +129,65 @@ export class ProcessLifecycleFacade {
     }
 
     return this.ds.transaction('READ COMMITTED', run);
+  }
+
+  async batchStartProcess(params: {
+    tenantId: number;
+    createdBy: number;
+    templateId: number;
+    async: boolean;
+    items: Array<{
+      itemIndex: number;
+      subjectType: string;
+      subjectId: number;
+      subjectMetadata: Record<string, unknown> | null;
+      context: Record<string, unknown> | null;
+      correlationId: string | null;
+    }>;
+  }): Promise<
+    | { status: 'queued'; requested: number; deduped: number }
+    | {
+        status: 'started';
+        requested: number;
+        deduped: number;
+        results: Array<StartProcessResult & { itemIndex: number }>;
+      }
+  > {
+    const requested = params.items.length;
+    const dedupedItems = dedupeBatchStartItems(params.items);
+    const deduped = dedupedItems.length;
+
+    const ASYNC_THRESHOLD = 50;
+    if (params.async || dedupedItems.length > ASYNC_THRESHOLD) {
+      await this.scheduler.schedule(0, 'batch-start-process', {
+        tenantId: params.tenantId,
+        createdBy: params.createdBy,
+        templateId: params.templateId,
+        items: dedupedItems,
+      });
+      return { status: 'queued', requested, deduped };
+    }
+
+    const results = await this.ds.transaction('READ COMMITTED', async (em) => {
+      const out: Array<StartProcessResult & { itemIndex: number }> = [];
+      for (const item of dedupedItems) {
+        const started = await this.startProcess({
+          tenantId: params.tenantId,
+          createdBy: params.createdBy,
+          templateId: params.templateId,
+          subjectType: item.subjectType,
+          subjectId: item.subjectId,
+          subjectMetadata: item.subjectMetadata,
+          context: item.context,
+          correlationId: item.correlationId,
+          entityManager: em,
+        });
+        out.push({ ...started, itemIndex: item.itemIndex });
+      }
+      return out;
+    });
+
+    return { status: 'started', requested, deduped, results };
   }
 
   /**
@@ -173,6 +250,31 @@ export class ProcessLifecycleFacade {
     });
   }
 
+  /**
+   * Tier 4 — process anchored on an existing SoR / system_table row.
+   */
+  async startProcessForSorEntity(
+    params: StartProcessForSorEntityParams,
+  ): Promise<StartProcessResult> {
+    const subjectMetadata = {
+      objectType: params.objectType,
+      coreId: params.coreId,
+      ...(params.subjectMetadata ?? {}),
+    };
+
+    return this.startProcess({
+      tenantId: params.tenantId,
+      createdBy: params.createdBy,
+      templateId: params.templateId,
+      subjectType: PROCESS_SUBJECT_TYPE_SOR_ENTITY,
+      subjectId: params.coreId,
+      context: params.context,
+      correlationId: params.correlationId,
+      subjectMetadata,
+      entityManager: params.entityManager,
+    });
+  }
+
   private async startProcessInTransaction(
     em: EntityManager,
     params: StartProcessParams,
@@ -182,6 +284,8 @@ export class ProcessLifecycleFacade {
       subjectId: params.subjectId,
       subjectMetadata: params.subjectMetadata ?? null,
     };
+
+    const correlationId = resolveCorrelationId(params.correlationId);
 
     const processInstanceId = await this.instantiation.instantiateProcessIn(
       em,
@@ -197,12 +301,10 @@ export class ProcessLifecycleFacade {
       },
     );
 
-    if (params.correlationId) {
-      await em.query(
-        `UPDATE process_instances SET correlation_id = ? WHERE process_instance_id = ?`,
-        [params.correlationId, processInstanceId],
-      );
-    }
+    await em.query(
+      `UPDATE process_instances SET correlation_id = ? WHERE process_instance_id = ?`,
+      [correlationId, processInstanceId],
+    );
 
     const adapter = this.hostRegistry.get(params.subjectType);
     const hostCtx: ProcessHostContext = {
@@ -216,7 +318,7 @@ export class ProcessLifecycleFacade {
           ? processInstanceId
           : params.subjectId,
       subjectMetadata: params.subjectMetadata ?? null,
-      correlationId: params.correlationId ?? null,
+      correlationId,
       context: params.context ?? null,
       entityManager: em,
       hostData: params.hostData,
@@ -232,26 +334,24 @@ export class ProcessLifecycleFacade {
     );
 
     if (this.processFlags.isSubjectModelEnabled()) {
-      this.events.emit('six1-event.process_started', {
-        tenantId: params.tenantId,
-        entity: {
-          entityType: 'ProcessInstance',
-          entityId: processInstanceId,
-        },
-        data: {
+      this.events.emit(
+        PLATFORM_EVENT_NAMES.PROCESS_STARTED,
+        buildProcessInstanceEventOptions({
+          tenantId: params.tenantId,
           processInstanceId,
+          processTemplateId: params.templateId,
+          correlationId,
           subjectType: params.subjectType,
           subjectId: hostCtx.subjectId,
-          templateId: params.templateId,
-        },
-      });
+        }),
+      );
     }
 
     this.logger.debug(
       `Started process ${processInstanceId} subject=${params.subjectType}:${hostCtx.subjectId}`,
     );
 
-    return { processInstanceId, firstStepInstanceId };
+    return { processInstanceId, firstStepInstanceId, correlationId };
   }
 
   private async resolveFirstStepInstanceId(
@@ -299,5 +399,52 @@ export class ProcessLifecycleFacade {
         'Scheduled task process subjects are disabled (PROCESS_TIER1_SCHEDULED_TASK_ENABLED)',
       );
     }
+
+    if (
+      subjectType === PROCESS_SUBJECT_TYPE_SOR_ENTITY &&
+      !this.processFlags.isTier4SorEntityEnabled()
+    ) {
+      throw new RpcException(
+        'SOR entity process subjects are disabled (PROCESS_TIER4_SOR_ENTITY_ENABLED)',
+      );
+    }
   }
+}
+
+function dedupeBatchStartItems<T extends { itemIndex: number }>(
+  items: T[],
+): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const item of items) {
+    const key = stableStringify({
+      subjectType: (item as any).subjectType,
+      subjectId: (item as any).subjectId,
+      subjectMetadata: (item as any).subjectMetadata,
+      context: (item as any).context,
+    });
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function stableStringify(value: unknown): string {
+  if (value == null) {
+    return 'null';
+  }
+  if (typeof value !== 'object') {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys
+    .map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`)
+    .join(',')}}`;
 }

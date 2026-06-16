@@ -45,4 +45,26 @@ export class ProcessFeatureFlagsService {
   isTier1ScheduledTaskEnabled(): boolean {
     return this.flags.tier1ScheduledTaskEnabled;
   }
+
+  isTier4SorEntityEnabled(): boolean {
+    return this.flags.tier4SorEntityEnabled;
+  }
+
+  isStepActionsEnabled(): boolean {
+    return this.flags.stepActionsEnabled;
+  }
+
+  isEventStartRegistryEnabled(): boolean {
+    return this.flags.eventStartRegistryEnabled;
+  }
+
+  /** Runner v2: visibleWhen, skip/retry, autoAdvance, failure recovery (F track). */
+  isRunnerV2Enabled(): boolean {
+    return this.flags.runnerV2Enabled;
+  }
+
+  /** Runner v3: parallel groups, batch start, collaboration locks (G track). */
+  isRunnerV3Enabled(): boolean {
+    return this.flags.runnerV3Enabled;
+  }
 }

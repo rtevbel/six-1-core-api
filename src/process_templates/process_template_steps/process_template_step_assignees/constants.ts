@@ -1,0 +1,8 @@
+export const MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN =
+  'v0.1_create_process_template_step_assignee';
+export const MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN =
+  'v0.1_find_all_process_template_step_assignees';
+export const MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN =
+  'v0.1_find_one_process_template_step_assignee';
+export const MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN =
+  'v0.1_remove_process_template_step_assignee';

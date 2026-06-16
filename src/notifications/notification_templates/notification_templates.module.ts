@@ -3,6 +3,7 @@ import { NotificationTemplatesService } from './notification_templates.service';
 import { NotificationTemplatesController } from './notification_templates.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationTemplateEntity } from './entities/notification_template.entity';
+import { NotificationCatalogModule } from '../catalog/notification-catalog.module';
 
 /**
  * NotificationTemplatesModule is responsible for managing notification templates.
@@ -12,8 +13,8 @@ import { NotificationTemplateEntity } from './entities/notification_template.ent
  */
 @Module({
   imports: [
-    // Registers the NotificationTemplateEntity for TypeORM.
     TypeOrmModule.forFeature([NotificationTemplateEntity]),
+    NotificationCatalogModule,
   ],
   controllers: [NotificationTemplatesController],
   providers: [NotificationTemplatesService],

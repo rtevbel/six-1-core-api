@@ -5,12 +5,19 @@ import {
   UsePipes,
 } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
+import { RequirePermissions } from '../../authorization/authorization.decorator';
 import { NotificationTemplatesService } from './notification_templates.service';
 import { CreateNotificationTemplateDto } from './dto/create-notification_template.dto';
 import { UpdateNotificationTemplateDto } from './dto/update-notification_template.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { NotificationTemplateEntity } from './entities/notification_template.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
+import { GetNotificationVariableCatalogDto } from '../catalog/dto/get-notification-variable-catalog.dto';
+import { PreviewNotificationTemplateDto } from '../catalog/dto/preview-notification-template.dto';
+import { NotificationVariableCatalogService } from '../catalog/notification-variable-catalog.service';
+import { NotificationTemplatePreviewService } from '../catalog/notification-template-preview.service';
+import type { NotificationVariableCatalogResult } from '../catalog/interfaces/notification-variable-catalog-result.interface';
+import type { PreviewNotificationTemplateResult } from '../catalog/interfaces/preview-notification-template-result.interface';
 
 import {
   MICROSERVICE_CREATE_NOTIFICATION_TEMPLATE_PATTERN,
@@ -19,6 +26,10 @@ import {
   MICROSERVICE_UPDATE_NOTIFICATION_TEMPLATE_PATTERN,
   MICROSERVICE_REMOVE_NOTIFICATION_TEMPLATE_PATTERN,
 } from './constants';
+import {
+  MICROSERVICE_GET_NOTIFICATION_VARIABLE_CATALOG_PATTERN,
+  MICROSERVICE_PREVIEW_NOTIFICATION_TEMPLATE_PATTERN,
+} from '../catalog/notification-catalog.constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe';
@@ -27,6 +38,8 @@ import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe
 export class NotificationTemplatesController {
   constructor(
     private readonly notificationTemplatesService: NotificationTemplatesService,
+    private readonly variableCatalogService: NotificationVariableCatalogService,
+    private readonly templatePreviewService: NotificationTemplatePreviewService,
   ) {}
 
   /**
@@ -109,5 +122,29 @@ export class NotificationTemplatesController {
     @Payload('data') id: number,
   ): Promise<DeleteResult> {
     return this.notificationTemplatesService.remove(userId, id);
+  }
+
+  /**
+   * Returns the merged notification variable catalog for template authoring (NV5).
+   */
+  @MessagePattern(MICROSERVICE_GET_NOTIFICATION_VARIABLE_CATALOG_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  getNotificationVariableCatalog(
+    @Payload('data') dto: GetNotificationVariableCatalogDto,
+  ): Promise<NotificationVariableCatalogResult> {
+    return this.variableCatalogService.getCatalog(dto);
+  }
+
+  /**
+   * Renders a template against a sample event log or envelope (NV5).
+   */
+  @MessagePattern(MICROSERVICE_PREVIEW_NOTIFICATION_TEMPLATE_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  previewNotificationTemplate(
+    @Payload('data') dto: PreviewNotificationTemplateDto,
+  ): Promise<PreviewNotificationTemplateResult> {
+    return this.templatePreviewService.preview(dto);
   }
 }

@@ -1,114 +1,72 @@
 /**
- * Represents a reference to an entity, including its type and ID.
+ * Platform event envelope contract (P0.3).
+ * @see docs/platform-event-envelope.md
  */
-export type EntityRef = {
-  /** The type of the entity (e.g., class name or entity name). */
-  entityType: string | null;
 
-  /** The unique identifier of the entity. */
-  entityId: number | string | null;
-};
+/** Config object binding mode for entity hydration on the envelope. */
+export type PlatformEntityResolutionMode =
+  | 'standalone'
+  | 'sor_bound'
+  | 'system_table';
 
 /**
- * Represents the structure of an event envelope, which encapsulates
- * metadata and payload for a domain event.
+ * Entity reference on the event envelope — IDs and binding hints only.
+ * Display fields are hydrated by consumers (e.g. NotificationContextBuilder).
+ */
+export interface PlatformEntityRef {
+  entityType: string | null;
+  entityId: number | string | null;
+  objectType?: string;
+  resolutionMode?: PlatformEntityResolutionMode;
+  coreId?: number;
+  instanceId?: number;
+}
+
+/** @deprecated Use {@link PlatformEntityRef}. */
+export type EntityRef = PlatformEntityRef;
+
+/** Optional cross-refs for process and related entity hydration. */
+export interface EventEnvelopeRefs {
+  processInstanceId?: number;
+  stepInstanceId?: number;
+  customerCoreId?: number;
+  configObjectInstanceId?: number;
+}
+
+/**
+ * Canonical domain event envelope emitted via {@link EventsService}.
  *
- * @template TData - The type of the event's payload data.
+ * @template TData - Business payload shape (`data` namespace at render time).
  */
 export type EventEnvelope<TData = unknown> = {
-  /**
-   * The canonical name of the event, e.g., "six1-event.order.created".
-   * This is used to uniquely identify the event type.
-   */
+  /** Canonical name, e.g. `six1-event.process_step_ready`. */
   eventName: string;
-
-  /** The ID of the user who triggered the event. */
   userId?: number;
-
-  /**
-   * The ID of the user who created the record in the system.
-   * Defaults to the same value as `userId` if not explicitly provided.
-   */
   createdBy?: number;
-
-  /**
-   * A reference to the primary entity associated with the event.
-   * This can be an `EntityRef` or a raw entity object, which will be normalized.
-   */
-  entity?: EntityRef | object;
-
-  /**
-   * The business payload associated with the event.
-   * This should be small and contain only the necessary data.
-   */
+  entity?: PlatformEntityRef | object;
+  refs?: EventEnvelopeRefs;
   data?: TData;
-
-  /** An optional correlation ID for cross-service tracing. */
   correlationId?: string;
-
-  /** An optional causation ID to indicate the cause of this event. */
   causationId?: string;
-
-  /**
-   * An optional external identifier for the event, such as a notification ID
-   * or a provider-specific key.
-   */
   externalId?: string;
-
-  /** The tenant ID for multi-tenant support. */
   tenantId?: number | string;
-
-  /** The timestamp indicating when the event occurred. */
   occurredAt?: Date;
 };
 
-/**
- * Normalizes an entity reference to ensure it conforms to the EntityRef structure.
- *
- * @param input - The entity to normalize, which can be:
- *   - A TypeORM entity
- *   - A plain object with an `id` property
- *   - An EntityRef object
- * @returns An EntityRef object or undefined if the input is invalid.
- */
-export function normalizeEntityRef(
-  input?: any,
-): { entityType: string | null; entityId: number | string | null } | undefined {
-  if (!input) return undefined;
+export {
+  buildEventEnvelope,
+  buildPlatformEntityRef,
+  buildSorBoundPlatformEntityRef,
+  buildSystemTablePlatformEntityRef,
+  normalizeEntityRef,
+  normalizeEventEnvelopeRefs,
+} from './platform-entity-ref.util';
 
-  if (
-    typeof input === 'object' &&
-    'entityId' in input &&
-    'entityType' in input
-  ) {
-    return input as any;
-  }
+export {
+  PLATFORM_SOR_OBJECT_TYPES,
+  PLATFORM_SYSTEM_TABLE_OBJECT_TYPES,
+  buildSorBoundDomainEventOptions,
+  buildSystemTableDomainEventOptions,
+} from './platform-domain-event.util';
 
-  // If a constructor slipped in, we can only return the type
-  if (typeof input === 'function') {
-    return { entityType: input.name ?? null, entityId: null };
-  }
-
-  const direct =
-    input?.projectId ?? input?.id ?? input?._id ?? input?.entityId ?? null;
-
-  if (direct != null) {
-    return { entityType: input?.constructor?.name ?? null, entityId: direct };
-  }
-
-  // Try instance or prototype getId()
-  if (typeof input?.getId === 'function') {
-    const v = input.getId();
-    if (v != null)
-      return { entityType: input?.constructor?.name ?? null, entityId: v };
-  }
-  const proto = Object.getPrototypeOf(input);
-  if (proto && typeof proto.getId === 'function') {
-    const v = proto.getId.call(input);
-    if (v != null)
-      return { entityType: input?.constructor?.name ?? null, entityId: v };
-  }
-
-  // Fallback
-  return { entityType: input?.constructor?.name ?? null, entityId: null };
-}
+export { PLATFORM_EVENT_NAMES } from './constants/platform-event-names.constants';

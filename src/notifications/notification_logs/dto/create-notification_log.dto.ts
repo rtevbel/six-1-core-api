@@ -45,9 +45,9 @@ export class CreateNotificationLogDto {
    *
    * @type {'pending' | 'sent' | 'failed'}
    */
-  @IsEnum(['pending', 'sent', 'failed'])
+  @IsEnum(['pending', 'sent', 'failed', 'dead_letter'])
   @IsNotEmpty()
-  status!: 'pending' | 'sent' | 'failed';
+  status!: 'pending' | 'sent' | 'failed' | 'dead_letter';
 
   /**
    * Response from the notification service.

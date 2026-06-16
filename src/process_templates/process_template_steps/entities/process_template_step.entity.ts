@@ -13,6 +13,7 @@ import { TenantUsersEntity } from '../../../tenants/tenant_users/entities/tenant
 import { ProcessTemplateStepDescriptionEntity } from './process_template_step_description.entity';
 import { ProcessTemplateStepRequirementEntity } from '../process_template_step_requirements/entities/process_template_step_requirement.entity';
 import { ProcessTemplateStepObjectBindingEntity } from '../process_template_step_object_bindings/entities/process_template_step_object_binding.entity';
+import { ProcessTemplateStepActionEntity } from '../process_template_step_actions/entities/process_template_step_action.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
 
@@ -85,6 +86,22 @@ export class ProcessTemplateStepEntity {
     default: 0,
   })
   isOptional!: boolean;
+
+  @Column({
+    name: 'required_permissions',
+    type: 'json',
+    nullable: true,
+    comment: 'Permission keys required to complete this step',
+  })
+  requiredPermissions!: string[] | null;
+
+  @Column({
+    name: 'step_extensions_json',
+    type: 'json',
+    nullable: true,
+    comment: 'Runner extensions: visibleWhen, ui, parallelGroupId, allowSkip',
+  })
+  stepExtensionsJson!: Record<string, unknown> | null;
 
   @Column({
     name: 'created_by',
@@ -186,6 +203,16 @@ export class ProcessTemplateStepEntity {
     { cascade: true },
   )
   objectBindings!: ProcessTemplateStepObjectBindingEntity[];
+
+  /**
+   * Lifecycle actions (notify, write-back, webhooks) on this template step.
+   */
+  @OneToMany(
+    () => ProcessTemplateStepActionEntity,
+    (action) => action.processTemplateStep,
+    { cascade: true },
+  )
+  stepActions!: ProcessTemplateStepActionEntity[];
 
   /**
    * Reverse relationship to ProcessInstanceStepEntity.

@@ -1,12 +1,17 @@
 import {
   IsNumber,
   IsOptional,
-  IsEnum,
+  IsIn,
   IsBoolean,
   IsArray,
   ValidateNested,
   IsObject,
   ValidateIf,
+  IsString,
+  IsEnum,
+  ArrayMaxSize,
+  Matches,
+  MaxLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateProcessTemplateStepDescriptionDto } from './create-process_template_step_description.dto';
@@ -24,8 +29,8 @@ export class CreateProcessTemplateStepDto {
   /**
    * Task type of the step.
    */
-  @IsEnum(['manual', 'automated', 'call_process', 'config_object'])
-  taskType!: 'manual' | 'automated' | 'call_process' | 'config_object';
+  @IsIn(['manual', 'automated', 'call_process'])
+  taskType!: 'manual' | 'automated' | 'call_process';
 
   /**
    * Child template when taskType is call_process.
@@ -53,6 +58,17 @@ export class CreateProcessTemplateStepDto {
    */
   @IsBoolean()
   isOptional!: boolean;
+
+  /**
+   * Permission keys a caller must hold to complete this step (Runner + RPC).
+   */
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(20)
+  @IsString({ each: true })
+  @MaxLength(128, { each: true })
+  @Matches(/^[A-Za-z0-9_.]+$/, { each: true })
+  requiredPermissions?: string[];
 
   /**
    * Tenant User ID who created this step.

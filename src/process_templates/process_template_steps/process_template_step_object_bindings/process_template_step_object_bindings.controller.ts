@@ -20,6 +20,7 @@ import {
   MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN,
 } from './constants';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
+import { RequirePermissions } from '../../../authorization/authorization.decorator';
 
 @Controller('process-template-step-object-bindings')
 export class ProcessTemplateStepObjectBindingsController {
@@ -28,6 +29,7 @@ export class ProcessTemplateStepObjectBindingsController {
   ) {}
 
   @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN)
+  @RequirePermissions('process_templates.update')
   @UsePipes(AppRpcValidationPipe)
   createProcessTemplateStepObjectBinding(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -39,6 +41,7 @@ export class ProcessTemplateStepObjectBindingsController {
   @MessagePattern(
     MICROSERVICE_FIND_ALL_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN,
   )
+  @RequirePermissions('process_templates.read')
   @UsePipes(AppRpcValidationPipe)
   findAllProcessTemplateStepObjectBindings(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -50,6 +53,7 @@ export class ProcessTemplateStepObjectBindingsController {
   @MessagePattern(
     MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN,
   )
+  @RequirePermissions('process_templates.read')
   findOneProcessTemplateStepObjectBinding(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') id: number,
@@ -58,6 +62,7 @@ export class ProcessTemplateStepObjectBindingsController {
   }
 
   @MessagePattern(MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN)
+  @RequirePermissions('process_templates.update')
   @UsePipes(AppRpcValidationPipe)
   updateProcessTemplateStepObjectBinding(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -71,6 +76,7 @@ export class ProcessTemplateStepObjectBindingsController {
   }
 
   @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_OBJECT_BINDING_PATTERN)
+  @RequirePermissions('process_templates.update')
   removeProcessTemplateStepObjectBinding(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('processTemplateStepId', ParseIntPipe)

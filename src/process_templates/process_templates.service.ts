@@ -1,6 +1,13 @@
-import { Injectable } from '@nestjs/common';
-import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { Injectable, Inject } from '@nestjs/common';
+import {
+  In,
+  Repository,
+  UpdateResult,
+  DeleteResult,
+} from 'typeorm';
+import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
+import { AJV } from '../automation/ajv.module';
 import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
 import { ProcessTemplateCategoryEntity } from './entities/process_template_category.entity';
@@ -31,6 +38,12 @@ import {
 } from '../common/utils/tenant-scope.util';
 import { FindOneProcessTemplateDto } from './dto/find-one-process_template.dto';
 import { RemoveProcessTemplateDto } from './dto/remove-process_template.dto';
+import { ValidateProcessTemplateContextDto } from './dto/validate-process_template_context.dto';
+import {
+  assertCompilableJsonSchema,
+  validateContextAgainstSchema,
+  type ContextSchemaValidationResult,
+} from './process-template-context-schema.util';
 
 @Injectable()
 export class ProcessTemplatesService {
@@ -62,6 +75,11 @@ export class ProcessTemplatesService {
     @InjectRepository(ProcessTemplateCategoryEntity)
     private readonly processTemplateCategoryRepository: Repository<ProcessTemplateCategoryEntity>,
     private readonly configObjectsService: ConfigObjectsService,
+    @Inject(AJV)
+    private readonly ajv: {
+      compile: (schema: object) => (data: unknown) => boolean;
+      errors?: unknown;
+    },
   ) {}
 
   /**
@@ -74,10 +92,12 @@ export class ProcessTemplatesService {
     userId: number,
     createProcessTemplateDto: CreateProcessTemplateDto,
   ): Promise<ProcessTemplateEntity> {
-    const { status, tenantId, ...rest } = createProcessTemplateDto;
+    const { status, tenantId, contextSchema, ...rest } = createProcessTemplateDto;
+    assertCompilableJsonSchema(this.ajv, contextSchema ?? undefined);
     return await this.processTemplateRepository.save(
       this.processTemplateRepository.create({
         ...rest,
+        contextSchema: contextSchema ?? null,
         tenantId: resolveProcessTemplateStoredTenantId(tenantId),
         status: status ?? 'DRAFT',
       }),
@@ -251,6 +271,43 @@ export class ProcessTemplatesService {
   }
 
   /**
+   * Validates a process start context payload against the template's `contextSchema`.
+   * When no schema is defined, returns `{ valid: true, errors: [] }`.
+   */
+  async validateContext(
+    userId: number,
+    dto: ValidateProcessTemplateContextDto,
+  ): Promise<ContextSchemaValidationResult> {
+    const effectiveTenantId = getEffectiveTenantId(dto.tenantId);
+    const template = await this.processTemplateRepository.findOne({
+      where: processTemplateWhereForTenantScope(
+        dto.processTemplateId,
+        effectiveTenantId,
+      ),
+      select: ['processTemplateId', 'contextSchema'],
+    });
+
+    if (!template) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          ProcessTemplateEntity.name,
+        ),
+      );
+    }
+
+    if (!template.contextSchema) {
+      return { valid: true, errors: [] };
+    }
+
+    return validateContextAgainstSchema(
+      this.ajv,
+      template.contextSchema,
+      dto.context,
+    );
+  }
+
+  /**
    * Updates an existing process template record.
    * @param userId - ID of the user updating the record.
    * @param id - ID of the process template to update.
@@ -279,8 +336,17 @@ export class ProcessTemplatesService {
       );
     }
 
-    const { descriptions, categories, tenantId: _scopeTenantId, ...processTemplateUpdateData } =
+    const { descriptions, categories, tenantId: _scopeTenantId, contextSchema, ...processTemplateUpdateData } =
       updateProcessTemplateDto;
+
+    if (contextSchema !== undefined) {
+      assertCompilableJsonSchema(this.ajv, contextSchema ?? undefined);
+    }
+
+    const updatePayload = {
+      ...processTemplateUpdateData,
+      ...(contextSchema !== undefined ? { contextSchema } : {}),
+    };
 
     if (descriptions) {
       for (const description of descriptions) {
@@ -311,7 +377,7 @@ export class ProcessTemplatesService {
     }
     return await this.processTemplateRepository.update(
       id,
-      processTemplateUpdateData,
+      updatePayload as QueryDeepPartialEntity<ProcessTemplateEntity>,
     );
   }
 

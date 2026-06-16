@@ -1,6 +1,7 @@
 import { ConfigService } from '@nestjs/config';
 import {
   PROCESS_CALL_PROCESS_ENABLED_KEY,
+  PROCESS_RUNNER_V2_ENABLED_KEY,
   PROCESS_SUBJECT_MODEL_ENABLED_KEY,
 } from './process-feature.constants';
 import { parseProcessFeatureFlag } from './process-feature.config';
@@ -44,6 +45,11 @@ describe('ProcessFeatureFlagsService', () => {
       tier2InstanceSubjectEnabled: false,
       tier3WorkflowSubjectEnabled: false,
       tier1ScheduledTaskEnabled: false,
+      tier4SorEntityEnabled: false,
+      stepActionsEnabled: false,
+      eventStartRegistryEnabled: false,
+      runnerV2Enabled: false,
+      runnerV3Enabled: false,
     });
   });
 
@@ -51,6 +57,7 @@ describe('ProcessFeatureFlagsService', () => {
     mockGet.mockImplementation((key: string) => {
       if (key === PROCESS_SUBJECT_MODEL_ENABLED_KEY) return 'true';
       if (key === PROCESS_CALL_PROCESS_ENABLED_KEY) return '1';
+      if (key === PROCESS_RUNNER_V2_ENABLED_KEY) return 'yes';
       return undefined;
     });
 
@@ -60,6 +67,8 @@ describe('ProcessFeatureFlagsService', () => {
 
     expect(fresh.isSubjectModelEnabled()).toBe(true);
     expect(fresh.isCallProcessEnabled()).toBe(true);
+    expect(fresh.isRunnerV2Enabled()).toBe(true);
+    expect(fresh.isRunnerV3Enabled()).toBe(false);
     expect(fresh.isTier2InstanceSubjectEnabled()).toBe(false);
   });
 });

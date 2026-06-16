@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { EventsService } from '../../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../../events/constants/platform-event-names.constants';
+import {
+  PLATFORM_SOR_OBJECT_TYPES,
+  buildSorBoundDomainEventOptions,
+} from '../../events/platform-domain-event.util';
 import type { ProcessEngineState } from '../process-engine-state';
 import { PROCESS_SUBJECT_TYPE_PROJECT } from '../process-subject.constants';
 import { BaseProcessHostAdapter } from './base-process-host.adapter';
@@ -38,7 +43,9 @@ export class ProjectHostAdapter extends BaseProcessHostAdapter {
       ctx.entityManager,
       ctx.stepInstanceId,
       ctx.engineState as ProcessEngineState,
+      ctx.tenantId,
       ctx.advance?.actorTenantUserId,
+      ctx.advance?.correlationId ?? ctx.correlationId ?? undefined,
     );
   }
 
@@ -105,13 +112,17 @@ export class ProjectHostAdapter extends BaseProcessHostAdapter {
       [projectId],
     );
 
-    this.events.emit('six1-event.notification.project_status_changed', {
-      userId: ctx.advance?.actorTenantUserId ?? ctx.createdBy ?? 1,
-      entity: { entityType: 'Project', entityId: projectId },
-      data: { processInstanceId },
-      correlationId:
-        ctx.advance?.correlationId ?? ctx.correlationId ?? undefined,
-    });
+    this.events.emit(
+      PLATFORM_EVENT_NAMES.PROJECT_STATUS_CHANGED,
+      buildSorBoundDomainEventOptions({
+        objectType: PLATFORM_SOR_OBJECT_TYPES.PROJECT,
+        coreId: projectId,
+        tenantId: ctx.tenantId,
+        actorUserId: ctx.advance?.actorTenantUserId ?? ctx.createdBy ?? 1,
+        correlationId: ctx.advance?.correlationId ?? ctx.correlationId ?? undefined,
+        data: { processInstanceId },
+      }),
+    );
   }
 
   async onProcessStarted(ctx: ProcessHostContext): Promise<void> {
@@ -229,7 +240,9 @@ export class ProjectHostAdapter extends BaseProcessHostAdapter {
     em: ProcessHostContext['entityManager'],
     stepInstanceId: number,
     engineState: ProcessEngineState,
+    tenantId: number,
     actorTenantUserId?: number,
+    correlationId?: string,
   ): Promise<void> {
     const [task] = await em.query(
       `SELECT t.task_id, t.project_id, t.status_control
@@ -266,15 +279,21 @@ export class ProjectHostAdapter extends BaseProcessHostAdapter {
       [map.task_status_id, task.task_id],
     );
 
-    this.events.emit('six1-event.notification.task_status_changed', {
-      userId: actorTenantUserId ?? 1,
-      entity: { entityType: 'Task', entityId: task.task_id },
-      data: {
-        projectId: task.project_id,
-        stepInstanceId,
-        toStatusId: map.task_status_id,
-        engineState,
-      },
-    });
+    this.events.emit(
+      PLATFORM_EVENT_NAMES.TASK_STATUS_CHANGED,
+      buildSorBoundDomainEventOptions({
+        objectType: PLATFORM_SOR_OBJECT_TYPES.TASK,
+        coreId: Number(task.task_id),
+        tenantId,
+        actorUserId: actorTenantUserId ?? 1,
+        correlationId,
+        data: {
+          projectId: task.project_id,
+          stepInstanceId,
+          toStatusId: map.task_status_id,
+          engineState,
+        },
+      }),
+    );
   }
 }

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { ConfigurableInstanceHostAdapter } from './configurable-instance-host.adapter';
 import { GenericWorkflowHostAdapter } from './generic-workflow-host.adapter';
+import { SorEntityHostAdapter } from './sor-entity-host.adapter';
 import type { ProcessHostAdapter } from './process-host.adapter';
 import { ProjectHostAdapter } from './project-host.adapter';
 import { ScheduledTaskHostAdapter } from './scheduled-task-host.adapter';
@@ -15,12 +16,14 @@ export class ProcessHostRegistry {
     scheduledTaskHost: ScheduledTaskHostAdapter,
     configurableInstanceHost: ConfigurableInstanceHostAdapter,
     genericWorkflowHost: GenericWorkflowHostAdapter,
+    sorEntityHost: SorEntityHostAdapter,
   ) {
     for (const adapter of [
       projectHost,
       scheduledTaskHost,
       configurableInstanceHost,
       genericWorkflowHost,
+      sorEntityHost,
     ]) {
       this.byType.set(adapter.subjectType, adapter);
     }

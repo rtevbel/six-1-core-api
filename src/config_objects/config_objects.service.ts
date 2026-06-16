@@ -21,6 +21,7 @@ import { CustomerContactInfoEntity } from '../customers/customer_contact_info/en
 import { CustomerContactInfoMetaEntity } from '../customers/customer_contact_info/entities/customer_contact_info_meta.entity';
 import { ResourceEntity } from '../scheduler/entities/resource.entity';
 import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
+import { loadCoreEntityFromRegistry } from './core-entity-registry.loader';
 import { runnerMetadataForBindingMode } from './config-object-runner';
 import {
   ApplySorBoundInstancePatchResult,
@@ -30,6 +31,7 @@ import {
   ConfigObjectRunnerSchemaView,
   ConfigObjectSchemaView,
   ConfigObjectFieldView,
+  type SupportedConfigObjectCoreEntity,
 } from './interfaces/config-object-resolved-instance.interface';
 import {
   buildMergedFieldOrder,
@@ -122,6 +124,15 @@ import type {
   ObjectListFieldCatalogView,
 } from './list-field-catalog/object-list-field-catalog.interface';
 import { EventsService } from '../events/events.service';
+import { ProcessStepLocksService } from '../process_instances/process_step_locks/process-step-locks.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import {
+  buildSorBoundInstanceUpdatedEventOptions,
+  buildStandaloneConfigObjectInstanceCreatedOptions,
+  buildStandaloneConfigObjectInstanceDeletedOptions,
+  buildStandaloneConfigObjectInstanceUpdatedOptions,
+  resolveTenantIdFromSorCore,
+} from '../events/platform-config-object-event.util';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -259,6 +270,7 @@ export class ConfigObjectsService {
     private readonly configObjectStatusMappingRepository: Repository<ConfigObjectStatusMappingEntity>,
     private readonly dataSource: DataSource,
     private readonly eventsService: EventsService,
+    private readonly stepLocks: ProcessStepLocksService,
   ) {}
 
   /**
@@ -1347,7 +1359,7 @@ export class ConfigObjectsService {
 
   /**
    * Applies allowlisted `corePatch` and `metaPatch` in one DB transaction for
-   * `sor_bound` types supported by {@link loadCoreAndMeta}.
+   * `sor_bound` types with JSON meta tables use {@link loadSorBoundMetaJson}.
    *
    * Gateway should enforce domain permissions (e.g. `projects.update`) before calling.
    *
@@ -1417,7 +1429,11 @@ export class ConfigObjectsService {
       );
     }
 
-    if (Object.keys(filteredCore).length && effectiveTenantId === null) {
+    if (
+      Object.keys(filteredCore).length &&
+      effectiveTenantId === null &&
+      !this.isGlobalScopeSorCorePatchType(objectType)
+    ) {
       throw new RpcException(
         'Core field updates require tenant scope. Omit corePatch or provide tenantId >= 1.',
       );
@@ -1433,7 +1449,35 @@ export class ConfigObjectsService {
         filteredMeta,
         customerId,
       ),
-    );
+    ).then((result) => {
+      const changedFields = [
+        ...Object.keys(filteredCore),
+        ...Object.keys(filteredMeta),
+      ];
+      const resolvedTenantId =
+        effectiveTenantId ??
+        resolveTenantIdFromSorCore(
+          result.core as unknown as Record<string, unknown>,
+        );
+
+      if (resolvedTenantId) {
+        this.eventsService.emit(
+          PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
+          buildSorBoundInstanceUpdatedEventOptions({
+            objectType,
+            coreId,
+            tenantId: resolvedTenantId,
+            changedFields,
+          }),
+        );
+      } else {
+        this.logger.warn(
+          `Skipping ${PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED} — no tenant scope for ${objectType}:${coreId}`,
+        );
+      }
+
+      return result;
+    });
   }
 
   private async applySorBoundPatchInTransaction(
@@ -1493,6 +1537,10 @@ export class ConfigObjectsService {
     throw new RpcException(
       `apply_sor_bound_instance_patch is not implemented for object_type: ${objectType}.`,
     );
+  }
+
+  private isGlobalScopeSorCorePatchType(objectType: string): boolean {
+    return objectType === 'customer';
   }
 
   private assignFilteredCoreProps(
@@ -2122,6 +2170,47 @@ export class ConfigObjectsService {
   }
 
   /**
+   * Loads a core row for any registered object type (`system_table` or `sor_bound`).
+   * Uses the entity catalog — no per-type switch cases.
+   */
+  async loadCoreRecord(
+    objectType: string,
+    coreId: number,
+  ): Promise<Record<string, unknown> | null> {
+    const coreEntity = await loadCoreEntityFromRegistry(
+      this.dataSource,
+      objectType,
+      coreId,
+    );
+    if (!coreEntity) {
+      return null;
+    }
+    return coreEntity as Record<string, unknown>;
+  }
+
+  /**
+   * Returns raw payload + status for a standalone custom object instance.
+   */
+  async getCustomObjectInstanceSnapshot(
+    tenantId: number,
+    instanceId: number,
+  ): Promise<{ payload: Record<string, unknown>; status: string } | null> {
+    const row = await this.customObjectInstanceRepository.findOne({
+      where: {
+        configCustomObjectInstanceId: instanceId,
+        tenantId,
+      },
+    });
+    if (!row) {
+      return null;
+    }
+    return {
+      payload: row.payload ?? {},
+      status: row.status,
+    };
+  }
+
+  /**
    * Resolves a configurable object instance by combining:
    * - SoR: core row + meta JSON, or
    * - Standalone: `config_custom_object_instances.payload`.
@@ -2714,6 +2803,18 @@ export class ConfigObjectsService {
       },
     );
 
+    this.eventsService.emit(
+      PLATFORM_EVENT_NAMES.CONFIG_OBJECT_INSTANCE_CREATED,
+      buildStandaloneConfigObjectInstanceCreatedOptions({
+        configCustomObjectInstanceId: saved.configCustomObjectInstanceId,
+        configObjectId: saved.configObjectId,
+        objectType: configObject.objectType,
+        tenantId: saved.tenantId,
+        actorUserId: createdBy,
+        status: saved.status,
+      }),
+    );
+
     return saved;
   }
 
@@ -2724,6 +2825,7 @@ export class ConfigObjectsService {
     tenantId: number;
     configCustomObjectInstanceId: number;
     updatedBy: number;
+    tenantUserId?: number;
     payload?: Record<string, unknown>;
     status?: ConfigCustomObjectInstanceStatus;
   }): Promise<ConfigCustomObjectInstanceEntity> {
@@ -2731,6 +2833,7 @@ export class ConfigObjectsService {
       tenantId,
       configCustomObjectInstanceId,
       updatedBy,
+      tenantUserId,
       payload,
       status,
     } = params;
@@ -2751,7 +2854,18 @@ export class ConfigObjectsService {
       throw new RpcException('Custom object instance not found.');
     }
 
-    await this.getStandaloneConfigObjectForTenant(
+    // G3: when this instance is bound to a process step, require the caller to hold the step lock.
+    const boundStepId = await this.stepLocks.resolveStepIdForCustomObjectInstance(
+      configCustomObjectInstanceId,
+    );
+    if (boundStepId) {
+      await this.stepLocks.assertCanMutateStep({
+        stepInstanceId: boundStepId,
+        tenantUserId,
+      });
+    }
+
+    const configObject = await this.getStandaloneConfigObjectForTenant(
       row.configObjectId,
       effectiveTenantId,
     );
@@ -2770,6 +2884,14 @@ export class ConfigObjectsService {
 
     row.updatedBy = updatedBy;
 
+    const changedFields: string[] = [];
+    if (typeof payload !== 'undefined') {
+      changedFields.push('payload');
+    }
+    if (typeof status === 'string') {
+      changedFields.push('status');
+    }
+
     const saved = await this.customObjectInstanceRepository.save(row);
 
     await this.logConfigChange(
@@ -2785,20 +2907,18 @@ export class ConfigObjectsService {
       },
     );
 
-    this.eventsService.emit('six1-event.config_object_instance.updated', {
-      entity: {
-        entityType: 'ConfigCustomObjectInstance',
-        entityId: saved.configCustomObjectInstanceId,
-      },
-      data: {
+    this.eventsService.emit(
+      PLATFORM_EVENT_NAMES.CONFIG_OBJECT_INSTANCE_UPDATED,
+      buildStandaloneConfigObjectInstanceUpdatedOptions({
         configCustomObjectInstanceId: saved.configCustomObjectInstanceId,
-        config_custom_object_instance_id: saved.configCustomObjectInstanceId,
         configObjectId: saved.configObjectId,
+        objectType: configObject.objectType,
         tenantId: saved.tenantId,
-        updatedBy,
+        actorUserId: updatedBy,
         status: saved.status,
-      },
-    });
+        changedFields,
+      }),
+    );
 
     return saved;
   }
@@ -2829,7 +2949,7 @@ export class ConfigObjectsService {
       return;
     }
 
-    await this.getStandaloneConfigObjectForTenant(
+    const configObject = await this.getStandaloneConfigObjectForTenant(
       row.configObjectId,
       effectiveTenantId,
     );
@@ -2840,6 +2960,18 @@ export class ConfigObjectsService {
       status: row.status,
       payload: row.payload,
     };
+
+    this.eventsService.emit(
+      PLATFORM_EVENT_NAMES.CONFIG_OBJECT_INSTANCE_DELETED,
+      buildStandaloneConfigObjectInstanceDeletedOptions({
+        configCustomObjectInstanceId,
+        configObjectId: row.configObjectId,
+        objectType: configObject.objectType,
+        tenantId: row.tenantId,
+        actorUserId: deletedBy,
+        status: row.status,
+      }),
+    );
 
     await this.customObjectInstanceRepository.remove(row);
 
@@ -5494,6 +5626,18 @@ export class ConfigObjectsService {
         deniedFields.push(fieldKey);
         continue;
       }
+
+      if (
+        typeof descriptor.fieldType === 'string' &&
+        descriptor.fieldType.trim().toLowerCase() === 'attachment' &&
+        !isValidAttachmentFieldValue(value)
+      ) {
+        throw new RpcException({
+          code: RuntimeErrorCode.SubmitFieldInvalid,
+          message: `Invalid attachment value for field "${fieldKey}" (expected { key: string, ... }).`,
+        });
+      }
+
       if (descriptor.path && descriptor.path.trim().length > 0) {
         this.setValueAtPath(payload, descriptor.path.trim(), value);
       } else {
@@ -5515,6 +5659,17 @@ export class ConfigObjectsService {
       );
       if (!exists) {
         missingRequiredFields.push(descriptor.fieldKey);
+        continue;
+      }
+
+      if (
+        typeof descriptor.fieldType === 'string' &&
+        descriptor.fieldType.trim().toLowerCase() === 'attachment'
+      ) {
+        const value = (fieldValues ?? {})[descriptor.fieldKey];
+        if (!isValidAttachmentFieldValue(value)) {
+          missingRequiredFields.push(descriptor.fieldKey);
+        }
       }
     }
 
@@ -7064,124 +7219,82 @@ export class ConfigObjectsService {
   }
 
   /**
-   * Helper method that loads a core entity and its associated meta JSON row
-   * for the supported configurable object types.
-   *
-   * @param objectType - Logical object type key.
-   * @param coreId - Identifier of the core record.
-   * @returns The core entity and meta JSON, or `null` values when the record does not exist.
+   * Helper method that loads a core entity and optional sor_bound meta JSON.
+   * Core rows resolve via {@link loadCoreEntityFromRegistry}; meta remains
+   * explicit for types that use JSON meta tables.
    */
   private async loadCoreAndMeta(
     objectType: string,
     coreId: number,
   ): Promise<{
-    coreEntity:
-      | ProjectEntity
-      | TaskEntity
-      | CustomerEntity
-      | CustomerContactInfoEntity
-      | ResourceEntity
-      | null;
+    coreEntity: SupportedConfigObjectCoreEntity | null;
     metaJson: Record<string, unknown> | null;
   }> {
+    const coreEntity = (await loadCoreEntityFromRegistry(
+      this.dataSource,
+      objectType,
+      coreId,
+    )) as SupportedConfigObjectCoreEntity | null;
+
+    if (!coreEntity) {
+      return { coreEntity: null, metaJson: null };
+    }
+
+    const metaJson = await this.loadSorBoundMetaJson(objectType, coreId);
+    return { coreEntity, metaJson };
+  }
+
+  /**
+   * JSON meta row for sor_bound types only. `system_table` types return `null`.
+   */
+  private async loadSorBoundMetaJson(
+    objectType: string,
+    coreId: number,
+  ): Promise<Record<string, unknown> | null> {
     if (objectType === 'project') {
-      const project = await this.projectRepository.findOne({
-        where: { projectId: coreId },
-      });
-
-      if (!project) {
-        return { coreEntity: null, metaJson: null };
-      }
-
       const meta = await this.projectMetaRepository.findOne({
         where: { projectId: coreId },
       });
-
-      return {
-        coreEntity: project,
-        metaJson: meta ? meta.metaJson : null,
-      };
+      return meta ? meta.metaJson : null;
     }
 
     if (objectType === 'task') {
-      const task = await this.taskRepository.findOne({
-        where: { taskId: coreId },
-      });
-
-      if (!task) {
-        return { coreEntity: null, metaJson: null };
-      }
-
       const meta = await this.taskMetaRepository.findOne({
         where: { taskId: coreId },
       });
-
-      return {
-        coreEntity: task,
-        metaJson: meta ? meta.metaJson : null,
-      };
+      return meta ? meta.metaJson : null;
     }
 
     if (objectType === 'customer') {
-      const customer = await this.customerRepository.findOne({
-        where: { customerId: coreId },
-      });
-
-      if (!customer) {
-        return { coreEntity: null, metaJson: null };
-      }
-
       const meta = await this.customerMetaRepository.findOne({
         where: { customerId: coreId },
       });
-
-      return {
-        coreEntity: customer,
-        metaJson: meta ? meta.metaJson : null,
-      };
+      return meta ? meta.metaJson : null;
     }
 
     if (objectType === 'customer_contact') {
-      const contact = await this.customerContactInfoRepository.findOne({
-        where: { customerContactId: coreId },
-      });
-
-      if (!contact) {
-        return { coreEntity: null, metaJson: null };
-      }
-
       const meta = await this.customerContactInfoMetaRepository.findOne({
         where: { customerContactId: coreId },
       });
-
-      return {
-        coreEntity: contact,
-        metaJson: meta ? meta.metaJson : null,
-      };
+      return meta ? meta.metaJson : null;
     }
 
     if (objectType === 'resource') {
-      const resource = await this.resourceRepository.findOne({
-        where: { resourceId: coreId },
-      });
-
-      if (!resource) {
-        return { coreEntity: null, metaJson: null };
-      }
-
       const meta = await this.resourceMetaRepository.findOne({
         where: { resourceId: coreId },
       });
-
-      return {
-        coreEntity: resource,
-        metaJson: meta ? meta.metaJson : null,
-      };
+      return meta ? meta.metaJson : null;
     }
 
-    return {
-      coreEntity: null,
-      metaJson: null,
-    };
+    return null;
   }
+}
+
+function isValidAttachmentFieldValue(value: unknown): boolean {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  const v = value as Record<string, unknown>;
+  const key = v.key;
+  return typeof key === 'string' && key.trim().length > 0;
 }

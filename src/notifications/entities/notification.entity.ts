@@ -78,6 +78,24 @@ export class NotificationEntity {
   })
   status!: 'pending' | 'sent' | 'failed';
 
+  @Column({
+    name: 'send_attempts',
+    type: 'int',
+    unsigned: true,
+    default: 0,
+    comment: 'Outbound send attempts (P8)',
+  })
+  sendAttempts!: number;
+
+  @Column({
+    name: 'next_retry_at',
+    type: 'datetime',
+    precision: 6,
+    nullable: true,
+    comment: 'Earliest retry time after failed send (P8)',
+  })
+  nextRetryAt!: Date | null;
+
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',

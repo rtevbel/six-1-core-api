@@ -12,11 +12,13 @@ import { UserEntity } from '../../users/entities/user.entity';
 import { EventListenerEntity } from '../event_listeners/entities/event_listener.entity';
 import { NotificationEntity } from '../../notifications/entities/notification.entity';
 import { EventLogEntity } from '../event_logs/entities/event_log.entity';
+import type { EventCatalogCategory } from '../constants/event-catalog.constants';
+import type { EventPayloadSchema } from '../interfaces/event-payload-schema.interface';
 
 /**
  * Entity class for `events` table.
  *
- * Represents the events in the system.
+ * Represents the platform event catalog (design-time metadata + notification bindings).
  */
 @Entity('events')
 export class EventEntity {
@@ -44,6 +46,44 @@ export class EventEntity {
     comment: 'Description of the event',
   })
   description?: string;
+
+  @Column({
+    name: 'category',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+    comment: 'Catalog grouping: process, domain, requirement, etc.',
+  })
+  category?: EventCatalogCategory | null;
+
+  @Column({
+    name: 'schema_version',
+    type: 'varchar',
+    length: 32,
+    nullable: false,
+    default: '1.0',
+    comment: 'Payload contract version for this event',
+  })
+  schemaVersion!: string;
+
+  @Column({
+    name: 'payload_schema',
+    type: 'json',
+    nullable: true,
+    comment: 'Optional JSON Schema describing event data payload',
+  })
+  payloadSchema?: EventPayloadSchema | null;
+
+  @Column({
+    name: 'is_system',
+    type: 'tinyint',
+    width: 1,
+    unsigned: true,
+    nullable: false,
+    default: 0,
+    comment: 'System-managed catalog entry; not user-deletable in admin UI',
+  })
+  isSystem!: boolean;
 
   @Column({
     name: 'created_by',

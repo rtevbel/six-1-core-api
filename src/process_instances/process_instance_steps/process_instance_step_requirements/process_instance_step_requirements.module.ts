@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProcessInstanceStepRequirementsService } from './process_instance_step_requirements.service';
 import { ProcessInstanceStepRequirementsController } from './process_instance_step_requirements.controller';
@@ -16,7 +16,7 @@ import { ConfigObjectsModule } from '../../../config_objects/config_objects.modu
   imports: [
     // Registers the ProcessInstanceStepRequirementEntity for TypeORM.
     TypeOrmModule.forFeature([ProcessInstanceStepRequirementEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [ProcessInstanceStepRequirementsController],
   providers: [ProcessInstanceStepRequirementsService],

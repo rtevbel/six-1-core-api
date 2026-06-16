@@ -3,6 +3,7 @@ import {
   IsIn,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   Min,
   ValidateNested,
@@ -45,6 +46,13 @@ export class CreateProcessTemplateDto {
   @IsOptional()
   @IsIn(['DRAFT', 'PUBLISHED', 'ARCHIVED', 'CONFLICT'])
   status?: ProcessTemplateStatus;
+
+  /**
+   * Optional JSON Schema for `process_instances.context` at process start.
+   */
+  @IsOptional()
+  @IsObject()
+  contextSchema?: Record<string, unknown> | null;
 
   /**
    * List of descriptions associated with the process template.
