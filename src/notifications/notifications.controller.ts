@@ -13,6 +13,7 @@ import { FiltersDto } from './dto/filters.dto';
 import { NotificationEntity } from './entities/notification.entity';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { BindNotificationTemplateDto } from './dto/bind-notification-template.dto';
+import type { BindNotificationTemplateResult } from './services/notification-template-binding.service';
 
 import {
   MICROSERVICE_CREATE_NOTIFICATION_PATTERN,
@@ -111,22 +112,15 @@ export class NotificationsController {
   }
 
   /**
-   * Binds a template to an event and channel.
-   * @param userId - ID of the user making the request.
-   * @param bindDto - Binding details for event, channel, and template.
-   * @returns Binding metadata.
+   * @deprecated Use `v0.1_create_event_notification_rule` instead.
+   * When `PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED=true`, creates a rule (returns `ruleId`).
    */
   @MessagePattern(MICROSERVICE_BIND_NOTIFICATION_TEMPLATE_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   bindNotificationTemplate(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') bindDto: BindNotificationTemplateDto,
-  ): Promise<{
-    eventId: number;
-    channelId: number;
-    templateId: number;
-    listenerId: number;
-  }> {
+  ): Promise<BindNotificationTemplateResult> {
     return this.notificationTemplateBindingService.bindTemplate(userId, bindDto);
   }
 

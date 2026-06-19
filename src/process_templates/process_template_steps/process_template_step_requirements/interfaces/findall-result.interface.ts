@@ -22,4 +22,6 @@ export interface FindAllResultInterface {
     limit: number;
     totalPages: number;
   };
+  requirementPolicyGuidance?: string;
+  requirementGatePolicyEnforced?: boolean;
 }

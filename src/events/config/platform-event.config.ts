@@ -4,6 +4,7 @@ import {
   PLATFORM_EVENT_ENVELOPE_VALIDATION_KEY,
   PLATFORM_EVENT_ENVELOPE_VALIDATION_MODES,
   PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED_KEY,
+  PLATFORM_EVENT_LISTENERS_WRITE_DISABLED_KEY,
   PLATFORM_ACTION_EXECUTOR_ENABLED_KEY,
   PLATFORM_EVENT_RECORD_RETENTION_DAYS_KEY,
   type PlatformEventEnvelopeValidationMode,
@@ -14,6 +15,7 @@ export interface PlatformEventFlags {
   envelopeValidation: PlatformEventEnvelopeValidationMode;
   eventBusEnabled: boolean;
   notificationRulesEnabled: boolean;
+  eventListenersWriteDisabled: boolean;
   actionExecutorEnabled: boolean;
   eventRecordRetentionDays?: number;
 }
@@ -50,6 +52,9 @@ export function loadPlatformEventFlags(
     ),
     notificationRulesEnabled: parseNotificationPlatformFlag(
       configService.get<string>(PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED_KEY),
+    ),
+    eventListenersWriteDisabled: parseNotificationPlatformFlag(
+      configService.get<string>(PLATFORM_EVENT_LISTENERS_WRITE_DISABLED_KEY),
     ),
     actionExecutorEnabled: parseNotificationPlatformFlag(
       configService.get<string>(PLATFORM_ACTION_EXECUTOR_ENABLED_KEY),

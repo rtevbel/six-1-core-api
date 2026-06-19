@@ -40,6 +40,10 @@ export class PlatformEventFlagsService {
     return this.flags.notificationRulesEnabled;
   }
 
+  isEventListenersWriteDisabled(): boolean {
+    return this.flags.eventListenersWriteDisabled;
+  }
+
   isActionExecutorEnabled(): boolean {
     return this.flags.actionExecutorEnabled;
   }

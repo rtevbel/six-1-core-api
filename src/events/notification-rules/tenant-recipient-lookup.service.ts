@@ -51,6 +51,72 @@ export class TenantRecipientLookupService {
     ];
   }
 
+  /**
+   * Maps platform user IDs to tenant_user_id values for the given tenant.
+   * Order follows the input `userIds` array.
+   */
+  async findTenantUserIdsByUserIds(
+    tenantId: number,
+    userIds: number[],
+  ): Promise<number[]> {
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    const rows = await this.tenantUserRepository
+      .createQueryBuilder('tu')
+      .select('tu.user_id', 'userId')
+      .addSelect('tu.tenant_user_id', 'tenantUserId')
+      .where('tu.tenant_id = :tenantId', { tenantId })
+      .andWhere('tu.user_id IN (:...userIds)', { userIds })
+      .getRawMany<{ userId: string; tenantUserId: string }>();
+
+    const byUserId = new Map<number, number>();
+    for (const row of rows) {
+      const userId = Number(row.userId);
+      const tenantUserId = Number(row.tenantUserId);
+      if (
+        Number.isFinite(userId) &&
+        userId > 0 &&
+        Number.isFinite(tenantUserId) &&
+        tenantUserId > 0
+      ) {
+        byUserId.set(userId, tenantUserId);
+      }
+    }
+
+    const ordered: number[] = [];
+    const seen = new Set<number>();
+    for (const userId of userIds) {
+      const tenantUserId = byUserId.get(userId);
+      if (tenantUserId && !seen.has(tenantUserId)) {
+        seen.add(tenantUserId);
+        ordered.push(tenantUserId);
+      }
+    }
+
+    return ordered;
+  }
+
+  async findUserIdByTenantUserId(
+    tenantId: number,
+    tenantUserId: number,
+  ): Promise<number | null> {
+    if (!Number.isFinite(tenantUserId) || tenantUserId <= 0) {
+      return null;
+    }
+
+    const row = await this.tenantUserRepository
+      .createQueryBuilder('tu')
+      .select('tu.user_id', 'userId')
+      .where('tu.tenant_id = :tenantId', { tenantId })
+      .andWhere('tu.tenant_user_id = :tenantUserId', { tenantUserId })
+      .getRawOne<{ userId: string }>();
+
+    const userId = Number(row?.userId);
+    return Number.isFinite(userId) && userId > 0 ? userId : null;
+  }
+
   async findUserIdsByRoleName(
     tenantId: number,
     roleName: string,

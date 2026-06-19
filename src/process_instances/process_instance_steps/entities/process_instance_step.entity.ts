@@ -16,6 +16,7 @@ import { ProcessInstanceStepTriggerEntity } from '../process_instance_step_trigg
 import { ProcessInstanceStepObjectInstanceEntity } from '../process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
 import { ProcessInstanceStepActionEntity } from '../process_instance_step_actions/entities/process_instance_step_action.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
+import type { ProcessStepAssigneeSpec } from '../../../automation/process-step-assignee-spec.types';
 
 /**
  * Entity class for `process_instance_steps` table.
@@ -97,6 +98,14 @@ export class ProcessInstanceStepEntity {
       'Runner extensions copied from template at instantiation (visibleWhen, allowSkip, etc.)',
   })
   stepExtensionsJson!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'assignee_spec',
+    type: 'json',
+    nullable: true,
+    comment: 'Snapshot of template assignee_spec at instantiation',
+  })
+  assigneeSpec!: ProcessStepAssigneeSpec | null;
 
   @Column({
     name: 'parallel_group_id',

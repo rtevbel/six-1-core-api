@@ -45,6 +45,8 @@ import { ProcessStepExecutionLogService } from './process-step-execution-log.ser
 import { ProcessStepExecutionLogEntity } from '../process_instances/entities/process_step_execution_log.entity';
 import { ProcessInstanceStepAssigneeEntity } from '../process_instances/process_instance_steps/entities/process_instance_step_assignee.entity';
 import { ProcessStepAssigneeService } from './process-step-assignee.service';
+import { NotificationRulesModule } from '../events/notification-rules/notification-rules.module';
+import { ProcessStepAssigneeResolverService } from './process-step-assignee-resolver.service';
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
 
@@ -54,6 +56,7 @@ import { ProcessStepFailureService } from './process-step-failure.service';
     forwardRef(() => EventsModule),
     forwardRef(() => ConfigObjectsModule),
     forwardRef(() => PlatformActionsModule),
+    NotificationRulesModule,
     ProcessStartRulesModule,
     TypeOrmModule.forFeature([
       ConfigCustomObjectInstanceEntity,
@@ -91,6 +94,7 @@ import { ProcessStepFailureService } from './process-step-failure.service';
     ProcessStepActionOrchestrationService,
     ProcessStepExecutionLogService,
     ProcessStepAssigneeService,
+    ProcessStepAssigneeResolverService,
     ProcessStepExtensionEvaluatorService,
     ProcessStepFailureService,
     ProcessStepWebhookClient,

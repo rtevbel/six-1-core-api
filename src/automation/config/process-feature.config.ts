@@ -11,6 +11,8 @@ import {
   PROCESS_EVENT_START_REGISTRY_ENABLED_KEY,
   PROCESS_RUNNER_V2_ENABLED_KEY,
   PROCESS_RUNNER_V3_ENABLED_KEY,
+  PROCESS_STEP_ASSIGNEE_SPEC_ENABLED_KEY,
+  PROCESS_STEP_REQUIREMENT_GATE_POLICY_ENABLED_KEY,
 } from './process-feature.constants';
 
 /**
@@ -29,6 +31,8 @@ export interface ProcessFeatureFlags {
   eventStartRegistryEnabled: boolean;
   runnerV2Enabled: boolean;
   runnerV3Enabled: boolean;
+  stepAssigneeSpecEnabled: boolean;
+  stepRequirementGatePolicyEnabled: boolean;
 }
 
 const TRUTHY = new Set(['true', '1', 'yes', 'on']);
@@ -85,6 +89,14 @@ export function loadProcessFeatureFlags(
     ),
     runnerV3Enabled: parseProcessFeatureFlag(
       configService.get<string>(PROCESS_RUNNER_V3_ENABLED_KEY),
+    ),
+    stepAssigneeSpecEnabled: parseProcessFeatureFlag(
+      configService.get<string>(PROCESS_STEP_ASSIGNEE_SPEC_ENABLED_KEY),
+    ),
+    stepRequirementGatePolicyEnabled: parseProcessFeatureFlag(
+      configService.get<string>(
+        PROCESS_STEP_REQUIREMENT_GATE_POLICY_ENABLED_KEY,
+      ),
     ),
   };
 }

@@ -24,6 +24,10 @@ import {
   type CatalogBackedDynamicListContext,
 } from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
 import { assertProcessTemplateStepTaskTypeAllowed } from './process-template-step-task-type.validation';
+import {
+  parseAssigneeSpec,
+  type ProcessStepAssigneeSpec,
+} from '../../automation/process-step-assignee-spec.types';
 
 @Injectable()
 export class ProcessTemplateStepsService {
@@ -71,9 +75,11 @@ export class ProcessTemplateStepsService {
   ): Promise<ProcessTemplateStepEntity> {
     this.assertCallProcessConfig(createProcessTemplateStepDto);
     assertProcessTemplateStepTaskTypeAllowed(createProcessTemplateStepDto.taskType);
-    const step = this.processTemplateStepRepository.create(
-      createProcessTemplateStepDto,
-    );
+    const { assigneeSpec, ...rest } = createProcessTemplateStepDto;
+    const step = this.processTemplateStepRepository.create({
+      ...rest,
+      assigneeSpec: normalizeAssigneeSpecForStorage(assigneeSpec),
+    });
     return await this.processTemplateStepRepository.save(step);
   }
 
@@ -205,7 +211,13 @@ export class ProcessTemplateStepsService {
       );
     }
 
-    const { descriptions, ...stepUpdateData } = updateProcessTemplateStepDto;
+    const { descriptions, assigneeSpec, ...stepUpdateData } =
+      updateProcessTemplateStepDto;
+
+    if (assigneeSpec !== undefined) {
+      (stepUpdateData as { assigneeSpec?: ProcessStepAssigneeSpec | null }).assigneeSpec =
+        normalizeAssigneeSpecForStorage(assigneeSpec) ?? null;
+    }
 
     this.assertCallProcessConfig({
       taskType: stepUpdateData.taskType ?? step.taskType,
@@ -319,4 +331,17 @@ export class ProcessTemplateStepsService {
       );
     }
   }
+}
+
+function normalizeAssigneeSpecForStorage(
+  raw: Record<string, unknown> | undefined,
+): ProcessStepAssigneeSpec | null | undefined {
+  if (raw === undefined) {
+    return undefined;
+  }
+  const parsed = parseAssigneeSpec(raw);
+  if (!parsed) {
+    throw new RpcException('Invalid assigneeSpec');
+  }
+  return parsed;
 }

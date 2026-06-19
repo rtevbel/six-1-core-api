@@ -67,4 +67,14 @@ export class ProcessFeatureFlagsService {
   isRunnerV3Enabled(): boolean {
     return this.flags.runnerV3Enabled;
   }
+
+  /** Track A: resolve template assigneeSpec at step ready instead of copy-at-start. */
+  isStepAssigneeSpecEnabled(): boolean {
+    return this.flags.stepAssigneeSpecEnabled;
+  }
+
+  /** Track C: enforce gate-only requirement types; reject field-form overlap with bindings. */
+  isStepRequirementGatePolicyEnabled(): boolean {
+    return this.flags.stepRequirementGatePolicyEnabled;
+  }
 }

@@ -34,6 +34,7 @@ import { ProcessStepExecutionLogService } from './process-step-execution-log.ser
 import { ProcessStepAssigneeService } from './process-step-assignee.service';
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
 import type { ProcessStepExtensionBindingSummary } from './process-step-extension-evaluator.types';
+import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 
 type AdvanceOptions = {
   cause?: 'event' | 'manual' | 'timer' | 'system';
@@ -92,6 +93,7 @@ export class StepOrchestratorService {
     private readonly stepExecutionLog: ProcessStepExecutionLogService,
     private readonly stepAssignees: ProcessStepAssigneeService,
     private readonly stepExtensionEvaluator: ProcessStepExtensionEvaluatorService,
+    private readonly processFlags: ProcessFeatureFlagsService,
   ) {}
 
   /**
@@ -1238,6 +1240,16 @@ export class StepOrchestratorService {
       stepInstanceId: step.step_instance_id,
       correlationId: opts.correlationId,
     });
+    if (this.processFlags.isStepAssigneeSpecEnabled()) {
+      await this.stepAssignees.resolveAndPersistForStep(
+        {
+          stepInstanceId: step.step_instance_id,
+          tenantId: procMeta.tenantId ?? 0,
+          actorTenantUserId: opts.actorTenantUserId,
+        },
+        qr.manager,
+      );
+    }
     this.events.emit(
       PLATFORM_EVENT_NAMES.PROCESS_STEP_READY,
       await this.buildProcessStepReadyEventOptions(qr, step, procMeta, opts),

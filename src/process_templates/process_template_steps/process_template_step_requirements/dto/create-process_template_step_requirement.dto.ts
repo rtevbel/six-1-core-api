@@ -11,7 +11,8 @@ export class CreateProcessTemplateStepRequirementDto {
   processTemplateStepId!: number;
 
   /**
-   * Type of the requirement (e.g., document, approval, payment, etc.).
+   * Type of the requirement — gate types only when gate policy is enforced
+   * (`approval`, `payment`, `external_attestation`). Use object bindings for forms.
    */
   @IsString()
   requirementType!: string;

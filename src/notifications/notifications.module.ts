@@ -7,6 +7,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationEntity } from './entities/notification.entity';
 import { NotificationLogsModule } from './notification_logs/notification_logs.module';
 import { EventListenersModule } from '../events/event_listeners/event_listeners.module';
+import { EventNotificationRulesModule } from '../events/event_notification_rules/event_notification_rules.module';
 import { EventLogsModule } from '../events/event_logs/event_logs.module';
 import { UserNotificationPreferencesModule } from '../users/user-notification-preferences/user-notification-preferences.module';
 import { NotificationDispatcherService } from './services/notification-dispatcher.service';
@@ -42,6 +43,7 @@ import { NotificationCatalogModule } from './catalog/notification-catalog.module
     NotificationTemplatesModule,
     NotificationLogsModule,
     EventListenersModule,
+    EventNotificationRulesModule,
     forwardRef(() => EventLogsModule),
     UserNotificationPreferencesModule,
     UsersModule,

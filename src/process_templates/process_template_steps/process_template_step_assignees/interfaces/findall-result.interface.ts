@@ -3,4 +3,6 @@ import type { ProcessTemplateStepAssigneeEntity } from '../entities/process_temp
 export interface FindAllResultInterface {
   records: ProcessTemplateStepAssigneeEntity[];
   total: number;
+  deprecated?: boolean;
+  deprecationMessage?: string;
 }

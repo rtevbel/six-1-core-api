@@ -42,7 +42,7 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
  */
 @Module({
   imports: [
-    EventsModule,
+    forwardRef(() => EventsModule),
     forwardRef(() => ProcessInstancesModule),
     TypeOrmModule.forFeature([
       ConfigTemplateSetEntity,

@@ -10,10 +10,16 @@ import type {
   ProcessInstanceSubjectInput,
   ProcessInstantiationOptions,
 } from './process-subject.types';
+import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
+import { ProcessStepAssigneeService } from './process-step-assignee.service';
 
 @Injectable()
 export class ProcessInstantiationService {
-  constructor(private readonly ds: DataSource) {}
+  constructor(
+    private readonly ds: DataSource,
+    private readonly processFlags: ProcessFeatureFlagsService,
+    private readonly stepAssignees: ProcessStepAssigneeService,
+  ) {}
 
   // Retry wrapper for transient InnoDB issues (deadlocks/lock waits)
   private async withTxRetry<T>(
@@ -136,6 +142,7 @@ export class ProcessInstantiationService {
       is_optional: 0 | 1 | null;
       required_permissions: string[] | null;
       step_extensions_json: Record<string, unknown> | string | null;
+      assignee_spec: Record<string, unknown> | string | null;
       name: string | null;
     }> = await em.query(
       `SELECT pts.process_template_step_id,
@@ -144,6 +151,7 @@ export class ProcessInstantiationService {
               pts.is_optional,
               pts.required_permissions,
               pts.step_extensions_json,
+              pts.assignee_spec,
               (SELECT d.name
                  FROM process_template_step_descriptions d
                 WHERE d.process_template_step_id = pts.process_template_step_id
@@ -165,8 +173,8 @@ export class ProcessInstantiationService {
       );
       const insert: any = await em.query(
         `INSERT INTO process_instance_steps
-           (process_instance_id, process_template_step_id, name, task_type, step_order, is_optional, required_permissions, step_extensions_json, parallel_group_id, status, blocked_reason, ready_at, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ${isFirst ? 'NOW()' : 'NULL'}, NOW(), NOW())`,
+           (process_instance_id, process_template_step_id, name, task_type, step_order, is_optional, required_permissions, step_extensions_json, assignee_spec, parallel_group_id, status, blocked_reason, ready_at, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '', ${isFirst ? 'NOW()' : 'NULL'}, NOW(), NOW())`,
         [
           processInstanceId,
           s.process_template_step_id,
@@ -178,6 +186,7 @@ export class ProcessInstantiationService {
             ? JSON.stringify(s.required_permissions)
             : null,
           serializeStepExtensionsJsonForCopy(s.step_extensions_json),
+          serializeAssigneeSpecForCopy(s.assignee_spec),
           parallelGroupId,
           status,
         ],
@@ -360,15 +369,17 @@ export class ProcessInstantiationService {
         process_template_step_id: number;
         tenant_user_id: number;
         assignment_order: number;
-      }> = await em.query(
-        `SELECT process_template_step_id,
-                tenant_user_id,
-                assignment_order
-           FROM process_template_step_assignees
-          WHERE process_template_step_id IN (${tplIds.map(() => '?').join(',')})
-          ORDER BY assignment_order ASC, step_assignee_id ASC`,
-        tplIds,
-      );
+      }> = this.processFlags.isStepAssigneeSpecEnabled()
+        ? []
+        : await em.query(
+            `SELECT process_template_step_id,
+                    tenant_user_id,
+                    assignment_order
+               FROM process_template_step_assignees
+              WHERE process_template_step_id IN (${tplIds.map(() => '?').join(',')})
+              ORDER BY assignment_order ASC, step_assignee_id ASC`,
+            tplIds,
+          );
 
       if (templateAssignees.length) {
         const assigneePlaceholders: string[] = [];
@@ -394,6 +405,17 @@ export class ProcessInstantiationService {
       }
     }
 
+    if (this.processFlags.isStepAssigneeSpecEnabled() && stepInstanceIds.length) {
+      await this.stepAssignees.resolveAndPersistForStep(
+        {
+          stepInstanceId: stepInstanceIds[0],
+          tenantId,
+          actorTenantUserId: createdBy,
+        },
+        em,
+      );
+    }
+
     return processInstanceId;
   }
 }
@@ -408,6 +430,12 @@ function normalizeInstantiationOptions(
     return { subject: input };
   }
   return input;
+}
+
+function serializeAssigneeSpecForCopy(
+  raw: Record<string, unknown> | string | null | undefined,
+): string | null {
+  return serializeStepExtensionsJsonForCopy(raw);
 }
 
 /** Snapshot template `step_extensions_json` for instance row (plain object only). */

@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Transport, MicroserviceOptions } from '@nestjs/microservices';
 import { ConfigService } from '@nestjs/config';
+import { Logger } from '@nestjs/common';
 import {
   MESSAGE_BROKER_USERNAME_KEY,
   MESSAGE_BROKER_HOST_KEY,
@@ -74,6 +75,10 @@ async function bootstrap() {
 
   //Start all connected microservices
   await app.startAllMicroservices();
+  const bootstrapLogger = new Logger('Bootstrap');
+  bootstrapLogger.log(
+    `Microservice listening on queue: ${serviceMessageBrokerQueueName}`,
+  );
 
   /**
    * Initialise application to enable the ,

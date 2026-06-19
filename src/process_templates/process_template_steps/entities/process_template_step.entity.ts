@@ -16,6 +16,7 @@ import { ProcessTemplateStepObjectBindingEntity } from '../process_template_step
 import { ProcessTemplateStepActionEntity } from '../process_template_step_actions/entities/process_template_step_action.entity';
 import { TaskEntity } from '../../../projects/tasks/entities/task.entity';
 import { ProcessInstanceStepEntity } from '../../../process_instances/process_instance_steps/entities/process_instance_step.entity';
+import type { ProcessStepAssigneeSpec } from '../../../automation/process-step-assignee-spec.types';
 
 /**
  * Entity class for `process_template_steps` table.
@@ -102,6 +103,15 @@ export class ProcessTemplateStepEntity {
     comment: 'Runner extensions: visibleWhen, ui, parallelGroupId, allowSkip',
   })
   stepExtensionsJson!: Record<string, unknown> | null;
+
+  @Column({
+    name: 'assignee_spec',
+    type: 'json',
+    nullable: true,
+    comment:
+      'Runtime assignee resolution spec (RecipientSpec shape; resolved at step ready)',
+  })
+  assigneeSpec!: ProcessStepAssigneeSpec | null;
 
   @Column({
     name: 'created_by',

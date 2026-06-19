@@ -187,6 +187,48 @@ export class EventNotificationRulesService {
     return this.loadActiveRules(normalizedEvent, 0);
   }
 
+  /**
+   * Lookup a global rule by event + channel + template (listener migration shim).
+   */
+  async findByEventChannelTemplate(
+    eventName: string,
+    channelId: number,
+    templateId: number,
+    tenantId = 0,
+  ): Promise<EventNotificationRuleEntity | null> {
+    return this.ruleRepository.findOne({
+      where: {
+        eventName: eventName.trim(),
+        channelId,
+        templateId,
+        tenantId,
+      },
+      relations: ['channel', 'template'],
+    });
+  }
+
+  /**
+   * All rules for a catalog event name (read shim for deprecated listener list).
+   */
+  async findAllForEventName(
+    eventName: string,
+    tenantId?: number,
+  ): Promise<EventNotificationRuleEntity[]> {
+    const effectiveTenantId = getEffectiveTenantId(tenantId);
+    const where: Record<string, unknown> = {
+      eventName: eventName.trim(),
+    };
+    if (effectiveTenantId !== null) {
+      where.tenantId = effectiveTenantId;
+    }
+
+    return this.ruleRepository.find({
+      where,
+      relations: ['channel', 'template'],
+      order: { priority: 'ASC', ruleId: 'ASC' },
+    });
+  }
+
   private async loadActiveRules(
     eventName: string,
     tenantId: number,

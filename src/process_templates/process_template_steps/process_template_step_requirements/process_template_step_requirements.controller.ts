@@ -18,10 +18,13 @@ import {
   MICROSERVICE_FIND_ONE_PROCESS_TEMPLATE_STEP_REQUIREMENT_PATTERN,
   MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_PATTERN,
   MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_PATTERN,
+  MICROSERVICE_SUGGEST_PROCESS_TEMPLATE_STEP_REQUIREMENT_BINDING_PATTERN,
 } from './constants';
 
 import { DeleteResult, UpdateResult } from 'typeorm';
 import { AppRpcValidationPipe } from '../../../common/pipes/app-rpc-validation.pipe';
+import { SuggestProcessTemplateStepRequirementBindingDto } from './dto/suggest-process_template_step_requirement_binding.dto';
+import type { RequirementToBindingSuggestion } from './process-step-requirement-authoring.validation';
 
 @Controller('process-template-step-requirements')
 export class ProcessTemplateStepRequirementsController {
@@ -121,5 +124,35 @@ export class ProcessTemplateStepRequirementsController {
       processTemplateStepId,
       id,
     );
+  }
+
+  /**
+   * Migration helper: suggest object binding + completion_rule for field-form requirements.
+   */
+  @MessagePattern(
+    MICROSERVICE_SUGGEST_PROCESS_TEMPLATE_STEP_REQUIREMENT_BINDING_PATTERN,
+  )
+  @UsePipes(AppRpcValidationPipe)
+  suggestProcessTemplateStepRequirementBinding(
+    @Payload('userId', ParseIntPipe) _userId: number,
+    @Payload('data') dto: SuggestProcessTemplateStepRequirementBindingDto,
+  ): Promise<
+    RequirementToBindingSuggestion | RequirementToBindingSuggestion[] | null
+  > {
+    if (dto.processTemplateStepRequirementId) {
+      return this.processTemplateStepRequirementsService.suggestBindingForRequirement(
+        dto.processTemplateStepRequirementId,
+        dto.tenantId,
+      );
+    }
+
+    if (dto.processTemplateStepId) {
+      return this.processTemplateStepRequirementsService.suggestBindingsForStep(
+        dto.processTemplateStepId,
+        dto.tenantId,
+      );
+    }
+
+    return Promise.resolve(null);
   }
 }

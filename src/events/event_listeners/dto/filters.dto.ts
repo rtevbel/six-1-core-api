@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsNumber,
   IsOptional,
@@ -42,6 +43,14 @@ export class FiltersDto {
     message: 'isActive must be a boolean value (true or false)',
   })
   isActive?: boolean;
+
+  /**
+   * When true (default), include matching `event_notification_rules` for the
+   * catalog event name in the list response (read shim during deprecation).
+   */
+  @IsOptional()
+  @IsBoolean()
+  includeNotificationRules?: boolean;
 
   /**
    * Page number for pagination.

@@ -10,5 +10,8 @@ export const MICROSERVICE_UPDATE_PROCESS_TEMPLATE_STEP_REQUIREMENT_PATTERN =
 export const MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_REQUIREMENT_PATTERN =
   'v0.1_remove_process_template_step_requirement';
 
+export const MICROSERVICE_SUGGEST_PROCESS_TEMPLATE_STEP_REQUIREMENT_BINDING_PATTERN =
+  'v0.1_suggest_process_template_step_requirement_binding';
+
 export const MESSAGE_BROKER_PROCESS_TEMPLATE_STEP_REQUIREMENT_SERVICE_CLIENT_TOKEN =
   'process_template_step_requirement_service_token';

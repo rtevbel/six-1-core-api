@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm';
 import { ProcessInstantiationService } from './process-instantiation.service';
 import { PROCESS_SUBJECT_TYPE_PROJECT } from './process-subject.constants';
 import { PROCESS_TEMPLATE_NOT_PUBLISHED_MESSAGE } from '../common/constants';
+import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
+import { ProcessStepAssigneeService } from './process-step-assignee.service';
 
 describe('ProcessInstantiationService', () => {
   const query = jest.fn();
@@ -10,12 +12,26 @@ describe('ProcessInstantiationService', () => {
   const ds = {
     transaction: jest.fn(async (_iso, fn) => fn(em)),
   } as unknown as DataSource;
+  const processFlags = {
+    isStepAssigneeSpecEnabled: jest.fn().mockReturnValue(false),
+  };
+  const stepAssignees = {
+    resolveAndPersistForStep: jest.fn().mockResolvedValue({
+      assigneeIds: [],
+      primaryAssigneeId: null,
+    }),
+  };
 
   let service: ProcessInstantiationService;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    service = new ProcessInstantiationService(ds);
+    processFlags.isStepAssigneeSpecEnabled.mockReturnValue(false);
+    service = new ProcessInstantiationService(
+      ds,
+      processFlags as unknown as ProcessFeatureFlagsService,
+      stepAssignees as unknown as ProcessStepAssigneeService,
+    );
 
     query.mockImplementation(async (sql: string) => {
       const normalized = sql.replace(/\s+/g, ' ').trim();
@@ -46,6 +62,7 @@ describe('ProcessInstantiationService', () => {
               visibleWhen: { '==': [{ var: 'context.customerType' }, 'B2B'] },
               allowSkip: true,
             },
+            assignee_spec: null,
             name: 'Step 1',
           },
           {
@@ -55,6 +72,7 @@ describe('ProcessInstantiationService', () => {
             is_optional: 0,
             required_permissions: null,
             step_extensions_json: null,
+            assignee_spec: null,
             name: 'Step 2',
           },
         ];
@@ -223,6 +241,8 @@ describe('ProcessInstantiationService', () => {
           visibleWhen: { '==': [{ var: 'context.customerType' }, 'B2B'] },
           allowSkip: true,
         }),
+        null,
+        null,
         'ready',
       ]),
     );
@@ -234,6 +254,8 @@ describe('ProcessInstantiationService', () => {
         'manual',
         2,
         0,
+        null,
+        null,
         null,
         null,
         'pending',
@@ -258,6 +280,7 @@ describe('ProcessInstantiationService', () => {
         allowSkip: true,
       }),
     );
+    expect(stepInserts[0]?.[1]?.[8]).toBeNull();
     expect(stepInserts[1]?.[1]?.[7]).toBeNull();
   });
 

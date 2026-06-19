@@ -6,6 +6,13 @@ export const PLATFORM_EVENT_BUS_ENABLED_KEY = 'PLATFORM_EVENT_BUS_ENABLED';
 export const PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED_KEY =
   'PLATFORM_EVENT_NOTIFICATION_RULES_ENABLED';
 
+/**
+ * When true, reject create/update on legacy `event_listeners` and listener-based
+ * `v0.1_bind_notification_template` writes. Prefer `event_notification_rules`.
+ */
+export const PLATFORM_EVENT_LISTENERS_WRITE_DISABLED_KEY =
+  'PLATFORM_EVENT_LISTENERS_WRITE_DISABLED';
+
 /** Minutes to suppress duplicate dispatches for same user + event + correlationId. */
 export const PLATFORM_EVENT_NOTIFICATION_DEDUP_WINDOW_MINUTES_KEY =
   'PLATFORM_EVENT_NOTIFICATION_DEDUP_WINDOW_MINUTES';

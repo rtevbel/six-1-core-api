@@ -3,17 +3,17 @@ import { EventListenersService } from './event_listeners.service';
 import { EventListenersController } from './event_listeners.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventListenerEntity } from './entities/event_listener.entity';
+import { EventEntity } from '../entities/event.entity';
+import { EventNotificationRulesModule } from '../event_notification_rules/event_notification_rules.module';
 
 /**
  * EventListenersModule is responsible for managing event listeners.
- * It includes the controller and service for handling operations related to event listeners.
- *
- * @version 0.0.1
+ * @deprecated Prefer {@link EventNotificationRulesModule} for new notification wiring.
  */
 @Module({
   imports: [
-    // Registers the EventListenerEntity for TypeORM.
-    TypeOrmModule.forFeature([EventListenerEntity]),
+    TypeOrmModule.forFeature([EventListenerEntity, EventEntity]),
+    EventNotificationRulesModule,
   ],
   controllers: [EventListenersController],
   providers: [EventListenersService],

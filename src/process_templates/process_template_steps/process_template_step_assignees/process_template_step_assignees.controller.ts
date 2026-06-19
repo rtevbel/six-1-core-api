@@ -30,6 +30,7 @@ export class ProcessTemplateStepAssigneesController {
   @MessagePattern(MICROSERVICE_CREATE_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN)
   @RequirePermissions('process_templates.update')
   @UsePipes(AppRpcValidationPipe)
+  /** @deprecated Use assigneeSpec on process template steps. */
   createProcessTemplateStepAssignee(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createDto: CreateProcessTemplateStepAssigneeDto,
@@ -58,6 +59,7 @@ export class ProcessTemplateStepAssigneesController {
 
   @MessagePattern(MICROSERVICE_REMOVE_PROCESS_TEMPLATE_STEP_ASSIGNEE_PATTERN)
   @RequirePermissions('process_templates.update')
+  /** @deprecated Use assigneeSpec on process template steps. */
   removeProcessTemplateStepAssignee(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') data: number | RemoveProcessTemplateStepAssigneeDto,

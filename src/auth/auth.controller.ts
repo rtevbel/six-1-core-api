@@ -2,7 +2,6 @@ import {
   Controller,
   UseGuards,
   UseFilters,
-  Body,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
@@ -74,7 +73,7 @@ export class AuthController {
    */
   @MessagePattern(V0_1_AUTH_LOGIN_MESSAG_PATTERN)
   @UseGuards(CustomAuthGuard)
-  login(@Body() req: any): Promise<UserJWTTokenResponseInterface> {
+  login(@Payload() req: any): Promise<UserJWTTokenResponseInterface> {
     return this.authService.login(req.user);
   }
 

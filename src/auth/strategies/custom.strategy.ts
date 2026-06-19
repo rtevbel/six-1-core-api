@@ -1,7 +1,6 @@
 import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-custom';
-import { Payload } from '@nestjs/microservices';
 import { AuthService } from '../auth.service';
 import {
   INVALID_CREDENTIALS_ERROR_MESSAGE,
@@ -42,11 +41,11 @@ export class CustomStrategy extends PassportStrategy(
    * This strategy class' validate method validates,
    * user by using authService class's validateUser method.
    *
-   * @param {Payload} req -Request data.
+   * @param req - Request data (HTTP request or RabbitMQ payload).
    * @returns {Promise<any> } -Promise that resolves to either a UnauthorizedException,
    * or a UserEntity.
    */
-  async validate(@Payload() req: any): Promise<any> {
+  async validate(req: any): Promise<any> {
     const { username, email, password } = req;
     
     // Check if username is provided and if it's an email
@@ -63,12 +62,13 @@ export class CustomStrategy extends PassportStrategy(
         finalUsername = username;
       }
     }
-
+  
     const user = await this.authService.validateUser(
       password,
       finalUsername,
       finalEmail,
     );
+
     if (!user) {
       throw new UnauthorizedException(INVALID_CREDENTIALS_ERROR_MESSAGE);
     }

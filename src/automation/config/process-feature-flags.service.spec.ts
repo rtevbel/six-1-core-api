@@ -50,6 +50,8 @@ describe('ProcessFeatureFlagsService', () => {
       eventStartRegistryEnabled: false,
       runnerV2Enabled: false,
       runnerV3Enabled: false,
+      stepAssigneeSpecEnabled: false,
+      stepRequirementGatePolicyEnabled: false,
     });
   });
 

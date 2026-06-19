@@ -1,40 +1,50 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { RpcException } from '@nestjs/microservices';
 import { EventListenerEntity } from './entities/event_listener.entity';
 import { CreateEventListenerDto } from './dto/create-event_listener.dto';
 import { UpdateEventListenerDto } from './dto/update-event_listener.dto';
-import { RpcException } from '@nestjs/microservices';
 import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
-
-
 import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../common/constants';
+import { PlatformEventFlagsService } from '../config/platform-event-flags.service';
+import { EventNotificationRulesService } from '../event_notification_rules/event_notification_rules.service';
+import { EventEntity } from '../entities/event.entity';
+import {
+  EVENT_LISTENERS_DEPRECATED_MESSAGE,
+  EVENT_LISTENERS_WRITE_BLOCKED_MESSAGE,
+} from './event-listeners-deprecation.constants';
 
 @Injectable()
 export class EventListenersService {
+  private readonly logger = new Logger(EventListenersService.name);
+
   constructor(
     @InjectRepository(EventListenerEntity)
     private readonly eventListenerRepository: Repository<EventListenerEntity>,
+    @InjectRepository(EventEntity)
+    private readonly eventRepository: Repository<EventEntity>,
+    private readonly platformFlags: PlatformEventFlagsService,
+    private readonly notificationRulesService: EventNotificationRulesService,
   ) {}
 
   /**
    * Creates a new event listener record.
-   * @param userId - ID of the user creating the record.
-   * @param createEventListenerDto - Data Transfer Object containing event listener details.
-   * @returns The created EventListenerEntity.
+   * @deprecated Use `event_notification_rules` instead.
    */
   async create(
     userId: number,
     createEventListenerDto: CreateEventListenerDto,
   ): Promise<EventListenerEntity> {
+    this.assertWritesAllowed('create');
     return await this.eventListenerRepository.save(
       this.eventListenerRepository.create(createEventListenerDto),
     );
@@ -42,10 +52,8 @@ export class EventListenersService {
 
   /**
    * Retrieves all event listeners with optional filters, pagination, and sorting.
-   * @param userId - ID of the user requesting the data.
-   * @param filters - Filters for search, sorting, and pagination.
-   * @returns An array of EventListenerEntity records.
-   * @throws RpcException if no records match the filters.
+   * When `includeNotificationRules` is true and `eventId` is set, also returns
+   * equivalent `event_notification_rules` rows (read shim).
    */
   async findAll(
     userId: number,
@@ -56,7 +64,13 @@ export class EventListenersService {
     const [eventListeners, total] =
       await this.eventListenerRepository.findAndCount(query);
 
-    if (eventListeners.length === 0) {
+    const includeRules = filtersDto.includeNotificationRules !== false;
+    const notificationRuleRecords =
+      includeRules && filtersDto.eventId
+        ? await this.loadNotificationRulesForEventId(filtersDto.eventId)
+        : undefined;
+
+    if (eventListeners.length === 0 && !notificationRuleRecords?.length) {
       throw new RpcException(
         NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE.replace(
           '{entity_name}',
@@ -74,17 +88,14 @@ export class EventListenersService {
       total: pagination.total,
       totalPages: pagination.totalPages,
       pagination,
+      deprecated: true,
+      deprecationMessage: EVENT_LISTENERS_DEPRECATED_MESSAGE,
+      ...(notificationRuleRecords?.length
+        ? { notificationRuleRecords }
+        : {}),
     };
   }
 
-  /**
-   * Retrieves a single event listener by ID.
-   * @param userId - ID of the user requesting the data.
-   * @param eventId - ID of the event associated with the listener.
-   * @param id - ID of the event listener to retrieve.
-   * @returns The EventListenerEntity matching the ID.
-   * @throws RpcException if no record is found.
-   */
   async findOne(
     userId: number,
     eventId: number,
@@ -109,17 +120,15 @@ export class EventListenersService {
 
   /**
    * Updates an existing event listener record.
-   * @param userId - ID of the user updating the record.
-   * @param id - ID of the event listener to update.
-   * @param updateEventListenerDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
+   * @deprecated Use `event_notification_rules` instead.
    */
   async update(
     userId: number,
     id: number,
     updateEventListenerDto: UpdateEventListenerDto,
   ): Promise<UpdateResult> {
+    this.assertWritesAllowed('update');
+
     const eventListener = await this.eventListenerRepository.findOneByOrFail({
       listenerId: id,
       eventId: updateEventListenerDto.eventId,
@@ -140,13 +149,6 @@ export class EventListenersService {
     );
   }
 
-  /**
-   * Deletes an event listener record by ID.
-   * @param userId - ID of the user removing the record.
-   * @param eventId - ID of the event associated with the listener.
-   * @param id - ID of the event listener to delete.
-   * @returns The result of the delete operation.
-   */
   async remove(
     userId: number,
     eventId: number,
@@ -158,33 +160,51 @@ export class EventListenersService {
     });
   }
 
-  /**
-   * Builds the query object for finding event listeners based on filters.
-   * @param filters - Filters for search, sorting, and pagination.
-   * @returns A query object compatible with TypeORM's find method.
-   */
-  private buildFindQuery(filters: FiltersDto): Record<string, any> {
-    const query: Record<string, any> = {
-      where: { eventId: filters.eventId },
+  private assertWritesAllowed(operation: 'create' | 'update'): void {
+    this.logger.warn(
+      `${operation} on deprecated event_listeners — ${EVENT_LISTENERS_DEPRECATED_MESSAGE}`,
+    );
+
+    if (this.platformFlags.isEventListenersWriteDisabled()) {
+      throw new RpcException(EVENT_LISTENERS_WRITE_BLOCKED_MESSAGE);
+    }
+  }
+
+  private async loadNotificationRulesForEventId(eventId: number) {
+    const event = await this.eventRepository.findOne({
+      where: { eventId },
+    });
+    if (!event?.name) {
+      return [];
+    }
+
+    return this.notificationRulesService.findAllForEventName(event.name);
+  }
+
+  private buildFindQuery(filters: FiltersDto): Record<string, unknown> {
+    const query: Record<string, unknown> = {
+      where: {},
     };
+
+    if (filters.eventId !== undefined) {
+      (query.where as Record<string, unknown>).eventId = filters.eventId;
+    }
 
     query.relations = ['event', 'channel', 'template'];
 
-    // If isActive filter is provided, add it to the query.
     if (filters.isActive !== undefined) {
-      query.where['isActive'] = filters.isActive;
+      (query.where as Record<string, unknown>).isActive = filters.isActive;
     }
 
-    // If a search term is provided, filter by event name, channel name, or template name.
     if (filters.search) {
+      const baseWhere = query.where as Record<string, unknown>;
       query.where = [
-        { event: { name: Like(`%${filters.search}%`) } },
-        { channel: { name: Like(`%${filters.search}%`) } },
-        { template: { name: Like(`%${filters.search}%`) } },
+        { ...baseWhere, event: { name: Like(`%${filters.search}%`) } },
+        { ...baseWhere, channel: { name: Like(`%${filters.search}%`) } },
+        { ...baseWhere, template: { name: Like(`%${filters.search}%`) } },
       ];
     }
 
-    // If sorting is specified, add it to the query.
     if (filters.sortBy) {
       query.order = {
         [filters.sortBy]: filters.sortOrder || 'ASC',
@@ -202,14 +222,8 @@ export class EventListenersService {
     return query;
   }
 
-  /**
-   * Builds the pagination object for the response.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @param total - Total number of records found.
-   * @returns An object containing total records, current page, and limit.
-   */
   private buildPagination(
-    filtersDto: any,
+    filtersDto: FiltersDto,
     total: number,
   ): RuntimeV2ListPagination {
     return buildRuntimeV2ListPagination(
@@ -220,12 +234,6 @@ export class EventListenersService {
     );
   }
 
-  /**
-   * Retrieves all active event listeners for a specific event ID.
-   * @param eventId - ID of the event to retrieve listeners for.
-   * @returns An array of active EventListenerEntity records associated with the event ID.
-   */
-
   async getListenersByEventId(eventId: number): Promise<EventListenerEntity[]> {
     return await this.eventListenerRepository.find({
       where: { eventId, isActive: true },
@@ -233,13 +241,6 @@ export class EventListenersService {
     });
   }
 
-  /**
-   * Retrieves a listener by event, channel, and template IDs.
-   * @param eventId - Event ID.
-   * @param channelId - Channel ID.
-   * @param templateId - Template ID.
-   * @returns The EventListenerEntity or null if not found.
-   */
   async findOneByEventChannelTemplate(
     eventId: number,
     channelId: number,

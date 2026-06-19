@@ -56,4 +56,17 @@ describe('platform-event.config', () => {
 
     expect(loadPlatformEventFlags(config).actionExecutorEnabled).toBe(true);
   });
+
+  it('loads event listeners write disabled flag from config', () => {
+    const config = {
+      get: jest.fn((key: string) => {
+        if (key === 'PLATFORM_EVENT_LISTENERS_WRITE_DISABLED') {
+          return 'true';
+        }
+        return undefined;
+      }),
+    } as unknown as ConfigService;
+
+    expect(loadPlatformEventFlags(config).eventListenersWriteDisabled).toBe(true);
+  });
 });

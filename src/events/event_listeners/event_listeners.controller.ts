@@ -28,10 +28,7 @@ export class EventListenersController {
   constructor(private readonly eventListenersService: EventListenersService) {}
 
   /**
-   * Handles the creation of a new event listener.
-   * @param userId - ID of the user making the request.
-   * @param createEventListenerDto - Data transfer object containing event listener details.
-   * @returns The created event listener entity.
+   * @deprecated Use `v0.1_create_event_notification_rule` instead.
    */
   @MessagePattern(MICROSERVICE_CREATE_EVENT_LISTENER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
@@ -43,10 +40,8 @@ export class EventListenersController {
   }
 
   /**
-   * Retrieves all event listeners based on the provided filters.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for querying event listeners.
-   * @returns A list of event listeners matching the filters.
+   * @deprecated Prefer `v0.1_find_all_event_notification_rules`. Returns legacy
+   * listeners plus optional `notificationRuleRecords` read shim.
    */
   @MessagePattern(MICROSERVICE_FIND_ALL_EVENT_LISTENER_PATTERN)
   @UsePipes(AppRpcValidationPipe)
@@ -74,10 +69,7 @@ export class EventListenersController {
   }
 
   /**
-   * Updates an existing event listener.
-   * @param userId - ID of the user making the request.
-   * @param updateEventListenerDto - Data transfer object containing updated event listener details.
-   * @returns The result of the update operation.
+   * @deprecated Use `v0.1_update_event_notification_rule` instead.
    */
   @MessagePattern(MICROSERVICE_UPDATE_EVENT_LISTENER_PATTERN)
   @UsePipes(AppRpcValidationPipe)

@@ -14,6 +14,7 @@ import { ProcessStepAssigneeService } from './process-step-assignee.service';
 import { ProcessStepExecutionLogService } from './process-step-execution-log.service';
 import { PROCESS_SUBJECT_TYPE_PROJECT } from './process-subject.constants';
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
+import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
 
 describe('StepOrchestratorService', () => {
   const source = readFileSync(
@@ -190,8 +191,15 @@ describe('StepOrchestratorService', () => {
             resolveForStep: jest
               .fn()
               .mockResolvedValue({ assigneeIds: [42], primaryAssigneeId: 42 }),
+            resolveAndPersistForStep: jest.fn(),
           },
         },
+          {
+            provide: ProcessFeatureFlagsService,
+            useValue: {
+              isStepAssigneeSpecEnabled: jest.fn().mockReturnValue(false),
+            },
+          },
           {
             provide: ProcessStepExtensionEvaluatorService,
             useValue: {

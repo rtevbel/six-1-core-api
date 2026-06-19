@@ -44,6 +44,10 @@ export class UpdateProcessTemplateStepDto {
   childContextPatch?: Record<string, unknown>;
 
   @IsOptional()
+  @IsObject()
+  assigneeSpec?: Record<string, unknown>;
+
+  @IsOptional()
   @IsNumber()
   @Type(() => Number)
   stepOrder?: number;

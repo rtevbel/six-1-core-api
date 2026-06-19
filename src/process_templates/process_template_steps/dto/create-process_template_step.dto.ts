@@ -71,6 +71,14 @@ export class CreateProcessTemplateStepDto {
   requiredPermissions?: string[];
 
   /**
+   * Runtime assignee resolution spec (RecipientSpec shape).
+   * Replaces per-user assignee rows when PROCESS_STEP_ASSIGNEE_SPEC_ENABLED.
+   */
+  @IsOptional()
+  @IsObject()
+  assigneeSpec?: Record<string, unknown>;
+
+  /**
    * Tenant User ID who created this step.
    */
   @IsNumber()
