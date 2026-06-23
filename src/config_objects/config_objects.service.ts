@@ -1459,14 +1459,17 @@ export class ConfigObjectsService {
         resolveTenantIdFromSorCore(
           result.core as unknown as Record<string, unknown>,
         );
+      const eventTenantId =
+        resolvedTenantId ??
+        (this.isGlobalScopeSorCorePatchType(objectType) ? 0 : undefined);
 
-      if (resolvedTenantId) {
+      if (eventTenantId !== undefined) {
         this.eventsService.emit(
           PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
           buildSorBoundInstanceUpdatedEventOptions({
             objectType,
             coreId,
-            tenantId: resolvedTenantId,
+            tenantId: eventTenantId,
             changedFields,
           }),
         );
@@ -2222,17 +2225,23 @@ export class ConfigObjectsService {
    * @returns A merged view, or `null` if unresolved.
    */
   async resolveObjectInstance(
-    tenantId: number,
+    tenantId: number | null | undefined,
     objectType: string,
     coreId?: number,
     instanceId?: number,
   ): Promise<ConfigObjectResolvedInstance | null> {
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     const hasCore = typeof coreId === 'number' && coreId >= 1;
     const hasInst = typeof instanceId === 'number' && instanceId >= 1;
 
     if (hasInst) {
+      if (effectiveTenantId === null) {
+        throw new RpcException(
+          'tenantId is required when resolving by instanceId.',
+        );
+      }
       return this.resolveStandaloneObjectInstance(
-        tenantId,
+        effectiveTenantId,
         objectType,
         instanceId as number,
       );
@@ -2244,7 +2253,7 @@ export class ConfigObjectsService {
       );
     }
 
-    const schema = await this.getObjectSchema(tenantId, objectType);
+    const schema = await this.getObjectSchema(effectiveTenantId, objectType);
 
     if (!schema) {
       return null;
@@ -2280,7 +2289,7 @@ export class ConfigObjectsService {
       resolutionMode: 'sor_bound',
       objectType,
       coreId: coreId as number,
-      tenantId,
+      tenantId: effectiveTenantId ?? 0,
       schema,
       core: coreEntity,
       dynamicFields,

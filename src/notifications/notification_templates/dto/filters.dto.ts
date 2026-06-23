@@ -24,6 +24,14 @@ export class FiltersDto {
   search?: string;
 
   /**
+   * Filter templates by notification channel ID.
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  channelId?: number;
+
+  /**
    * Page number for pagination.
    * Optional field, defaults to 1.
    */

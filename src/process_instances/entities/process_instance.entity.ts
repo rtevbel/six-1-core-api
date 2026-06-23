@@ -6,7 +6,6 @@ import {
   ManyToOne,
   JoinColumn,
   OneToMany,
-  OneToOne,
 } from 'typeorm';
 import { TenantEntity } from '../../tenants/entities/tenant.entity';
 import { TenantUsersEntity } from '../../tenants/tenant_users/entities/tenant_user.entity';
@@ -234,16 +233,4 @@ export class ProcessInstanceEntity {
    */
   @OneToMany(() => ProjectEntity, (project) => project.processInstance)
   projects?: ProjectEntity[];
-
-  /**
-   * One-to-one Relationship to ProcessTemplateEntity.
-   * A process instance can be linked to one process template.
-   */
-
-  @OneToOne(
-    () => ProcessTemplateEntity,
-    (processTemplate) => processTemplate.processInstances,
-  )
-  @JoinColumn({ name: 'process_template_id' })
-  processTemplates?: ProcessTemplateEntity[];
 }

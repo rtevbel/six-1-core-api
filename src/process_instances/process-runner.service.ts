@@ -10,6 +10,7 @@ import { NO_RECORD_FOUND_MESSAGE } from '../common/constants';
 import { ProcessStepPermissionService } from './process-step-permission.service';
 import { ProcessStepAssigneeService } from '../automation/process-step-assignee.service';
 import { ProcessStepLocksService } from './process_step_locks/process-step-locks.service';
+import { ConfigObjectStepExecutor } from '../automation/config-object-step-executor.service';
 import {
   PROCESS_RUNNER_DEFAULT_CHILD_DEPTH,
   PROCESS_RUNNER_MAX_CHILD_DEPTH,
@@ -74,6 +75,7 @@ export class ProcessRunnerService {
     private readonly stepAssignees: ProcessStepAssigneeService,
     private readonly stepExtensionEvaluator: ProcessStepExtensionEvaluatorService,
     private readonly stepLocks: ProcessStepLocksService,
+    private readonly configObjectStepExecutor: ConfigObjectStepExecutor,
   ) {}
 
   /**
@@ -129,6 +131,7 @@ export class ProcessRunnerService {
     const processInstanceId = instance.processInstanceId;
 
     const steps = await this.loadSteps(processInstanceId);
+    await this.healReadyStepObjectBindings(steps);
     const stepIds = steps.map((s) => s.step_instance_id);
 
     const [requirements, triggers, objectBindings, childRows, assigneesByStep] =
@@ -289,6 +292,35 @@ export class ProcessRunnerService {
       steps: runnerSteps,
       currentStepInstanceId: resolveCurrentStepInstanceId(runnerSteps),
     };
+  }
+
+  /**
+   * Re-attempts provisioning for ready steps whose bindings failed without a linked record
+   * (e.g. instance started before create_on_enter sor_bound support was deployed).
+   */
+  private async healReadyStepObjectBindings(steps: StepRow[]): Promise<void> {
+    if (!this.configObjectStepExecutor.isEnabled()) {
+      return;
+    }
+
+    const readyStepIds = steps
+      .filter((step) => step.status === 'ready')
+      .map((step) => step.step_instance_id);
+    if (!readyStepIds.length) {
+      return;
+    }
+
+    const qr = this.dataSource.createQueryRunner();
+    await qr.connect();
+    try {
+      for (const stepInstanceId of readyStepIds) {
+        await this.configObjectStepExecutor.provisionBindingsOnStepReady(qr, {
+          stepInstanceId,
+        });
+      }
+    } finally {
+      await qr.release();
+    }
   }
 
   private async loadSteps(processInstanceId: number): Promise<StepRow[]> {

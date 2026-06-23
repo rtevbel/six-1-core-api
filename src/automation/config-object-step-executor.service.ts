@@ -18,6 +18,7 @@ import {
   resolveCoreIdForObjectType,
   type ProcessStepAnchorContext,
 } from './process-step-core-ref.util';
+import { provisionSorBoundCoreRecordInTransaction } from './sor-bound-core-record.provisioner';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -68,6 +69,8 @@ export class ConfigObjectStepExecutor {
       return true;
     }
 
+    await this.revalidateBindingsForStep(em, stepInstanceId);
+
     const rows: Array<{ blocking: number }> = await em.query(
       `SELECT COUNT(*) AS blocking
          FROM process_instance_step_object_instances oi
@@ -80,6 +83,58 @@ export class ConfigObjectStepExecutor {
     );
 
     return Number(rows[0]?.blocking ?? 0) === 0;
+  }
+
+  /**
+   * Re-evaluates active/failed bindings before step completion gates.
+   * Covers cases where SoR saves succeeded but domain events were not emitted
+   * (e.g. global-scope customer with tenantId 0).
+   */
+  async revalidateBindingsForStep(
+    em: EntityManager,
+    stepInstanceId: number,
+  ): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
+    const links: Array<{
+      core_id: number | null;
+      config_custom_object_instance_id: number | null;
+      object_type: string | null;
+      tenant_id: number | null;
+    }> = await em.query(
+      `SELECT oi.core_id,
+              oi.config_custom_object_instance_id,
+              co.object_type,
+              pi.tenant_id
+         FROM process_instance_step_object_instances oi
+         JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+         JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+        WHERE oi.step_instance_id = ?
+          AND oi.status IN ('active', 'failed')`,
+      [stepInstanceId],
+    );
+
+    for (const link of links) {
+      const coreId =
+        link.core_id != null ? Number(link.core_id) : null;
+      const instanceId =
+        link.config_custom_object_instance_id != null
+          ? Number(link.config_custom_object_instance_id)
+          : null;
+
+      if (coreId) {
+        await this.validateByCoreLink(
+          Number(link.tenant_id ?? 0),
+          String(link.object_type ?? ''),
+          coreId,
+        );
+      } else if (instanceId) {
+        await this.validateByCustomInstanceId(instanceId, 0);
+      }
+    }
   }
 
   /**
@@ -138,15 +193,15 @@ export class ConfigObjectStepExecutor {
 
     const anchor = this.toAnchorContext(ctx);
     const rows = await this.loadBindingRows(em, params.stepInstanceId);
-    const pending = rows.filter(
-      (row) => row.status === PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
+    const toProvision = rows.filter((row) =>
+      this.isBindingEligibleForProvisioning(row),
     );
 
-    if (!pending.length) {
+    if (!toProvision.length) {
       return;
     }
 
-    for (const row of pending) {
+    for (const row of toProvision) {
       const templateBindingMode =
         row.binding_mode ?? PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER;
       const configBindingMode = row.config_binding_mode ?? 'standalone';
@@ -331,10 +386,9 @@ export class ConfigObjectStepExecutor {
              ON b.binding_id = oi.binding_id
           WHERE oi.core_id = ?
             AND co.object_type = ?
-            AND pi.tenant_id = ?
             AND oi.status IN ('active', 'failed')
           FOR UPDATE`,
-        [coreId, objectType, tenantId],
+        [coreId, objectType],
       );
 
       if (!links?.length) {
@@ -342,12 +396,13 @@ export class ConfigObjectStepExecutor {
       }
 
       for (const link of links) {
+        const linkTenantId = Number(link.tenant_id ?? tenantId ?? 0);
         const resolutionMode = this.normalizeResolutionMode(
           link.config_binding_mode,
         );
         const completionRule = this.parseCompletionRule(link.completion_rule);
         const evaluation = await this.completenessService.isBindingComplete({
-          tenantId,
+          tenantId: linkTenantId,
           objectType,
           resolutionMode,
           completionRule,
@@ -357,7 +412,7 @@ export class ConfigObjectStepExecutor {
         const fields = evaluation.valid
           ? (
               await this.completenessService.buildFieldSnapshot({
-                tenantId,
+                tenantId: linkTenantId,
                 objectType,
                 resolutionMode,
                 coreId,
@@ -414,7 +469,35 @@ export class ConfigObjectStepExecutor {
     params: { stepInstanceId: number; correlationId?: string },
   ): Promise<void> {
     const objectType = String(row.object_type ?? '');
-    const coreId = resolveCoreIdForObjectType(anchor, objectType);
+    let coreId = resolveCoreIdForObjectType(anchor, objectType);
+
+    if (
+      !coreId &&
+      templateBindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER
+    ) {
+      try {
+        coreId = await provisionSorBoundCoreRecordInTransaction(em, {
+          tenantId: ctx.tenant_id,
+          objectType,
+          processInstanceId: ctx.process_instance_id,
+          stepObjectInstanceId: row.step_object_instance_id,
+          context: this.parseJsonRecord(ctx.context),
+        });
+        this.logger.debug(
+          `Provisioned sor_bound coreId=${coreId} for step_object_instance_id=${row.step_object_instance_id} objectType=${objectType}`,
+        );
+      } catch (err: unknown) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Failed to provision sor_bound core record';
+        this.logger.warn(
+          `SoR create_on_enter failed for step_object_instance_id=${row.step_object_instance_id}: ${message}`,
+        );
+        await this.failBindingRow(em, row.step_object_instance_id, message);
+        return;
+      }
+    }
 
     if (!coreId) {
       await this.failBindingRow(
@@ -593,6 +676,33 @@ export class ConfigObjectStepExecutor {
       },
       correlationId: data.correlationId as string | undefined,
     });
+  }
+
+  /**
+   * Pending bindings are provisioned on first step ready.
+   * Failed `create_on_enter` rows without a core/instance id are retried (e.g. after a deploy fix).
+   */
+  private isBindingEligibleForProvisioning(row: StepObjectBindingRow): boolean {
+    if (row.status === PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING) {
+      return true;
+    }
+
+    if (row.status !== PROCESS_INSTANCE_STEP_OBJECT_STATUS_FAILED) {
+      return false;
+    }
+
+    const templateBindingMode =
+      row.binding_mode ?? PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER;
+    if (templateBindingMode !== PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER) {
+      return false;
+    }
+
+    const configBindingMode = row.config_binding_mode ?? 'standalone';
+    if (isCoreLinkedConfigBindingMode(configBindingMode)) {
+      return row.core_id == null;
+    }
+
+    return row.config_custom_object_instance_id == null;
   }
 
   private async failBindingRow(

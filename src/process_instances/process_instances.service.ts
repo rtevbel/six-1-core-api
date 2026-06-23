@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ProcessInstanceEntity } from './entities/process_instance.entity';
@@ -153,6 +153,7 @@ export class ProcessInstancesService {
       },
       schemaMissingForRelatedFiltersMessage:
         'Process instance configuration schema is required for related list filters.',
+      hydrateRoots: (roots) => this.hydrateProcessInstancesForList(roots),
       maxPageSize: 10,
     };
 
@@ -192,13 +193,40 @@ export class ProcessInstancesService {
     );
   }
 
+  private async hydrateProcessInstancesForList(
+    roots: ProcessInstanceEntity[],
+  ): Promise<ProcessInstanceEntity[]> {
+    const ids = roots.map((row) => row.processInstanceId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.processInstanceRepository.find({
+      where: { processInstanceId: In(ids) },
+      relations: [
+        'processTemplate',
+        'processTemplate.descriptions',
+        'tenant',
+        'createdByUser',
+      ],
+    });
+    const byId = new Map(loaded.map((row) => [row.processInstanceId, row]));
+    return ids
+      .map((id) => byId.get(id)!)
+      .filter(Boolean) as ProcessInstanceEntity[];
+  }
+
   /**
    * Retrieves a single process instance by ID.
    */
   async findOne(userId: number, id: number): Promise<ProcessInstanceEntity> {
     const processInstance = await this.processInstanceRepository.findOne({
       where: { processInstanceId: id },
-      relations: ['processTemplate', 'tenant', 'createdByUser'],
+      relations: [
+        'processTemplate',
+        'processTemplate.descriptions',
+        'tenant',
+        'createdByUser',
+      ],
     });
 
     if (!processInstance) {

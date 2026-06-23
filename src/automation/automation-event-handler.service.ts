@@ -135,11 +135,16 @@ export class AutomationEventHandlerService {
     const data = (payload.data ?? {}) as Record<string, unknown>;
     const objectType = data.objectType ?? data.object_type;
     const coreId = data.coreId ?? data.core_id ?? data.entityId;
-    const tenantId = payload.tenantId;
+    const rawTenantId = payload.tenantId ?? data.tenantId ?? data.tenant_id;
 
-    if (!objectType || !coreId || !tenantId) {
+    if (!objectType || !coreId) {
       return;
     }
+
+    const tenantId =
+      rawTenantId === undefined || rawTenantId === null
+        ? 0
+        : Number(rawTenantId);
 
     const resolutionMode = String(
       data.resolutionMode ?? data.resolution_mode ?? expectedMode,

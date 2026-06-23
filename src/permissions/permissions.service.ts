@@ -28,6 +28,7 @@ export class PermissionsService {
   private static readonly FALLBACK_FIELDS = new Set([
     'permission_id',
     'status_id',
+    'name',
     'created_by',
     'updated_by',
     'created_at',
@@ -37,6 +38,7 @@ export class PermissionsService {
   private static readonly FALLBACK_EXPR: Record<string, string> = {
     permission_id: 'p.permission_id',
     status_id: 'p.status_id',
+    name: `(SELECT pd.name FROM permission_descriptions pd WHERE pd.permission_id = p.permission_id ORDER BY pd.language_id ASC LIMIT 1)`,
     created_by: 'p.created_by',
     updated_by: 'p.updated_by',
     created_at: 'p.created_at',
@@ -106,6 +108,9 @@ export class PermissionsService {
           : null;
       },
       applyMandatoryScope: () => undefined,
+      augmentSearchRawOrClauses: () => [
+        `EXISTS (SELECT 1 FROM permission_descriptions p_s_desc WHERE p_s_desc.permission_id = p.permission_id AND (LOWER(p_s_desc.name) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(p_s_desc.description, '')) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(p_s_desc.permission_group, '')) LIKE LOWER(:_sorSearch)))`,
+      ],
       schemaMissingForRelatedFiltersMessage:
         'Permission configuration schema is required for related list filters.',
       maxPageSize: 10,

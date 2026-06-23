@@ -350,7 +350,7 @@ export class ProjectsService {
     const loaded = await this.projectRepository.find({
       where: { projectId: In(ids) },
       relations: [
-        'processInstance.processTemplates.descriptions',
+        'processInstance.processTemplate.descriptions',
         'tasks.linkedStepInstance',
         'taskStatuses',
       ],

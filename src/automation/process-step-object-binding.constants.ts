@@ -12,7 +12,7 @@ export const PROCESS_TEMPLATE_OBJECT_BINDING_MODES = [
 export type ProcessTemplateObjectBindingMode =
   (typeof PROCESS_TEMPLATE_OBJECT_BINDING_MODES)[number];
 
-/** v1 authoring: create_on_enter for standalone; use_existing allowed for core-linked objects. */
+/** v1 authoring: create_on_enter provisions standalone or new sor_bound rows; use_existing links core from anchor. */
 export const PROCESS_TEMPLATE_OBJECT_BINDING_MODES_V1: ProcessTemplateObjectBindingMode[] =
   [PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER];
 

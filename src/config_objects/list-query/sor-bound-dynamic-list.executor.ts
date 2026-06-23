@@ -461,11 +461,9 @@ export async function executeSorBoundDynamicListQuery<TRoot extends object>(
     ctx.denyCatalogCanonicalType,
   );
 
-  if (!catalog.core.size) {
-    for (const k of ctx.fallbackCoreFields) {
-      if (!deniedCore.has(k)) {
-        catalog.core.add(k);
-      }
+  for (const k of ctx.fallbackCoreFields) {
+    if (!deniedCore.has(k)) {
+      catalog.core.add(k);
     }
   }
 

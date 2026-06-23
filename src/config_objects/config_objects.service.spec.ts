@@ -598,6 +598,17 @@ describe('ConfigObjectsService', () => {
 
     expect(result.metaJson).toEqual({ customer_code: 'C-9' });
     expect(mockManager.save).toHaveBeenCalled();
+    expect(eventsService.emit).toHaveBeenCalledWith(
+      PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
+      expect.objectContaining({
+        tenantId: 0,
+        data: expect.objectContaining({
+          objectType: 'customer',
+          coreId: 9,
+          tenantId: 0,
+        }),
+      }),
+    );
   });
 
   it('applySorBoundInstancePatch should reject corePatch without tenant scope', async () => {

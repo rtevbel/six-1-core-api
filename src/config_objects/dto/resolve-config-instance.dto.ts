@@ -51,9 +51,14 @@ function ExactlyOneOf(
  * `system_table` definitions reject `coreId` here; use existing REST via the Object Runner.
  */
 export class ResolveConfigInstanceDto {
+  /**
+   * Tenant scope for schema resolution. Omit for global / super-admin published
+   * template-set scope (same rules as `GetConfigSchemaDto`).
+   */
   @IsInt()
   @Min(1)
-  tenantId!: number;
+  @IsOptional()
+  tenantId?: number;
 
   @IsString()
   @IsNotEmpty()

@@ -102,13 +102,19 @@ export class NotificationTemplatesService {
    */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
+    const channelFilter =
+      typeof filtersDto.channelId === 'number' && filtersDto.channelId > 0
+        ? { channelId: filtersDto.channelId }
+        : {};
 
     if (filtersDto.search) {
       query.where = [
-        { name: Like(`%${filtersDto.search}%`) },
-        { subject: Like(`%${filtersDto.search}%`) },
-        { message: Like(`%${filtersDto.search}%`) },
+        { name: Like(`%${filtersDto.search}%`), ...channelFilter },
+        { subject: Like(`%${filtersDto.search}%`), ...channelFilter },
+        { message: Like(`%${filtersDto.search}%`), ...channelFilter },
       ];
+    } else if (Object.keys(channelFilter).length > 0) {
+      query.where = channelFilter;
     }
 
     if (filtersDto.sortBy) {
