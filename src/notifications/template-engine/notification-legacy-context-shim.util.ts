@@ -13,6 +13,7 @@ const LEGACY_TEMPLATE_ALIASES: ReadonlyArray<readonly [string, string]> = [
   ['projectUrl', 'urls.project'],
   ['taskUrl', 'urls.task'],
   ['processRunnerUrl', 'urls.processRunner'],
+  ['verificationUrl', 'urls.verification'],
 ];
 
 export function getLegacyTemplateAliasKeys(): string[] {

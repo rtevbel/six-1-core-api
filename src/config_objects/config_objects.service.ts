@@ -83,6 +83,8 @@ import {
 import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
 import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/relation-catalog.generator';
 import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
+import { resolveConfigObjectVerificationFieldMap } from './verification/config-object-verification.util';
+import { getSorBoundMetaFieldLookupDescriptor } from './verification/sor-bound-meta-field-lookup.registry';
 import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
 import type { CoreFieldDerivedRuntimeConfig } from './core-field-descriptor/core-field-descriptor.runtime-metadata.types';
 import {
@@ -133,6 +135,8 @@ import {
   buildStandaloneConfigObjectInstanceUpdatedOptions,
   resolveTenantIdFromSorCore,
 } from '../events/platform-config-object-event.util';
+import { provisionSorBoundCoreRecordFromSave } from '../automation/sor-bound-core-record.provisioner';
+import { PROCESS_INSTANCE_STEP_OBJECT_STATUS_ACTIVE } from '../automation/process-step-object-binding.constants';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -1197,6 +1201,9 @@ export class ConfigObjectsService {
       fieldMergePolicy: CONFIG_OBJECT_FIELD_MERGE_POLICY,
       sorFieldDescriptors: [],
       mergedFieldOrder: [],
+      verificationFieldMap: resolveConfigObjectVerificationFieldMap(
+        schema.configObject,
+      ),
     };
     return this.attachMergedFieldOrder(base);
   }
@@ -1370,11 +1377,26 @@ export class ConfigObjectsService {
   async applySorBoundInstancePatch(params: {
     tenantId?: number | null;
     objectType: string;
-    coreId: number;
+    coreId?: number;
+    stepObjectInstanceId?: number;
     corePatch?: Record<string, unknown>;
     metaPatch?: Record<string, unknown>;
     customerId?: number;
   }): Promise<ApplySorBoundInstancePatchResult> {
+    if (params.stepObjectInstanceId != null && params.coreId == null) {
+      const { stepObjectInstanceId, ...deferredParams } = params;
+      return this.applyDeferredSorBoundStepBindingSave({
+        ...deferredParams,
+        stepObjectInstanceId,
+      });
+    }
+
+    if (params.coreId == null) {
+      throw new RpcException(
+        'Provide coreId for an existing SoR row or stepObjectInstanceId for deferred first save.',
+      );
+    }
+
     const {
       tenantId,
       objectType,
@@ -1481,6 +1503,256 @@ export class ConfigObjectsService {
 
       return result;
     });
+  }
+
+  /**
+   * First save for a deferred `create_on_enter` sor_bound process step binding:
+   * creates the SoR row from submitted patches, links `core_id`, and emits update event.
+   */
+  private async applyDeferredSorBoundStepBindingSave(params: {
+    tenantId?: number | null;
+    objectType: string;
+    stepObjectInstanceId: number;
+    corePatch?: Record<string, unknown>;
+    metaPatch?: Record<string, unknown>;
+  }): Promise<ApplySorBoundInstancePatchResult> {
+    const {
+      tenantId,
+      objectType,
+      stepObjectInstanceId,
+      corePatch = {},
+      metaPatch = {},
+    } = params;
+
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const schema = await this.getObjectSchema(effectiveTenantId, objectType);
+    if (!schema) {
+      throw new RpcException('Configuration schema not found for object type.');
+    }
+    if (schema.configObject.bindingMode !== 'sor_bound') {
+      throw new RpcException(
+        'Deferred step binding save is only valid for sor_bound objects.',
+      );
+    }
+
+    const writableSor = getWritableSorFieldKeys(objectType);
+    const allowedMetaKeys = new Set(schema.fields.map((f) => f.field.fieldKey));
+
+    const filteredCore: Record<string, unknown> = {};
+    for (const key of Object.keys(corePatch)) {
+      if (writableSor.has(key)) {
+        filteredCore[key] = corePatch[key];
+      }
+    }
+
+    const filteredMeta: Record<string, unknown> = {};
+    for (const key of Object.keys(metaPatch)) {
+      if (allowedMetaKeys.has(key)) {
+        filteredMeta[key] = metaPatch[key];
+      }
+    }
+
+    if (
+      !Object.keys(filteredCore).length &&
+      !Object.keys(filteredMeta).length &&
+      !Object.keys(corePatch).length &&
+      !Object.keys(metaPatch).length
+    ) {
+      throw new RpcException(
+        'No patch entries matched allowed SoR or custom field keys.',
+      );
+    }
+
+    const [bindingPreview] = await this.dataSource.query(
+      `SELECT oi.step_object_instance_id,
+              co.object_type,
+              co.binding_mode AS config_binding_mode,
+              b.binding_mode,
+              oi.core_id,
+              oi.status
+         FROM process_instance_step_object_instances oi
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+         LEFT JOIN process_template_step_object_bindings b
+           ON b.binding_id = oi.binding_id
+        WHERE oi.step_object_instance_id = ?
+        LIMIT 1`,
+      [stepObjectInstanceId],
+    );
+
+    if (!bindingPreview) {
+      throw new RpcException('Process step object binding not found.');
+    }
+
+    this.assertDeferredSorBoundBindingEligible(bindingPreview, objectType);
+
+    let newCoreId = 0;
+    const result = await this.dataSource.transaction(async (manager) => {
+      const [binding] = await manager.query(
+        `SELECT oi.step_object_instance_id,
+                oi.core_id,
+                oi.status,
+                b.binding_mode,
+                co.object_type,
+                co.binding_mode AS config_binding_mode,
+                pi.tenant_id,
+                pi.process_instance_id,
+                pi.context
+           FROM process_instance_step_object_instances oi
+           JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+           JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
+           JOIN config_objects co ON co.config_object_id = oi.config_object_id
+           LEFT JOIN process_template_step_object_bindings b
+             ON b.binding_id = oi.binding_id
+          WHERE oi.step_object_instance_id = ?
+          LIMIT 1
+          FOR UPDATE`,
+        [stepObjectInstanceId],
+      );
+
+      if (!binding) {
+        throw new RpcException('Process step object binding not found.');
+      }
+
+      this.assertDeferredSorBoundBindingEligible(binding, objectType);
+
+      const processContext = this.parseJsonRecord(binding.context);
+      newCoreId = await provisionSorBoundCoreRecordFromSave(manager, {
+        tenantId: Number(binding.tenant_id ?? 0),
+        objectType,
+        processInstanceId: Number(binding.process_instance_id),
+        stepObjectInstanceId,
+        context: processContext,
+        corePatch: this.mergeDeferredCreateCorePatch(
+          objectType,
+          filteredCore,
+          corePatch,
+        ),
+        metaPatch: filteredMeta,
+      });
+
+      await manager.query(
+        `UPDATE process_instance_step_object_instances
+            SET core_id = ?,
+                status = ?,
+                last_error = NULL,
+                updated_at = NOW()
+          WHERE step_object_instance_id = ?`,
+        [
+          newCoreId,
+          PROCESS_INSTANCE_STEP_OBJECT_STATUS_ACTIVE,
+          stepObjectInstanceId,
+        ],
+      );
+
+      return this.applySorBoundPatchInTransaction(
+        manager,
+        objectType,
+        newCoreId,
+        effectiveTenantId,
+        {},
+        {},
+      );
+    });
+
+    const eventTenantId =
+      effectiveTenantId ??
+      resolveTenantIdFromSorCore(
+        result.core as unknown as Record<string, unknown>,
+      ) ??
+      (this.isGlobalScopeSorCorePatchType(objectType) ? 0 : undefined);
+
+    if (eventTenantId !== undefined && newCoreId > 0) {
+      this.eventsService.emit(
+        PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
+        buildSorBoundInstanceUpdatedEventOptions({
+          objectType,
+          coreId: newCoreId,
+          tenantId: eventTenantId,
+          changedFields: [
+            ...Object.keys(filteredCore),
+            ...Object.keys(filteredMeta),
+          ],
+        }),
+      );
+    }
+
+    return { ...result, coreId: newCoreId };
+  }
+
+  /**
+   * On deferred customer create, allow bootstrap core fields (email/password) that are
+   * read-only or absent from the writable SoR patch allowlist.
+   */
+  private mergeDeferredCreateCorePatch(
+    objectType: string,
+    filteredCore: Record<string, unknown>,
+    rawCorePatch: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (objectType !== 'customer') {
+      return filteredCore;
+    }
+
+    const bootstrap: Record<string, unknown> = { ...filteredCore };
+    for (const key of ['email', 'password'] as const) {
+      if (rawCorePatch[key] !== undefined && rawCorePatch[key] !== null) {
+        bootstrap[key] = rawCorePatch[key];
+      }
+    }
+    return bootstrap;
+  }
+
+  private assertDeferredSorBoundBindingEligible(
+    binding: Record<string, unknown>,
+    objectType: string,
+  ): void {
+    if (String(binding.object_type) !== objectType) {
+      throw new RpcException('objectType does not match the step object binding.');
+    }
+
+    if (binding.config_binding_mode !== 'sor_bound') {
+      throw new RpcException(
+        'Deferred save is only supported for sor_bound bindings.',
+      );
+    }
+
+    const templateBindingMode = String(binding.binding_mode ?? 'create_on_enter');
+    if (templateBindingMode !== 'create_on_enter') {
+      throw new RpcException(
+        'Deferred save requires template binding_mode create_on_enter.',
+      );
+    }
+
+    if (binding.core_id != null) {
+      throw new RpcException(
+        'Binding already has a coreId; use coreId patch instead of stepObjectInstanceId.',
+      );
+    }
+
+    if (!['pending', 'failed', 'active'].includes(String(binding.status))) {
+      throw new RpcException(
+        `Binding status "${binding.status}" does not allow deferred save.`,
+      );
+    }
+  }
+
+  private parseJsonRecord(value: unknown): Record<string, unknown> | null {
+    if (!value) {
+      return null;
+    }
+    if (typeof value === 'object' && !Array.isArray(value)) {
+      return value as Record<string, unknown>;
+    }
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value) as unknown;
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   private async applySorBoundPatchInTransaction(
@@ -2297,6 +2569,101 @@ export class ConfigObjectsService {
     };
 
     return resolved;
+  }
+
+  /**
+   * Finds a sor_bound instance by an exact meta JSON field value (e.g. verification token).
+   */
+  async findSorBoundInstanceByMetaField(params: {
+    tenantId?: number | null;
+    objectType: string;
+    fieldKey: string;
+    fieldValue: string;
+  }): Promise<{ coreId: number; metaJson: Record<string, unknown> } | null> {
+    const objectType = params.objectType.trim();
+    const fieldKey = params.fieldKey.trim();
+    const fieldValue = params.fieldValue.trim();
+
+    if (!fieldKey || !fieldValue) {
+      throw new RpcException(
+        'fieldKey and fieldValue are required for meta lookup.',
+      );
+    }
+
+    const descriptor = getSorBoundMetaFieldLookupDescriptor(objectType);
+    if (!descriptor) {
+      throw new RpcException(
+        `Meta field lookup is not supported for object_type: ${objectType}`,
+      );
+    }
+
+    const metaMetadata = this.dataSource.getMetadata(descriptor.metaEntity);
+    const metaAlias = 'meta';
+    const metaJsonColumn =
+      metaMetadata.findColumnWithPropertyName(descriptor.metaJsonProperty)
+        ?.databaseName ?? 'meta_json';
+    const coreIdColumn =
+      metaMetadata.findColumnWithPropertyName(descriptor.coreIdProperty)
+        ?.databaseName ?? 'core_id';
+
+    const qb = this.dataSource
+      .getRepository(descriptor.metaEntity)
+      .createQueryBuilder(metaAlias)
+      .where(
+        `JSON_UNQUOTE(JSON_EXTRACT(${metaAlias}.${metaJsonColumn}, :jsonPath)) = :fieldValue`,
+        { jsonPath: `$.${fieldKey}`, fieldValue },
+      )
+      .take(2);
+
+    if (
+      descriptor.coreEntity &&
+      descriptor.tenantIdProperty &&
+      descriptor.corePkProperty &&
+      typeof params.tenantId === 'number' &&
+      params.tenantId > 0
+    ) {
+      const coreMetadata = this.dataSource.getMetadata(descriptor.coreEntity);
+      const coreAlias = 'core';
+      const corePkColumn =
+        coreMetadata.findColumnWithPropertyName(descriptor.corePkProperty)
+          ?.databaseName ?? descriptor.corePkProperty;
+      const tenantColumn =
+        coreMetadata.findColumnWithPropertyName(descriptor.tenantIdProperty)
+          ?.databaseName ?? 'tenant_id';
+
+      qb.innerJoin(
+        descriptor.coreEntity,
+        coreAlias,
+        `${coreAlias}.${corePkColumn} = ${metaAlias}.${coreIdColumn}`,
+      ).andWhere(`${coreAlias}.${tenantColumn} = :tenantId`, {
+        tenantId: params.tenantId,
+      });
+    }
+
+    const rows = await qb.getMany();
+    if (rows.length === 0) {
+      return null;
+    }
+    if (rows.length > 1) {
+      throw new RpcException(
+        'Ambiguous meta field lookup matched multiple records.',
+      );
+    }
+
+    const row = rows[0] as Record<string, unknown>;
+    const coreId = Number(row[descriptor.coreIdProperty]);
+    const metaJson = row[descriptor.metaJsonProperty];
+    if (!Number.isFinite(coreId) || coreId < 1) {
+      throw new RpcException('Meta lookup resolved an invalid core id.');
+    }
+
+    return {
+      coreId: Math.trunc(coreId),
+      metaJson:
+        metaJson && typeof metaJson === 'object' && !Array.isArray(metaJson)
+          ? (metaJson as Record<string, unknown>)
+          : {},
+    };
   }
 
   /**

@@ -43,6 +43,7 @@ describe('ConfigObjectsService', () => {
   let viewRepo: Repository<ConfigObjectViewEntity>;
   let panelRepo: Repository<ConfigObjectViewPanelEntity>;
   let auditLogRepo: Repository<ConfigAuditLogEntity>;
+  let customerMetaRepo: Repository<CustomerMetaEntity>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -136,6 +137,8 @@ describe('ConfigObjectsService', () => {
           provide: DataSource,
           useValue: {
             transaction: jest.fn(),
+            getMetadata: jest.fn(),
+            getRepository: jest.fn(),
           },
         },
         {
@@ -160,6 +163,7 @@ describe('ConfigObjectsService', () => {
     viewRepo = module.get(getRepositoryToken(ConfigObjectViewEntity));
     panelRepo = module.get(getRepositoryToken(ConfigObjectViewPanelEntity));
     auditLogRepo = module.get(getRepositoryToken(ConfigAuditLogEntity));
+    customerMetaRepo = module.get(getRepositoryToken(CustomerMetaEntity));
 
     jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue(null as any);
     jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
@@ -609,6 +613,177 @@ describe('ConfigObjectsService', () => {
         }),
       }),
     );
+  });
+
+  it('applySorBoundInstancePatch should persist customer verification meta fields', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 20,
+      tenantId: null,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 120,
+      configTemplateSetId: 20,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+      verificationFieldMap: {
+        tokenField: 'verification_token',
+        expiresAtField: 'token_expires_at',
+        verifiedField: 'email_verified',
+        defaultTtlHours: 24,
+      },
+    } as any);
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
+      {
+        configObjectFieldId: 1,
+        fieldKey: 'verification_token',
+        label: 'Verification Token',
+        fieldType: 'text',
+        orderIndex: 1,
+        sectionKey: '__verification',
+        isSystem: true,
+      },
+      {
+        configObjectFieldId: 2,
+        fieldKey: 'token_expires_at',
+        label: 'Token Expires At',
+        fieldType: 'datetime',
+        orderIndex: 2,
+        sectionKey: '__verification',
+        isSystem: true,
+      },
+      {
+        configObjectFieldId: 3,
+        fieldKey: 'email_verified',
+        label: 'Email Verified',
+        fieldType: 'boolean',
+        orderIndex: 3,
+        sectionKey: '__verification',
+        isSystem: true,
+        defaultValue: false,
+      },
+    ] as any);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+    const mockManager = {
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce({ customerId: 9, email: 'a@b.c' })
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ customerId: 9, email: 'a@b.c' }),
+      save: jest.fn(async (e) => e),
+      create: jest.fn((_Entity: unknown, row: Record<string, unknown>) => ({
+        ...row,
+      })),
+    };
+
+    (dataSource.transaction as jest.Mock).mockImplementation(async (fn: unknown) =>
+      (fn as (m: typeof mockManager) => Promise<unknown>)(mockManager),
+    );
+
+    const result = await service.applySorBoundInstancePatch({
+      objectType: 'customer',
+      coreId: 9,
+      metaPatch: {
+        verification_token: 'tok-abc',
+        token_expires_at: '2026-06-26T12:00:00.000Z',
+        email_verified: false,
+      },
+    });
+
+    expect(result.metaJson).toEqual({
+      verification_token: 'tok-abc',
+      token_expires_at: '2026-06-26T12:00:00.000Z',
+      email_verified: false,
+    });
+  });
+
+  it('resolveObjectInstance should expose customer verification meta fields', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 20,
+      tenantId: null,
+      status: 'PUBLISHED',
+    } as any);
+
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 120,
+      configTemplateSetId: 20,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+      verificationFieldMap: {
+        tokenField: 'verification_token',
+        expiresAtField: 'token_expires_at',
+        verifiedField: 'email_verified',
+        defaultTtlHours: 24,
+      },
+    } as any);
+
+    jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
+      {
+        configObjectFieldId: 1,
+        fieldKey: 'verification_token',
+        label: 'Verification Token',
+        fieldType: 'text',
+        orderIndex: 1,
+        sectionKey: '__verification',
+      },
+      {
+        configObjectFieldId: 2,
+        fieldKey: 'token_expires_at',
+        label: 'Token Expires At',
+        fieldType: 'datetime',
+        orderIndex: 2,
+        sectionKey: '__verification',
+      },
+      {
+        configObjectFieldId: 3,
+        fieldKey: 'email_verified',
+        label: 'Email Verified',
+        fieldType: 'boolean',
+        orderIndex: 3,
+        sectionKey: '__verification',
+        defaultValue: false,
+      },
+    ] as any);
+    jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+    jest.spyOn(customerMetaRepo, 'findOne').mockResolvedValueOnce({
+      customerId: 9,
+      metaJson: {
+        verification_token: 'tok-abc',
+        token_expires_at: '2026-06-26T12:00:00.000Z',
+        email_verified: false,
+      },
+    } as any);
+
+    jest.spyOn(dataSource, 'getMetadata').mockReturnValue({
+      primaryColumns: [{ propertyName: 'customerId' }],
+    } as any);
+    jest.spyOn(dataSource, 'getRepository').mockReturnValue({
+      findOne: jest.fn().mockResolvedValue({ customerId: 9, email: 'a@b.c' }),
+    } as any);
+
+    const resolved = await service.resolveObjectInstance(null, 'customer', 9);
+
+    expect(resolved).not.toBeNull();
+    expect(resolved?.resolutionMode).toBe('sor_bound');
+    expect(resolved?.dynamicFields).toMatchObject({
+      verification_token: 'tok-abc',
+      token_expires_at: '2026-06-26T12:00:00.000Z',
+      email_verified: false,
+    });
+    expect(resolved?.schema.verificationFieldMap).toEqual({
+      tokenField: 'verification_token',
+      expiresAtField: 'token_expires_at',
+      verifiedField: 'email_verified',
+      defaultTtlHours: 24,
+    });
   });
 
   it('applySorBoundInstancePatch should reject corePatch without tenant scope', async () => {

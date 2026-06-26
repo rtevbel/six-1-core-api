@@ -49,6 +49,7 @@ import { NotificationRulesModule } from '../events/notification-rules/notificati
 import { ProcessStepAssigneeResolverService } from './process-step-assignee-resolver.service';
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
+import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
 
 @Module({
   imports: [
@@ -97,6 +98,7 @@ import { ProcessStepFailureService } from './process-step-failure.service';
     ProcessStepAssigneeResolverService,
     ProcessStepExtensionEvaluatorService,
     ProcessStepFailureService,
+    ProcessStepGenerateVerificationTokenService,
     ProcessStepWebhookClient,
     ProcessStartRuleEngineService,
     ProcessStartRuleDedupService,

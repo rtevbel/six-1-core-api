@@ -92,6 +92,13 @@ export const MICROSERVICE_APPLY_SOR_BOUND_INSTANCE_PATCH_PATTERN =
   'v0.1_apply_sor_bound_instance_patch';
 
 /**
+ * Public generic email verification for sor_bound config objects (Phase 4).
+ * Gateway may call without authenticated user context; rate-limit at the edge.
+ */
+export const MICROSERVICE_VERIFY_CONFIG_OBJECT_EMAIL_PATTERN =
+  'v0.1_verify_config_object_email';
+
+/**
  * Message patterns for standalone (`config_custom_object_instances`) CRUD.
  */
 export const MICROSERVICE_LIST_CUSTOM_OBJECT_INSTANCES_PATTERN =

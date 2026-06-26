@@ -295,8 +295,7 @@ export class ProcessRunnerService {
   }
 
   /**
-   * Re-attempts provisioning for ready steps whose bindings failed without a linked record
-   * (e.g. instance started before create_on_enter sor_bound support was deployed).
+   * Re-attempts provisioning for ready steps whose standalone bindings failed without a linked record.
    */
   private async healReadyStepObjectBindings(steps: StepRow[]): Promise<void> {
     if (!this.configObjectStepExecutor.isEnabled()) {

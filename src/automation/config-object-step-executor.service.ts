@@ -18,7 +18,6 @@ import {
   resolveCoreIdForObjectType,
   type ProcessStepAnchorContext,
 } from './process-step-core-ref.util';
-import { provisionSorBoundCoreRecordInTransaction } from './sor-bound-core-record.provisioner';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -193,6 +192,22 @@ export class ConfigObjectStepExecutor {
 
     const anchor = this.toAnchorContext(ctx);
     const rows = await this.loadBindingRows(em, params.stepInstanceId);
+    for (const row of rows) {
+      if (this.isDeferredSorBoundCreateOnEnter(row) && row.status === 'failed') {
+        await em.query(
+          `UPDATE process_instance_step_object_instances
+              SET status = ?,
+                  last_error = NULL,
+                  updated_at = NOW()
+            WHERE step_object_instance_id = ?`,
+          [
+            PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
+            row.step_object_instance_id,
+          ],
+        );
+        row.status = PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING;
+      }
+    }
     const toProvision = rows.filter((row) =>
       this.isBindingEligibleForProvisioning(row),
     );
@@ -471,32 +486,23 @@ export class ConfigObjectStepExecutor {
     const objectType = String(row.object_type ?? '');
     let coreId = resolveCoreIdForObjectType(anchor, objectType);
 
+    if (!coreId && this.isDeferredSorBoundCreateOnEnter(row)) {
+      this.logger.debug(
+        `Deferring sor_bound provisioning until first save for step_object_instance_id=${row.step_object_instance_id} objectType=${objectType}`,
+      );
+      return;
+    }
+
     if (
       !coreId &&
       templateBindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER
     ) {
-      try {
-        coreId = await provisionSorBoundCoreRecordInTransaction(em, {
-          tenantId: ctx.tenant_id,
-          objectType,
-          processInstanceId: ctx.process_instance_id,
-          stepObjectInstanceId: row.step_object_instance_id,
-          context: this.parseJsonRecord(ctx.context),
-        });
-        this.logger.debug(
-          `Provisioned sor_bound coreId=${coreId} for step_object_instance_id=${row.step_object_instance_id} objectType=${objectType}`,
-        );
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Failed to provision sor_bound core record';
-        this.logger.warn(
-          `SoR create_on_enter failed for step_object_instance_id=${row.step_object_instance_id}: ${message}`,
-        );
-        await this.failBindingRow(em, row.step_object_instance_id, message);
-        return;
-      }
+      await this.failBindingRow(
+        em,
+        row.step_object_instance_id,
+        `Could not resolve coreId for objectType=${objectType}`,
+      );
+      return;
     }
 
     if (!coreId) {
@@ -678,12 +684,26 @@ export class ConfigObjectStepExecutor {
     });
   }
 
+  private isDeferredSorBoundCreateOnEnter(row: StepObjectBindingRow): boolean {
+    const templateBindingMode =
+      row.binding_mode ?? PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER;
+    const configBindingMode = row.config_binding_mode ?? 'standalone';
+    return (
+      templateBindingMode === PROCESS_TEMPLATE_OBJECT_BINDING_MODE_CREATE_ON_ENTER &&
+      configBindingMode === 'sor_bound' &&
+      row.core_id == null
+    );
+  }
+
   /**
-   * Pending bindings are provisioned on first step ready.
-   * Failed `create_on_enter` rows without a core/instance id are retried (e.g. after a deploy fix).
+   * Pending bindings are provisioned on first step ready (standalone / use_existing core).
+   * Deferred sor_bound create_on_enter bindings are excluded until first save.
    */
   private isBindingEligibleForProvisioning(row: StepObjectBindingRow): boolean {
     if (row.status === PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING) {
+      if (this.isDeferredSorBoundCreateOnEnter(row)) {
+        return false;
+      }
       return true;
     }
 
@@ -698,6 +718,10 @@ export class ConfigObjectStepExecutor {
     }
 
     const configBindingMode = row.config_binding_mode ?? 'standalone';
+    if (configBindingMode === 'sor_bound') {
+      return false;
+    }
+
     if (isCoreLinkedConfigBindingMode(configBindingMode)) {
       return row.core_id == null;
     }

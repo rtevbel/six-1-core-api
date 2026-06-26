@@ -16,9 +16,16 @@ import { CustomerContactInfoMetaEntity } from '../customers/customer_contact_inf
 import { ResourceEntity } from '../scheduler/entities/resource.entity';
 import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ProjectStepStatusMappingEntity } from '../projects/entities/project_step_status_mappings.entity';
+import { UserEntity } from '../users/entities/user.entity';
+import { UserMetaEntity } from '../users/user-meta/entities/user-meta.entity';
 import { ConfigObjectsService } from './config_objects.service';
 import { ConfigLifecycleService } from './config_lifecycle.service';
 import { ConfigObjectCompletenessService } from './config-object-completeness.service';
+import { ConfigVerificationService } from './verification/config-verification.service';
+import { SystemTableVerificationService } from './verification/system-table-verification.service';
+import { ConfigObjectVerificationTokenService } from './verification/config-object-verification-token.service';
+import { ConfigVerificationRateLimitService } from './verification/config-verification-rate-limit.service';
+import { ConfigObjectVerificationAuditService } from './verification/config-object-verification-audit.service';
 import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
 import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
@@ -26,6 +33,8 @@ import { ConfigObjectViewEntity } from './entities/config_object_view.entity';
 import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
+import { ConfigObjectVerificationRuleEntity } from './entities/config_object_verification_rule.entity';
+import { ConfigObjectVerificationAuditLogEntity } from './entities/config_object_verification_audit_log.entity';
 import { ConfigObjectsController } from './config_objects.controller';
 import { EventsModule } from '../events/events.module';
 import { ProcessInstancesModule } from '../process_instances/process_Instances.module';
@@ -57,6 +66,8 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
       ConfigObjectViewPanelEntity,
       ConfigCustomObjectInstanceEntity,
       ConfigObjectStatusMappingEntity,
+      ConfigObjectVerificationRuleEntity,
+      ConfigObjectVerificationAuditLogEntity,
       ProjectEntity,
       ProjectMetaEntity,
       TaskEntity,
@@ -68,6 +79,8 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
       ResourceEntity,
       ResourceMetaEntity,
       ProjectStepStatusMappingEntity,
+      UserEntity,
+      UserMetaEntity,
     ]),
   ],
   controllers: [ConfigObjectsController],
@@ -75,11 +88,18 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
     ConfigObjectsService,
     ConfigLifecycleService,
     ConfigObjectCompletenessService,
+    ConfigVerificationService,
+    SystemTableVerificationService,
+    ConfigObjectVerificationTokenService,
+    ConfigVerificationRateLimitService,
+    ConfigObjectVerificationAuditService,
   ],
   exports: [
     ConfigObjectsService,
     ConfigLifecycleService,
     ConfigObjectCompletenessService,
+    ConfigVerificationService,
+    ConfigObjectVerificationTokenService,
   ],
 })
 export class ConfigObjectsModule {}

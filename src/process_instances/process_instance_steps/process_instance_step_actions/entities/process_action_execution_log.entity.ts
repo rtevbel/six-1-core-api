@@ -54,7 +54,7 @@ export class ProcessActionExecutionLogEntity {
   @Column({
     name: 'action_type',
     type: 'enum',
-    enum: ['emit_event', 'send_notification', 'update_sor_field', 'call_webhook'],
+    enum: ['emit_event', 'send_notification', 'update_sor_field', 'call_webhook', 'generate_verification_token'],
   })
   actionType!: ProcessStepActionType;
 

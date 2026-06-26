@@ -41,7 +41,6 @@ describe('NotificationTemplateEngineService', () => {
     context.entity.fields.dueDate = '2026-06-04T12:00:00.000Z';
 
     const result = engine.render(
-      'task_assigned',
       'Task update',
       '{{#if process.stepName}}Step {{process.stepName}}{{/if}} due {{formatDate entity.fields.dueDate "short"}}',
       context,
@@ -52,18 +51,46 @@ describe('NotificationTemplateEngineService', () => {
     expect(result.missingRequired).toEqual([]);
   });
 
-  it('applies legacy flat aliases from context namespaces', () => {
+  it('renders namespaced entity field paths', () => {
     const context = createEmptyNotificationContext();
     context.entity.fields.name = 'Alpha Project';
 
     const result = engine.render(
-      'project_created',
       null,
-      'Project {{projectName}} created',
+      'Project {{entity.fields.name}} created',
       context,
     );
 
     expect(result.message).toBe('Project Alpha Project created');
+  });
+
+  it('reports missing namespaced paths referenced in the template', () => {
+    const context = createEmptyNotificationContext();
+    context.recipient.name = 'Bob';
+
+    const result = engine.render(
+      'Hello {{recipient.name}}',
+      'Project {{entity.fields.name}} is ready',
+      context,
+    );
+
+    expect(result.missingRequired).toEqual(['entity.fields.name']);
+  });
+
+  it('renders url helper for urls.verification', () => {
+    const context = createEmptyNotificationContext();
+    context.urls.verification =
+      'https://app.example.com/verify-customer?token=tok-abc';
+
+    const result = engine.render(
+      'Verify',
+      'Link: {{urls.verification}} helper: {{url "verification"}}',
+      context,
+    );
+
+    expect(result.message).toBe(
+      'Link: https://app.example.com/verify-customer?token=tok-abc helper: https://app.example.com/verify-customer?token=tok-abc',
+    );
   });
 
   it('hydrates context lazily when rendering from an event log', async () => {

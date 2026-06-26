@@ -2,10 +2,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigObjectsController } from './config_objects.controller';
 import { ConfigObjectsService } from './config_objects.service';
 import { ConfigLifecycleService } from './config_lifecycle.service';
+import { ConfigVerificationService } from './verification/config-verification.service';
 
 describe('ConfigObjectsController', () => {
   let controller: ConfigObjectsController;
   let configObjectsService: jest.Mocked<ConfigObjectsService>;
+  let configVerificationService: { verifyConfigObjectEmail: jest.Mock };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -30,10 +32,17 @@ describe('ConfigObjectsController', () => {
           provide: ConfigLifecycleService,
           useValue: {},
         },
+        {
+          provide: ConfigVerificationService,
+          useValue: {
+            verifyConfigObjectEmail: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     controller = module.get<ConfigObjectsController>(ConfigObjectsController);
+    configVerificationService = module.get(ConfigVerificationService);
     configObjectsService = module.get(
       ConfigObjectsService,
     ) as jest.Mocked<ConfigObjectsService>;
@@ -318,6 +327,37 @@ describe('ConfigObjectsController', () => {
       relationKey: 'project_roles',
       actionRef: 'six1:action:project.roles.assign',
       grantedPermissions: ['project.manage_roles'],
+    });
+  });
+
+  it('verifyConfigObjectEmail should delegate to ConfigVerificationService without permissions', async () => {
+    configVerificationService.verifyConfigObjectEmail.mockResolvedValueOnce({
+      success: true,
+      objectType: 'customer',
+      coreId: 42,
+      emailVerified: true,
+      changedFields: ['email_verified', 'verification_token', 'token_expires_at'],
+    });
+
+    const result = await controller.verifyConfigObjectEmail({
+      tenantId: 5,
+      objectType: 'customer',
+      token: 'tok-valid',
+      clientKey: '203.0.113.1',
+    });
+
+    expect(result).toEqual({
+      success: true,
+      objectType: 'customer',
+      coreId: 42,
+      emailVerified: true,
+      changedFields: ['email_verified', 'verification_token', 'token_expires_at'],
+    });
+    expect(configVerificationService.verifyConfigObjectEmail).toHaveBeenCalledWith({
+      tenantId: 5,
+      objectType: 'customer',
+      token: 'tok-valid',
+      clientKey: '203.0.113.1',
     });
   });
 });

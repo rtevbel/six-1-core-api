@@ -6,7 +6,10 @@ import {
   UpdateDateColumn,
   Index,
   OneToOne,
+  BeforeInsert,
+  BeforeUpdate,
 } from 'typeorm';
+import { hash_content } from '../../common/functions';
 import { CustomerMetaEntity } from './customer_meta.entity';
 
 /**
@@ -86,4 +89,15 @@ export class CustomerEntity {
     nullable: true,
   })
   meta?: CustomerMetaEntity | null;
+
+  /**
+   * Hash the password before inserting or updating the customer record.
+   */
+  @BeforeInsert()
+  @BeforeUpdate()
+  async hashPassword(): Promise<void> {
+    if (this.password) {
+      this.password = await hash_content(this.password);
+    }
+  }
 }

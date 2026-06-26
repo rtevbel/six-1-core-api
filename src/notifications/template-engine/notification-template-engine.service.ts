@@ -2,14 +2,15 @@ import { Injectable } from '@nestjs/common';
 import type Handlebars from 'handlebars';
 import type { EventEnvelope } from '../../events/types';
 import type { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
-import { EventVars } from '../../common/event-variables';
 import { NotificationContextBuilderService } from '../context/notification-context-builder.service';
-import { getByPath } from '../context/notification-context-path.util';
 import { parseOptionalPositiveInt } from '../context/notification-context-source.util';
 import type { NotificationContext } from '../context/notification-context.types';
 import { NotificationVariableResolverService } from '../services/notification-variable-resolver.service';
 import { createNotificationHandlebarsRuntime } from './handlebars-helpers.registry';
-import { buildHandlebarsRenderView } from './notification-legacy-context-shim.util';
+import {
+  buildHandlebarsRenderView,
+  findEmptyReferencedPaths,
+} from './notification-legacy-context-shim.util';
 import type { TemplateRenderResult } from './template-render-result.interface';
 import { extractTemplatePathsFromMany } from './template-ast-path-extractor';
 
@@ -33,7 +34,6 @@ export class NotificationTemplateEngineService {
    * Renders subject and message templates against a built notification context.
    */
   render(
-    eventName: string,
     subjectTemplate: string | null,
     messageTemplate: string,
     context: NotificationContext,
@@ -44,7 +44,7 @@ export class NotificationTemplateEngineService {
       referencedPaths ??
       extractTemplatePathsFromMany([subjectTemplate, messageTemplate]);
     const view = buildHandlebarsRenderView(context, legacyFlat);
-    const missingRequired = this.getMissingRequiredKeys(eventName, view);
+    const missingRequired = findEmptyReferencedPaths(view, paths);
 
     const subject = subjectTemplate
       ? this.compileAndRender(subjectTemplate, view)
@@ -81,7 +81,6 @@ export class NotificationTemplateEngineService {
     );
 
     return this.render(
-      eventLog.event?.name ?? '',
       subjectTemplate,
       messageTemplate,
       context,
@@ -113,7 +112,6 @@ export class NotificationTemplateEngineService {
     );
 
     return this.render(
-      envelope.eventName,
       subjectTemplate,
       messageTemplate,
       context,
@@ -132,26 +130,6 @@ export class NotificationTemplateEngineService {
       this.compileCache.set(template, compiled);
     }
     return compiled(view);
-  }
-
-  private getMissingRequiredKeys(
-    eventName: string,
-    view: Record<string, unknown>,
-  ): string[] {
-    const required = EventVars?.[eventName as keyof typeof EventVars]?.required;
-    if (!required?.length) {
-      return [];
-    }
-
-    return required.filter((key) => !this.hasValue(key, view));
-  }
-
-  private hasValue(
-    keyPath: string,
-    view: Record<string, unknown>,
-  ): boolean {
-    const value = getByPath(view, keyPath);
-    return value !== undefined && value !== null && value !== '';
   }
 
   private resolveTenantId(

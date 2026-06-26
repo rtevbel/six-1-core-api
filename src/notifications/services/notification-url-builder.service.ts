@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import {
   LOCAL_PUBLIC_BASE_URL,
   NOTIFICATION_PUBLIC_BASE_URL_KEY,
+  CONFIG_OBJECT_VERIFICATION_URL_REGISTRY_KEY,
 } from '../../common/constants';
+import { buildConfigObjectVerificationUrl } from '../../config_objects/verification/config-object-verification-url.util';
+import { parseVerificationUrlRegistryFromConfig } from '../../config_objects/verification/config-object-verification-url.registry';
 
 /**
  * NotificationUrlBuilderService
@@ -15,18 +18,10 @@ export class NotificationUrlBuilderService {
   constructor(private readonly configService: ConfigService) {}
 
   /**
-   * Builds a tenant email verification URL.
-   * @param token - Verification token.
-   * @returns Verification URL or null.
+   * @deprecated Use {@link buildVerificationUrl} with `tenant_user` (registry path).
    */
   buildEmailVerificationUrl(token: string): string | null {
-    const base = this.getBaseUrl();
-    if (!base) return null;
-
-    const url = new URL(`${base}/verify-email`);
-    url.searchParams.set('token', token);
-
-    return url.toString();
+    return this.buildVerificationUrl('tenant_user', token);
   }
 
   /**
@@ -121,6 +116,26 @@ export class NotificationUrlBuilderService {
     const base = this.getBaseUrl();
     if (!base) return null;
     return `${base}/process-instances/${processInstanceId}/runner`;
+  }
+
+  /**
+   * Builds a generic config-object email verification URL (Phase 5 registry).
+   */
+  buildVerificationUrl(objectType: string, token: string): string | null {
+    return buildConfigObjectVerificationUrl(
+      this.getBaseUrl(),
+      objectType,
+      token,
+      this.getVerificationUrlRegistry(),
+    );
+  }
+
+  private getVerificationUrlRegistry(): Record<string, string> | null {
+    return parseVerificationUrlRegistryFromConfig(
+      this.configService.get<string>(
+        CONFIG_OBJECT_VERIFICATION_URL_REGISTRY_KEY,
+      ),
+    );
   }
 
   /**

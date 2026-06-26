@@ -48,6 +48,7 @@ export class NotificationContextBuilderService {
     await this.workflowProvider.apply(context, source, input, options);
     this.urlsProvider.apply(context, source, input.refs);
     await this.configObjectProvider.apply(context, source, input, options);
+    this.urlsProvider.applyVerificationUrl(context, source);
 
     return context;
   }

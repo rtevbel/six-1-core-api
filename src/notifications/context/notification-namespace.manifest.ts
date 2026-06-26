@@ -142,6 +142,15 @@ export const NOTIFICATION_NAMESPACE_MANIFEST: NotificationVariableCatalogEntry[]
       type: 'url',
       group: 'URLs',
     },
+    {
+      key: 'urls.verification',
+      label: 'Email verification URL',
+      path: 'urls.verification',
+      type: 'url',
+      group: 'URLs',
+      description:
+        'Generic config-object verification link (e.g. /verify-customer?token=…)',
+    },
     // Process
     {
       key: 'process.instanceId',

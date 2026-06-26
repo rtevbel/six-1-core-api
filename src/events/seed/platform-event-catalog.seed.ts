@@ -292,10 +292,30 @@ const CANONICAL_PLATFORM_EVENT_CATALOG: PlatformEventCatalogSeedEntry[] = [
     },
     isSystem: true,
   },
+  {
+    name: PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFICATION_REQUESTED,
+    description: 'A tenant user requested email verification.',
+    category: 'domain',
+    schemaVersion: DEFAULT_EVENT_SCHEMA_VERSION,
+    payloadSchema: buildPayloadSchemaFromEventVarKeys(
+      [...EventVars.tenant_email_verification.required],
+      [...EventVars.tenant_email_verification.optional],
+    ),
+    isSystem: true,
+  },
+  {
+    name: PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFIED,
+    description: 'A tenant user confirmed their email address.',
+    category: 'domain',
+    schemaVersion: DEFAULT_EVENT_SCHEMA_VERSION,
+    payloadSchema: buildPayloadSchemaFromEventVarKeys(
+      [...EventVars.tenant_email_verified.required],
+      [...EventVars.tenant_email_verified.optional],
+    ),
+    isSystem: true,
+  },
 
   /* ========= LEGACY NOTIFICATION EVENT NAMES (pre-canonical) ========= */
-  fromEventVars('tenant_email_verification', 'Tenant email verification requested.', 'domain'),
-  fromEventVars('tenant_email_verified', 'Tenant email was verified.', 'domain'),
   fromEventVars('tenant_user_invited', 'A user was invited to a tenant.', 'domain'),
 ];
 
@@ -324,6 +344,16 @@ const DEPRECATED_NOTIFICATION_SHIMS: PlatformEventCatalogSeedEntry[] = [
     'six1-event.notification.process_step_completed',
     PLATFORM_EVENT_NAMES.PROCESS_STEP_COMPLETED,
     'Deprecated — use six1-event.process_step_completed',
+  ),
+  deprecatedNotificationShim(
+    'tenant_email_verification',
+    PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFICATION_REQUESTED,
+    'Deprecated — use six1-event.tenant.email_verification_requested and urls.verification',
+  ),
+  deprecatedNotificationShim(
+    'tenant_email_verified',
+    PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFIED,
+    'Deprecated — use six1-event.tenant.email_verified',
   ),
 ];
 

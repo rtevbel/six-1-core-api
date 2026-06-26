@@ -18,6 +18,7 @@ import { ConfigObjectFieldEntity } from '../entities/config_object_field.entity'
 import { ConfigObjectFieldRuleEntity } from '../entities/config_object_field_rule.entity';
 import type { CoreFieldDescriptor } from '../core-field-descriptor/core-field-descriptor.types';
 import type { RelationDescriptor } from './relation-descriptor.interface';
+import type { ConfigObjectVerificationFieldMap } from '../verification/config-object-verification.constants';
 
 /**
  * Union type for all core system-of-record entities currently supported
@@ -88,6 +89,8 @@ export interface ConfigObjectRunnerSchemaView extends ConfigObjectSchemaView {
   >;
   /** Persisted relation-manifest metadata keyed by `relationshipKey`. */
   relationManifestsByKey?: Record<string, Record<string, unknown> | null>;
+  /** Parsed `verification_field_map` when configured on the config object. */
+  verificationFieldMap?: ConfigObjectVerificationFieldMap | null;
 }
 
 /**
@@ -135,4 +138,6 @@ export interface RelatedObjectsResult {
 export interface ApplySorBoundInstancePatchResult {
   core: SupportedConfigObjectCoreEntity;
   metaJson: Record<string, unknown>;
+  /** Set when the row was created via deferred `stepObjectInstanceId` first save. */
+  coreId?: number;
 }

@@ -11,11 +11,13 @@ import {
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK,
+  PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
 } from './process-step-action.constants';
 import { ProcessStepActionExecutorService } from './process-step-action-executor.service';
 import { ProcessStepWebhookClient } from './process-step-webhook.client';
 import { ProcessStepActionExecutionLogService } from './process-step-action-execution-log.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
+import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
 
 describe('ProcessStepActionExecutorService', () => {
   let service: ProcessStepActionExecutorService;
@@ -34,6 +36,7 @@ describe('ProcessStepActionExecutorService', () => {
     markFailed: jest.Mock;
   };
   let stepFailure: { markFailed: jest.Mock };
+  let generateVerificationToken: { execute: jest.Mock };
 
   const processRow = {
     processInstanceId: 100,
@@ -95,6 +98,15 @@ describe('ProcessStepActionExecutorService', () => {
     stepFailure = {
       markFailed: jest.fn().mockResolvedValue(undefined),
     };
+    generateVerificationToken = {
+      execute: jest.fn().mockResolvedValue({
+        objectType: 'customer',
+        coreId: 7,
+        token: 'tok-abc',
+        expiresAt: '2026-06-27T12:00:00.000Z',
+        verifyUrl: 'https://app.example.com/verify-customer?token=tok-abc',
+      }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -122,6 +134,10 @@ describe('ProcessStepActionExecutorService', () => {
           useValue: executionLog,
         },
         { provide: ProcessStepFailureService, useValue: stepFailure },
+        {
+          provide: ProcessStepGenerateVerificationTokenService,
+          useValue: generateVerificationToken,
+        },
       ],
     }).compile();
 
@@ -242,6 +258,44 @@ describe('ProcessStepActionExecutorService', () => {
       objectType: 'customer',
       coreId: 7,
       metaJson: { profile_completed_at: '2026-01-01' },
+    });
+  });
+
+  it('delegates generate_verification_token to ProcessStepGenerateVerificationTokenService', async () => {
+    stepRepo.findOne.mockResolvedValue(stepRow);
+    processRepo.findOne.mockResolvedValue(processRow);
+    stepActionRepo.find.mockResolvedValue([
+      {
+        instanceStepActionId: 307,
+        actionType: PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+        config: {
+          objectType: 'customer',
+          coreIdPath: 'context.customerId',
+        },
+        orderIndex: 0,
+      },
+    ]);
+
+    const result = await service.executeForStep(
+      200,
+      PROCESS_STEP_ACTION_RUN_ON_STEP_COMPLETED,
+    );
+
+    expect(result.executed[0].status).toBe('succeeded');
+    expect(generateVerificationToken.execute).toHaveBeenCalledWith(
+      {
+        objectType: 'customer',
+        coreIdPath: 'context.customerId',
+      },
+      expect.objectContaining({
+        tenantId: 1,
+        stepInstanceId: 200,
+        processContext: { customerId: 7 },
+      }),
+    );
+    expect(result.executed[0].result).toMatchObject({
+      token: 'tok-abc',
+      verifyUrl: 'https://app.example.com/verify-customer?token=tok-abc',
     });
   });
 

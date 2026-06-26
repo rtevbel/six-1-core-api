@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { CONFIG_OBJECT_VERIFICATION_URL_REGISTRY_KEY } from '../../../common/constants';
+import { buildConfigObjectVerificationUrl } from '../../../config_objects/verification/config-object-verification-url.util';
+import { parseVerificationUrlRegistryFromConfig } from '../../../config_objects/verification/config-object-verification-url.registry';
 import type {
   NotificationContext,
   NotificationEntityRefs,
@@ -8,7 +11,11 @@ import {
   type NormalizedNotificationContextSource,
   parseOptionalPositiveInt,
 } from '../notification-context-source.util';
-import { buildNotificationPublicUrl } from '../notification-public-url.util';
+import { buildNotificationPublicUrl, getNotificationPublicBaseUrl } from '../notification-public-url.util';
+import {
+  readVerificationObjectTypeForUrl,
+  readVerificationTokenForUrl,
+} from '../notification-verification-url.util';
 
 /**
  * Hydrates `urls.*` from payload ids and optional refs (no entity hydration).
@@ -59,5 +66,41 @@ export class NotificationUrlsContextProvider {
           `/object-instances/${instanceId}`,
         )
       : null;
+  }
+
+  /**
+   * Hydrates `urls.verification` after entity fields may include verification meta.
+   */
+  applyVerificationUrl(
+    context: NotificationContext,
+    source: NormalizedNotificationContextSource,
+  ): void {
+    if (context.urls.verification) {
+      return;
+    }
+
+    const token = readVerificationTokenForUrl(
+      source.payload,
+      context.entity.fields,
+    );
+    const objectType = readVerificationObjectTypeForUrl(
+      source.payload,
+      context,
+      source,
+    );
+    if (!token || !objectType) {
+      return;
+    }
+
+    context.urls.verification = buildConfigObjectVerificationUrl(
+      getNotificationPublicBaseUrl(this.configService),
+      objectType,
+      token,
+      parseVerificationUrlRegistryFromConfig(
+        this.configService.get<string>(
+          CONFIG_OBJECT_VERIFICATION_URL_REGISTRY_KEY,
+        ),
+      ),
+    );
   }
 }

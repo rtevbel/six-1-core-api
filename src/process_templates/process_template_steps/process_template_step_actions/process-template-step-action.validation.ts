@@ -3,6 +3,7 @@ import type { Repository } from 'typeorm';
 import {
   isProcessStepActionRunOn,
   isProcessStepActionType,
+  PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   type ProcessStepActionRunOn,
@@ -97,6 +98,15 @@ async function assertProcessStepActionConfigObjectScope(
     return;
   }
 
+  if (actionType === PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN) {
+    await assertGenerateVerificationTokenConfigScope(
+      configObjectRepository,
+      config,
+      templateTenantId,
+    );
+    return;
+  }
+
   if (actionType === PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION) {
     await assertSendNotificationConfigScope(
       notificationTemplateRepository,
@@ -118,6 +128,50 @@ async function assertUpdateSorFieldConfigScope(
   if (!(objectType in SOR_BOUND_OBJECT_TYPE_ENTITIES)) {
     throw new RpcException(
       `object_type "${objectType}" is not supported for update_sor_field actions`,
+    );
+  }
+
+  if (typeof templateTenantId !== 'number' || templateTenantId <= 0) {
+    return;
+  }
+
+  const configObject = await configObjectRepository.findOne({
+    where: { objectType },
+    relations: ['templateSet'],
+    order: { configObjectId: 'ASC' },
+  });
+
+  if (!configObject) {
+    throw new RpcException(
+      `No config object found for object type "${objectType}".`,
+    );
+  }
+
+  const objectTenantId = configObject.templateSet?.tenantId ?? null;
+  if (
+    objectTenantId != null &&
+    objectTenantId > 0 &&
+    objectTenantId !== templateTenantId
+  ) {
+    throw new RpcException(
+      'Config object tenant does not match process template tenant',
+    );
+  }
+}
+
+async function assertGenerateVerificationTokenConfigScope(
+  configObjectRepository: Repository<ConfigObjectEntity>,
+  config: ProcessStepActionConfig,
+  templateTenantId: number | null | undefined,
+): Promise<void> {
+  if (!('objectType' in config) || !('coreIdPath' in config)) {
+    return;
+  }
+
+  const objectType = config.objectType;
+  if (!(objectType in SOR_BOUND_OBJECT_TYPE_ENTITIES)) {
+    throw new RpcException(
+      `object_type "${objectType}" is not supported for generate_verification_token actions`,
     );
   }
 

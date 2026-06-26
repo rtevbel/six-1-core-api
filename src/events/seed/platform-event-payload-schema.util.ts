@@ -54,6 +54,8 @@ export const PROCESS_INSTANCE_PAYLOAD_SCHEMA: EventPayloadSchema = {
     processTemplateId: { type: 'number' },
     correlationId: { type: 'string' },
     cause: { type: 'string' },
+    subjectType: { type: 'string' },
+    subjectId: { type: 'number' },
   },
 };
 

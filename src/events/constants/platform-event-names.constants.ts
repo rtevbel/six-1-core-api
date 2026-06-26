@@ -28,6 +28,9 @@ export const PLATFORM_EVENT_NAMES = {
   PROJECT_STATUS_CHANGED: 'six1-event.project_status_changed',
   TASK_STATUS_CHANGED: 'six1-event.task_status_changed',
   TENANT_CREATED: 'six1-event.tenant.created',
+  TENANT_EMAIL_VERIFICATION_REQUESTED:
+    'six1-event.tenant.email_verification_requested',
+  TENANT_EMAIL_VERIFIED: 'six1-event.tenant.email_verified',
 } as const;
 
 export type PlatformEventName =

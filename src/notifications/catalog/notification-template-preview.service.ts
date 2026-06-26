@@ -75,7 +75,6 @@ export class NotificationTemplatePreviewService {
     );
     const view = buildHandlebarsRenderView(context, legacyFlat);
     const renderResult = this.templateEngine.render(
-      eventLog.event?.name ?? '',
       dto.subject ?? null,
       dto.message,
       context,
@@ -115,7 +114,6 @@ export class NotificationTemplatePreviewService {
     );
     const view = buildHandlebarsRenderView(context);
     const renderResult = this.templateEngine.render(
-      envelope.eventName,
       dto.subject ?? null,
       dto.message,
       context,

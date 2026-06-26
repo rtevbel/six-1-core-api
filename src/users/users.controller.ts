@@ -49,7 +49,6 @@ export class UserController {
   createUser(
     @Payload('data') createUserDto: CreateUserDto,
   ): Promise<UserEntity> {
-    console.log(createUserDto,'createUserDtocreateUserDtocreateUserDto');
     return this.userService.create(createUserDto);
   }
 

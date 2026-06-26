@@ -85,6 +85,7 @@ export interface NotificationUrlsNamespace {
   project: string | null;
   task: string | null;
   objectInstance: string | null;
+  verification: string | null;
   [key: string]: string | null | undefined;
 }
 
@@ -163,6 +164,7 @@ export function createEmptyNotificationContext(): NotificationContext {
       project: null,
       task: null,
       objectInstance: null,
+      verification: null,
     },
   };
 }

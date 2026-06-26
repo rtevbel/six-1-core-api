@@ -1,5 +1,6 @@
 import {
   PROCESS_STEP_ACTION_TYPE_EMIT_EVENT,
+  PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
 } from './process-step-action.constants';
@@ -46,6 +47,24 @@ describe('process-step-action.types', () => {
       objectType: 'customer',
       coreIdPath: 'context.customerId',
       corePatch: { name: 'Acme' },
+    });
+  });
+
+  it('parses generate_verification_token config', () => {
+    const parsed = parseProcessStepActionConfig(
+      PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+      {
+        objectType: 'customer',
+        coreIdPath: 'context.customerId',
+        ttlHours: 48,
+        clearVerifiedBeforeIssue: false,
+      },
+    );
+    expect(parsed).toEqual({
+      objectType: 'customer',
+      coreIdPath: 'context.customerId',
+      ttlHours: 48,
+      clearVerifiedBeforeIssue: false,
     });
   });
 

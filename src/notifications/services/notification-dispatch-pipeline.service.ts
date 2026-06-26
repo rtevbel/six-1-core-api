@@ -1,8 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
+import jsonLogic from 'json-logic-js';
 import { NotificationsService } from '../notifications.service';
 import { EventLogsService } from '../../events/event_logs/event_logs.service';
 import { EventListenersService } from '../../events/event_listeners/event_listeners.service';
+import { EventNotificationRulesService } from '../../events/event_notification_rules/event_notification_rules.service';
+import type { EventNotificationRuleEntity } from '../../events/event_notification_rules/entities/event_notification_rule.entity';
+import type { EventEnvelope } from '../../events/types';
 import { NotificationLogsService } from '../notification_logs/notification_logs.service';
 import { NotificationChannelsService } from '../notification_channels/notification_channels.service';
 import { UserNotificationPreferenceService } from '../../users/user-notification-preferences/user-notification-preferences.service';
@@ -12,6 +16,8 @@ import { NotificationTemplateEngineService } from '../template-engine/notificati
 import { NotificationPlatformFlagsService } from '../config/notification-platform-flags.service';
 import { PlatformEventFlagsService } from '../../events/config/platform-event-flags.service';
 import { NotificationTemplatesService } from '../notification_templates/notification_templates.service';
+import { buildEventEnvelopeFromEventLog } from './notification-event-log-envelope.util';
+import { parseOptionalPositiveInt } from '../context/notification-context-source.util';
 import { readRuleDispatchFromPayload } from '../../events/notification-rules/event-log-platform-payload.util';
 import type { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 import type { NotificationEntity } from '../entities/notification.entity';
@@ -35,6 +41,7 @@ export class NotificationDispatchPipelineService {
     private readonly notificationsService: NotificationsService,
     private readonly eventLogsService: EventLogsService,
     private readonly eventListenersService: EventListenersService,
+    private readonly eventNotificationRulesService: EventNotificationRulesService,
     private readonly notificationLogsService: NotificationLogsService,
     private readonly notificationChannelsService: NotificationChannelsService,
     private readonly userNotificationPreferenceService: UserNotificationPreferenceService,
@@ -81,13 +88,7 @@ export class NotificationDispatchPipelineService {
     const created: NotificationEntity[] = [];
 
     try {
-      const ruleDispatch = readRuleDispatchFromPayload(eventLog.payload);
-      const listeners =
-        ruleDispatch && this.platformEventFlags.isNotificationRulesEnabled()
-          ? await this.buildListenersFromRuleDispatch(ruleDispatch)
-          : await this.eventListenersService.getListenersByEventId(
-              eventLog.eventId,
-            );
+      const listeners = await this.resolveListenersForEventLog(eventLog);
 
       for (const listener of listeners) {
         const notification = await this.prepareNotificationForListener(
@@ -283,6 +284,73 @@ export class NotificationDispatchPipelineService {
     }
 
     return notification;
+  }
+
+  private async resolveListenersForEventLog(
+    eventLog: EventLogEntity,
+  ): Promise<ListenerShape[]> {
+    const ruleDispatch = readRuleDispatchFromPayload(eventLog.payload);
+    if (ruleDispatch && this.platformEventFlags.isNotificationRulesEnabled()) {
+      return this.buildListenersFromRuleDispatch(ruleDispatch);
+    }
+
+    if (this.platformEventFlags.isNotificationRulesEnabled()) {
+      const eventName = eventLog.event?.name?.trim();
+      if (eventName) {
+        const payload =
+          eventLog.payload && typeof eventLog.payload === 'object'
+            ? (eventLog.payload as Record<string, unknown>)
+            : {};
+        const tenantId =
+          parseOptionalPositiveInt(payload.tenantId) ??
+          parseOptionalPositiveInt(payload.tenant_id);
+        const rules =
+          await this.eventNotificationRulesService.findActiveRulesForEvent(
+            eventName,
+            tenantId ?? 0,
+          );
+
+        if (rules.length > 0) {
+          const envelope = buildEventEnvelopeFromEventLog(eventLog);
+          return rules
+            .filter((rule) => this.matchesRuleFilter(rule, envelope))
+            .map((rule) => this.ruleToListener(rule));
+        }
+      }
+    }
+
+    return this.eventListenersService.getListenersByEventId(eventLog.eventId);
+  }
+
+  private matchesRuleFilter(
+    rule: EventNotificationRuleEntity,
+    envelope: EventEnvelope,
+  ): boolean {
+    if (!rule.filterJson || Object.keys(rule.filterJson).length === 0) {
+      return true;
+    }
+
+    try {
+      return Boolean(jsonLogic.apply(rule.filterJson, envelope));
+    } catch (error) {
+      this.logger.warn(
+        `Invalid filter_json on rule ${rule.ruleId}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return false;
+    }
+  }
+
+  private ruleToListener(rule: EventNotificationRuleEntity): ListenerShape {
+    return {
+      listenerId: rule.ruleId,
+      channelId: rule.channelId,
+      channel: { name: rule.channel?.name },
+      template: {
+        subject: rule.template?.subject ?? null,
+        message: rule.template?.message ?? '',
+      },
+    };
   }
 
   private async buildListenersFromRuleDispatch(

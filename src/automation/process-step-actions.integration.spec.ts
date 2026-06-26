@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConfigService } from '@nestjs/config';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
 import { ActionExecutorService } from '../events/platform-actions/action-executor.service';
@@ -20,6 +21,8 @@ import { ProcessStepActionExecutorService } from './process-step-action-executor
 import { ProcessStepActionOrchestrationService } from './process-step-action-orchestration.service';
 import { ProcessStepWebhookClient } from './process-step-webhook.client';
 import { ProcessStepFailureService } from './process-step-failure.service';
+import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
+import * as tokenUtil from '../config_objects/verification/generate-verification-token.util';
 
 /**
  * C11 — Integration coverage for process step actions.
@@ -32,7 +35,10 @@ describe('Process step actions (integration — C11)', () => {
     executeEmitEventConfig: jest.Mock;
     executeSendNotificationConfig: jest.Mock;
   };
-  let configObjectsService: { applySorBoundInstancePatch: jest.Mock };
+  let configObjectsService: {
+    getObjectSchema: jest.Mock;
+    applySorBoundInstancePatch: jest.Mock;
+  };
   let webhookClient: { invoke: jest.Mock };
   let executionLog: {
     claim: jest.Mock;
@@ -82,11 +88,23 @@ describe('Process step actions (integration — C11)', () => {
         .mockResolvedValue({ notificationIds: [88] }),
     };
     configObjectsService = {
+      getObjectSchema: jest.fn().mockResolvedValue({
+        configObject: {
+          bindingMode: 'sor_bound',
+          verificationFieldMap: {
+            tokenField: 'verification_token',
+            expiresAtField: 'token_expires_at',
+            verifiedField: 'email_verified',
+            defaultTtlHours: 24,
+          },
+        },
+      }),
       applySorBoundInstancePatch: jest.fn().mockResolvedValue({
         core: { customerId: 42, status: 'active' },
         metaJson: {
-          onboarding_completed_at: '2026-06-04T12:00:00.000Z',
-          onboarding_process_instance_id: 100,
+          verification_token: 'fixed-token',
+          token_expires_at: '2026-06-27T12:00:00.000Z',
+          email_verified: false,
         },
       }),
     };
@@ -114,9 +132,16 @@ describe('Process step actions (integration — C11)', () => {
       providers: [
         ProcessStepActionExecutorService,
         ProcessStepActionOrchestrationService,
+        ProcessStepGenerateVerificationTokenService,
         { provide: ProcessFeatureFlagsService, useValue: flags },
         { provide: ActionExecutorService, useValue: actionExecutor },
         { provide: ConfigObjectsService, useValue: configObjectsService },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn(() => 'https://app.example.com'),
+          },
+        },
         { provide: ProcessStepWebhookClient, useValue: webhookClient },
         { provide: ProcessStepActionExecutionLogService, useValue: executionLog },
         { provide: ProcessStepFailureService, useValue: stepFailure },
@@ -136,9 +161,25 @@ describe('Process step actions (integration — C11)', () => {
     }).compile();
 
     orchestration = module.get(ProcessStepActionOrchestrationService);
+    jest
+      .spyOn(tokenUtil, 'generateVerificationToken')
+      .mockReturnValue('fixed-token');
+    jest.useFakeTimers().setSystemTime(new Date('2026-06-26T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
   });
 
   function mockProcessCompletedCustomerWriteBack(): void {
+    configObjectsService.applySorBoundInstancePatch.mockResolvedValue({
+      core: { customerId: 42, status: 'active' },
+      metaJson: {
+        onboarding_completed_at: '2026-06-04T12:00:00.000Z',
+        onboarding_process_instance_id: 100,
+      },
+    });
     processRepo.findOne.mockResolvedValue(processRow);
     stepRepo.find.mockResolvedValue([priorStep, finalStep]);
     stepActionRepo.find.mockImplementation(
@@ -213,6 +254,48 @@ describe('Process step actions (integration — C11)', () => {
       }),
     );
     expect(actionExecutor.executeEmitEventConfig).not.toHaveBeenCalled();
+  });
+
+  it('step_completed generate_verification_token writes customer verification meta', async () => {
+    stepRepo.findOne.mockResolvedValue(priorStep);
+    processRepo.findOne.mockResolvedValue(processRow);
+    stepActionRepo.find.mockResolvedValue([
+      {
+        instanceStepActionId: 801,
+        actionType: PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+        config: {
+          objectType: 'customer',
+          coreIdPath: 'context.customerId',
+        },
+        orderIndex: 0,
+      },
+    ]);
+
+    await orchestration.runStepCompleted(200, {
+      correlationId: 'corr-onboarding',
+      actorUserId: 9,
+    });
+
+    expect(configObjectsService.applySorBoundInstancePatch).toHaveBeenCalledWith({
+      tenantId: 5,
+      objectType: 'customer',
+      coreId: 42,
+      metaPatch: {
+        verification_token: 'fixed-token',
+        token_expires_at: '2026-06-27T12:00:00.000Z',
+        email_verified: false,
+      },
+      customerId: undefined,
+    });
+    expect(executionLog.markSucceeded).toHaveBeenCalledWith(
+      9001,
+      expect.objectContaining({
+        objectType: 'customer',
+        coreId: 42,
+        token: 'fixed-token',
+        verifyUrl: 'https://app.example.com/verify-customer?token=fixed-token',
+      }),
+    );
   });
 
   it('step_completed emit_event runs through orchestration into P6', async () => {

@@ -9,6 +9,7 @@ import {
 import {
   PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK,
   PROCESS_STEP_ACTION_TYPE_EMIT_EVENT,
+  PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   type ProcessStepActionType,
@@ -32,11 +33,25 @@ export interface CallWebhookActionConfig {
   timeoutMs?: number;
 }
 
+/** Issues email verification token meta on a sor_bound config object (Phase 2). */
+export interface GenerateVerificationTokenActionConfig {
+  objectType: string;
+  /** Dot-path on merged process runtime context, e.g. `context.customerId`. */
+  coreIdPath: string;
+  tokenField?: string;
+  expiresAtField?: string;
+  verifiedField?: string;
+  ttlHours?: number;
+  /** When true (default), sets verified field to false before issuing a new token. */
+  clearVerifiedBeforeIssue?: boolean;
+}
+
 export type ProcessStepActionConfig =
   | EmitEventActionConfig
   | SendNotificationActionConfig
   | UpdateSorFieldActionConfig
-  | CallWebhookActionConfig;
+  | CallWebhookActionConfig
+  | GenerateVerificationTokenActionConfig;
 
 export function parseUpdateSorFieldActionConfig(
   raw: unknown,
@@ -107,6 +122,51 @@ export function parseCallWebhookActionConfig(
   };
 }
 
+export function parseGenerateVerificationTokenActionConfig(
+  raw: unknown,
+): GenerateVerificationTokenActionConfig | null {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return null;
+  }
+
+  const config = raw as Record<string, unknown>;
+  if (typeof config.objectType !== 'string' || !config.objectType.trim()) {
+    return null;
+  }
+  if (typeof config.coreIdPath !== 'string' || !config.coreIdPath.trim()) {
+    return null;
+  }
+
+  const ttlHours = Number(config.ttlHours);
+  const parsedTtl =
+    Number.isFinite(ttlHours) && ttlHours > 0 ? Math.trunc(ttlHours) : undefined;
+
+  const readOptionalFieldKey = (value: unknown): string | undefined => {
+    if (typeof value !== 'string' || !value.trim()) {
+      return undefined;
+    }
+    return value.trim();
+  };
+
+  return {
+    objectType: config.objectType.trim(),
+    coreIdPath: config.coreIdPath.trim(),
+    ...(readOptionalFieldKey(config.tokenField)
+      ? { tokenField: readOptionalFieldKey(config.tokenField) }
+      : {}),
+    ...(readOptionalFieldKey(config.expiresAtField)
+      ? { expiresAtField: readOptionalFieldKey(config.expiresAtField) }
+      : {}),
+    ...(readOptionalFieldKey(config.verifiedField)
+      ? { verifiedField: readOptionalFieldKey(config.verifiedField) }
+      : {}),
+    ...(parsedTtl != null ? { ttlHours: parsedTtl } : {}),
+    ...(typeof config.clearVerifiedBeforeIssue === 'boolean'
+      ? { clearVerifiedBeforeIssue: config.clearVerifiedBeforeIssue }
+      : {}),
+  };
+}
+
 /**
  * Validates `config` JSON for a template/instance step action row.
  */
@@ -123,6 +183,8 @@ export function parseProcessStepActionConfig(
       return parseUpdateSorFieldActionConfig(raw);
     case PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK:
       return parseCallWebhookActionConfig(raw);
+    case PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN:
+      return parseGenerateVerificationTokenActionConfig(raw);
     default:
       return null;
   }

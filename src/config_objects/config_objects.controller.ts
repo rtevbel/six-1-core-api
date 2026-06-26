@@ -20,6 +20,7 @@ import {
   MICROSERVICE_DELETE_CUSTOM_OBJECT_INSTANCE_PATTERN,
   MICROSERVICE_RESOLVE_CONFIG_INSTANCE_PATTERN,
   MICROSERVICE_APPLY_SOR_BOUND_INSTANCE_PATCH_PATTERN,
+  MICROSERVICE_VERIFY_CONFIG_OBJECT_EMAIL_PATTERN,
   MICROSERVICE_GET_CONFIG_LIFECYCLES_PATTERN,
   MICROSERVICE_GET_CONFIG_RELATIONSHIPS_PATTERN,
   MICROSERVICE_GET_CONFIG_RELATIONSHIP_RELATED_FIELD_CATALOG_PATTERN,
@@ -72,6 +73,7 @@ import {
 import { GetConfigSchemaDto } from './dto/get-config-schema.dto';
 import { GetObjectListFieldCatalogDto } from './dto/get-object-list-field-catalog.dto';
 import { ResolveConfigInstanceDto } from './dto/resolve-config-instance.dto';
+import { VerifyConfigObjectEmailDto } from './dto/verify-config-object-email.dto';
 import {
   CreateCustomObjectInstanceDto,
   DeleteCustomObjectInstanceDto,
@@ -88,6 +90,7 @@ import {
   ConfigObjectRunnerSchemaView,
   ConfigObjectResolvedInstance,
 } from './interfaces/config-object-resolved-instance.interface';
+import type { VerifyConfigObjectEmailResult } from './interfaces/verify-config-object-email-result.interface';
 import type { ObjectListFieldCatalogView } from './list-field-catalog/object-list-field-catalog.interface';
 import { ApplySorBoundInstancePatchDto } from './dto/apply-sor-bound-instance-patch.dto';
 import { ConfigObjectEntity } from './entities/config_object.entity';
@@ -182,6 +185,7 @@ import {
   UpdateConfigStatusMappingDto,
 } from './dto/config-status-mapping.dto';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
+import { ConfigVerificationService } from './verification/config-verification.service';
 
 /**
  * ConfigObjectsController handles message patterns related to
@@ -199,6 +203,7 @@ export class ConfigObjectsController {
   constructor(
     private readonly configObjectsService: ConfigObjectsService,
     private readonly configLifecycleService: ConfigLifecycleService,
+    private readonly configVerificationService: ConfigVerificationService,
   ) {}
 
   /**
@@ -265,9 +270,27 @@ export class ConfigObjectsController {
       tenantId: dto.tenantId,
       objectType: dto.objectType,
       coreId: dto.coreId,
+      stepObjectInstanceId: dto.stepObjectInstanceId,
       corePatch: dto.corePatch,
       metaPatch: dto.metaPatch,
       customerId: dto.customerId,
+    });
+  }
+
+  /**
+   * Verifies email for a sor_bound config object using a token from the verification link.
+   * Public / unauthenticated — gateway should rate-limit and map `/verify-{objectType}` routes.
+   */
+  @MessagePattern(MICROSERVICE_VERIFY_CONFIG_OBJECT_EMAIL_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async verifyConfigObjectEmail(
+    @Payload('data') dto: VerifyConfigObjectEmailDto,
+  ): Promise<VerifyConfigObjectEmailResult> {
+    return this.configVerificationService.verifyConfigObjectEmail({
+      tenantId: dto.tenantId,
+      objectType: dto.objectType,
+      token: dto.token,
+      clientKey: dto.clientKey,
     });
   }
 

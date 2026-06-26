@@ -72,6 +72,10 @@ export const LOCAL_PUBLIC_BASE_URL = 'SIX1_LOCAL_PUBLIC_BASE_URL';
 // Notification public base URL for template links
 export const NOTIFICATION_PUBLIC_BASE_URL_KEY = 'NOTIFICATION_PUBLIC_BASE_URL';
 
+/** JSON map of objectType → verification path segment (Phase 5). */
+export const CONFIG_OBJECT_VERIFICATION_URL_REGISTRY_KEY =
+  'CONFIG_OBJECT_VERIFICATION_URL_REGISTRY';
+
 // Notification SMTP
 export const NOTIFICATION_SMTP_HOST_KEY = 'NOTIFICATION_SMTP_HOST';
 export const NOTIFICATION_SMTP_PORT_KEY = 'NOTIFICATION_SMTP_PORT';

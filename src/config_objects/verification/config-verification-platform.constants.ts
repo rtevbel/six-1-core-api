@@ -1,0 +1,19 @@
+/** When false, in-core rate limiting is skipped (gateway may still rate-limit). */
+export const CONFIG_VERIFICATION_RATE_LIMIT_ENABLED_KEY =
+  'CONFIG_VERIFICATION_RATE_LIMIT_ENABLED';
+
+/** Sliding window length in seconds for verify RPC throttling. */
+export const CONFIG_VERIFICATION_RATE_LIMIT_WINDOW_SECONDS_KEY =
+  'CONFIG_VERIFICATION_RATE_LIMIT_WINDOW_SECONDS';
+
+/** Max verify attempts per client key (IP / gateway id) per window. */
+export const CONFIG_VERIFICATION_RATE_LIMIT_MAX_CLIENT_ATTEMPTS_KEY =
+  'CONFIG_VERIFICATION_RATE_LIMIT_MAX_CLIENT_ATTEMPTS';
+
+/** Max verify attempts per token fingerprint per window. */
+export const CONFIG_VERIFICATION_RATE_LIMIT_MAX_TOKEN_ATTEMPTS_KEY =
+  'CONFIG_VERIFICATION_RATE_LIMIT_MAX_TOKEN_ATTEMPTS';
+
+export const DEFAULT_CONFIG_VERIFICATION_RATE_LIMIT_WINDOW_SECONDS = 60;
+export const DEFAULT_CONFIG_VERIFICATION_RATE_LIMIT_MAX_CLIENT_ATTEMPTS = 20;
+export const DEFAULT_CONFIG_VERIFICATION_RATE_LIMIT_MAX_TOKEN_ATTEMPTS = 5;

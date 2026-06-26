@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { safeMysqlJsonTransformer } from '../../common/typeorm/safe-mysql-json.transformer';
 import { ConfigTemplateSetEntity } from './config_template_set.entity';
 import { ConfigObjectFieldEntity } from './config_object_field.entity';
 import { ConfigObjectLifecycleEntity } from './config_object_lifecycle.entity';
@@ -102,6 +103,18 @@ export class ConfigObjectEntity {
     default: 'DRAFT',
   })
   status!: ConfigObjectStatus;
+
+  /**
+   * Optional mapping for generic email verification (token, expiry, verified field keys, TTL).
+   * When null, verification actions fall back to platform defaults for the object type.
+   */
+  @Column({
+    name: 'verification_field_map',
+    type: 'text',
+    nullable: true,
+    transformer: safeMysqlJsonTransformer,
+  })
+  verificationFieldMap!: Record<string, unknown> | null;
 
   @CreateDateColumn({
     name: 'created_at',
