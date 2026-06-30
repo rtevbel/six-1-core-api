@@ -66,6 +66,7 @@ describe('process-step-action-envelope.util', () => {
     expect(envelope.refs).toEqual({
       processInstanceId: 100,
       stepInstanceId: 200,
+      customerCoreId: 77,
     });
     expect(envelope.data).toMatchObject({
       runOn: 'step_completed',

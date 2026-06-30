@@ -1,7 +1,7 @@
 import type { EventEnvelope } from '../../events/types';
 import { normalizeEntityRef } from '../../events/types';
 import type { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
-import type { NotificationBuildInput } from './notification-context.types';
+import type { NotificationBuildInput, NotificationEntityRefs } from './notification-context.types';
 
 /** Normalized fields shared by all NV1 context providers. */
 export interface NormalizedNotificationContextSource {
@@ -75,13 +75,62 @@ function normalizeFromEnvelope(
   };
 }
 
+function flattenEventLogPayload(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const nestedData = asRecord(raw.data);
+  const nestedContext = asRecord(nestedData.context);
+  const nestedRefs = asRecord(raw.refs);
+
+  return {
+    ...nestedContext,
+    ...nestedData,
+    ...nestedRefs,
+    ...raw,
+  };
+}
+
+/**
+ * Extracts process/customer refs from a flattened event-log payload.
+ */
+export function extractNotificationRefsFromPayload(
+  rawPayload: Record<string, unknown>,
+): NotificationEntityRefs | null {
+  const payload = flattenEventLogPayload(rawPayload);
+  const explicitRefs = asRecord(payload.refs);
+  const processInstanceId =
+    parseOptionalPositiveInt(explicitRefs.processInstanceId) ??
+    parseOptionalPositiveInt(payload.processInstanceId) ??
+    parseOptionalPositiveInt(payload.process_instance_id);
+  const stepInstanceId =
+    parseOptionalPositiveInt(explicitRefs.stepInstanceId) ??
+    parseOptionalPositiveInt(payload.stepInstanceId) ??
+    parseOptionalPositiveInt(payload.step_instance_id);
+  const customerCoreId =
+    parseOptionalPositiveInt(explicitRefs.customerCoreId) ??
+    parseOptionalPositiveInt(payload.customerCoreId) ??
+    parseOptionalPositiveInt(payload.customer_core_id) ??
+    parseOptionalPositiveInt(payload.customerId) ??
+    parseOptionalPositiveInt(payload.customer_id);
+
+  if (!processInstanceId && !stepInstanceId && !customerCoreId) {
+    return null;
+  }
+
+  return {
+    ...(processInstanceId ? { processInstanceId } : {}),
+    ...(stepInstanceId ? { stepInstanceId } : {}),
+    ...(customerCoreId ? { customerCoreId } : {}),
+  };
+}
+
 function normalizeFromEventLog(
   eventLog: EventLogEntity,
   recipientUserId: number,
   eventNameOverride?: string,
   explicitTenantId?: number | null,
 ): NormalizedNotificationContextSource {
-  const payload = asRecord(eventLog.payload);
+  const payload = flattenEventLogPayload(asRecord(eventLog.payload));
 
   return {
     eventName:

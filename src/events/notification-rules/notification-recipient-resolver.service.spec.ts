@@ -11,8 +11,13 @@ describe('NotificationRecipientResolverService', () => {
     findTenantAdminUserIds: jest.fn(),
   };
 
+  const customerRepository = {
+    findOne: jest.fn(),
+  };
+
   const service = new NotificationRecipientResolverService(
     tenantLookup as unknown as TenantRecipientLookupService,
+    customerRepository as any,
   );
 
   const envelope: EventEnvelope = {
@@ -24,6 +29,12 @@ describe('NotificationRecipientResolverService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    tenantLookup.resolveTenantId.mockImplementation((id: unknown) =>
+      id ? Number(id) : null,
+    );
+    tenantLookup.filterUserIdsToTenant.mockImplementation(
+      async (_t: number, ids: number[]) => ids,
+    );
   });
 
   it('resolves event_actor', async () => {
@@ -68,5 +79,45 @@ describe('NotificationRecipientResolverService', () => {
     await expect(
       service.resolve({ type: 'explicit_user_ids', userIds: [1, 2, 3] }, envelope),
     ).resolves.toEqual([2]);
+  });
+
+  it('resolves workflow customer email from refs.customerCoreId', async () => {
+    customerRepository.findOne.mockResolvedValue({
+      customerId: 63,
+      email: 'customer@example.com',
+    });
+
+    await expect(
+      service.resolveDeliveryTargets(
+        { type: 'workflow_customer_email' },
+        {
+          ...envelope,
+          refs: { customerCoreId: 63 },
+        },
+      ),
+    ).resolves.toEqual([
+      { userId: 42, destinationEmail: 'customer@example.com' },
+    ]);
+  });
+
+  it('resolves entity.fields.email via customer context', async () => {
+    customerRepository.findOne.mockResolvedValue({
+      customerId: 63,
+      email: 'customer@example.com',
+    });
+
+    await expect(
+      service.resolveDeliveryTargets(
+        { type: 'event_payload_field', path: 'entity.fields.email' },
+        {
+          ...envelope,
+          data: {
+            context: { customerId: 63 },
+          },
+        },
+      ),
+    ).resolves.toEqual([
+      { userId: 42, destinationEmail: 'customer@example.com' },
+    ]);
   });
 });

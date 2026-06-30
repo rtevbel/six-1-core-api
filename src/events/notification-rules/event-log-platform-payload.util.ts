@@ -5,6 +5,7 @@ export interface EventLogRuleDispatch {
   ruleId: number;
   channelId: number;
   templateId: number;
+  destinationEmail?: string;
 }
 
 export interface EventLogPlatformPayload {
@@ -13,6 +14,7 @@ export interface EventLogPlatformPayload {
   causationId?: string;
   tenantId?: number | string;
   occurredAt?: string;
+  refs?: import('../types').EventEnvelopeRefs;
   data?: Record<string, unknown>;
   ruleDispatch?: EventLogRuleDispatch;
 }
@@ -33,6 +35,7 @@ export function buildRuleDispatchEventLogPayload(
     causationId: envelope.causationId,
     tenantId: envelope.tenantId,
     occurredAt: (envelope.occurredAt ?? new Date()).toISOString(),
+    refs: envelope.refs,
     data,
     ruleDispatch: dispatch,
   };
@@ -63,4 +66,19 @@ export function readRuleDispatchFromPayload(
   }
 
   return { ruleId, channelId, templateId };
+}
+
+export function readDestinationEmailFromPayload(
+  payload: unknown,
+): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return null;
+  }
+
+  const dispatch = (payload as EventLogPlatformPayload).ruleDispatch;
+  const email =
+    typeof dispatch?.destinationEmail === 'string'
+      ? dispatch.destinationEmail.trim()
+      : '';
+  return email || null;
 }

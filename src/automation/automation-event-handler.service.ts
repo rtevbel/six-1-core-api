@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import jsonLogic from 'json-logic-js';
+import { applyJsonLogicRule } from '../common/json-logic/json-logic-rule.util';
 import type { EventEnvelope } from '../events/types';
 import { StepOrchestratorService } from './step-orchestrator.service';
 import { ConfigObjectStepExecutor } from './config-object-step-executor.service';
@@ -294,7 +294,7 @@ export class AutomationEventHandlerService {
     const metStepIds = new Set<number>();
     for (const r of rows) {
       const where = r.json_schema?.where;
-      const pass = where ? !!jsonLogic.apply(where, ctx) : true;
+      const pass = where ? applyJsonLogicRule(where, ctx) : true;
       if (pass) {
         await this.ds.query(
           `UPDATE process_instance_step_triggers

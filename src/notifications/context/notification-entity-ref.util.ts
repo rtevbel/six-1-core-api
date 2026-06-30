@@ -299,6 +299,39 @@ function inferLegacyEntityRef(
   return null;
 }
 
+function resolveCustomerEntityRefFromContext(
+  input: NotificationBuildInput,
+  source: NormalizedNotificationContextSource,
+): NotificationEntityHydrationRef | null {
+  const payloadContext =
+    source.payload.context &&
+    typeof source.payload.context === 'object' &&
+    !Array.isArray(source.payload.context)
+      ? (source.payload.context as Record<string, unknown>)
+      : {};
+
+  const customerCoreId =
+    parseOptionalPositiveInt(input.refs?.customerCoreId) ??
+    parseOptionalPositiveInt(source.payload.customerCoreId) ??
+    parseOptionalPositiveInt(source.payload.customer_core_id) ??
+    parseOptionalPositiveInt(source.payload.customerId) ??
+    parseOptionalPositiveInt(source.payload.customer_id) ??
+    parseOptionalPositiveInt(payloadContext.customerId) ??
+    parseOptionalPositiveInt(payloadContext.customer_id);
+
+  if (!customerCoreId) {
+    return null;
+  }
+
+  return {
+    entityType: 'customer',
+    entityId: customerCoreId,
+    objectType: 'customer',
+    resolutionMode: 'sor_bound',
+    coreId: customerCoreId,
+  };
+}
+
 /**
  * Resolves config-object hydration coordinates from build input and source.
  */
@@ -308,6 +341,7 @@ export function resolveNotificationEntityRef(
 ): NotificationEntityHydrationRef | null {
   return (
     normalizeExplicitEntityRef(input.entityRef) ??
+    resolveCustomerEntityRefFromContext(input, source) ??
     parseEnvelopeEntityRef(input, source) ??
     inferLegacyEntityRef(source)
   );

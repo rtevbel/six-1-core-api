@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
-import jsonLogic from 'json-logic-js';
+import { applyJsonLogicRule } from '../../common/json-logic/json-logic-rule.util';
 import { NotificationsService } from '../notifications.service';
 import { EventLogsService } from '../../events/event_logs/event_logs.service';
 import { EventListenersService } from '../../events/event_listeners/event_listeners.service';
@@ -18,7 +18,10 @@ import { PlatformEventFlagsService } from '../../events/config/platform-event-fl
 import { NotificationTemplatesService } from '../notification_templates/notification_templates.service';
 import { buildEventEnvelopeFromEventLog } from './notification-event-log-envelope.util';
 import { parseOptionalPositiveInt } from '../context/notification-context-source.util';
-import { readRuleDispatchFromPayload } from '../../events/notification-rules/event-log-platform-payload.util';
+import {
+  readDestinationEmailFromPayload,
+  readRuleDispatchFromPayload,
+} from '../../events/notification-rules/event-log-platform-payload.util';
 import type { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 import type { NotificationEntity } from '../entities/notification.entity';
 import { computeNotificationNextRetryAt } from './notification-dispatch-retry.util';
@@ -81,7 +84,7 @@ export class NotificationDispatchPipelineService {
    */
   async processEventLog(eventLogId: number): Promise<NotificationEntity[]> {
     const eventLog = await this.eventLogsService.findByIdForDispatch(eventLogId);
-    if (!eventLog || eventLog.status !== 0) {
+    if (!eventLog || (eventLog.status ?? 0) !== 0) {
       return [];
     }
 
@@ -241,7 +244,8 @@ export class NotificationDispatchPipelineService {
         eventLog.userId,
         listener.channelId,
       );
-    if (!isEnabled) {
+    const destinationEmail = readDestinationEmailFromPayload(eventLog.payload);
+    if (!destinationEmail && !isEnabled) {
       return null;
     }
 
@@ -263,6 +267,7 @@ export class NotificationDispatchPipelineService {
       eventLog.userId,
       plainToInstance(CreateNotificationDto, {
         userId: eventLog.userId,
+        destinationEmail,
         eventId: eventLog.eventId,
         type: channelType,
         subject: renderResult.subject,
@@ -331,7 +336,7 @@ export class NotificationDispatchPipelineService {
     }
 
     try {
-      return Boolean(jsonLogic.apply(rule.filterJson, envelope));
+      return applyJsonLogicRule(rule.filterJson, envelope);
     } catch (error) {
       this.logger.warn(
         `Invalid filter_json on rule ${rule.ruleId}`,

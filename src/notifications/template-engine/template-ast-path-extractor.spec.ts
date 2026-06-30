@@ -1,4 +1,6 @@
 import {
+  extractRequiredTemplatePaths,
+  extractRequiredTemplatePathsFromMany,
   extractTemplatePaths,
   extractTemplatePathsFromMany,
 } from './template-ast-path-extractor';
@@ -18,6 +20,18 @@ describe('template-ast-path-extractor', () => {
     ).toEqual(['entity.fields.dueDate', 'process.stepName']);
   });
 
+  it('treats paths inside if blocks as optional for validation', () => {
+    const template =
+      'Hello{{#if entity.fields.companyName}} {{entity.fields.companyName}}{{/if}}, verify {{urls.verification}}{{#if payload.expiryHours}} expires {{payload.expiryHours}}{{/if}}';
+
+    expect(extractTemplatePaths(template)).toEqual([
+      'entity.fields.companyName',
+      'payload.expiryHours',
+      'urls.verification',
+    ]);
+    expect(extractRequiredTemplatePaths(template)).toEqual(['urls.verification']);
+  });
+
   it('deduplicates paths across subject and message templates', () => {
     expect(
       extractTemplatePathsFromMany([
@@ -25,5 +39,14 @@ describe('template-ast-path-extractor', () => {
         '{{recipient.email}} {{urls.processRunner}}',
       ]),
     ).toEqual(['recipient.email', 'urls.processRunner']);
+  });
+
+  it('deduplicates required paths across subject and message templates', () => {
+    expect(
+      extractRequiredTemplatePathsFromMany([
+        '{{#if entity.fields.name}}{{entity.fields.name}}{{/if}}',
+        '{{urls.verification}}',
+      ]),
+    ).toEqual(['urls.verification']);
   });
 });

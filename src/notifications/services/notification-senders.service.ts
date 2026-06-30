@@ -11,6 +11,7 @@ import {
   NOTIFICATION_SMTP_PASSWORD_KEY,
   NOTIFICATION_SMTP_PORT_KEY,
   NOTIFICATION_SMTP_SECURE_KEY,
+  NOTIFICATION_SMTP_TLS_REJECT_UNAUTHORIZED_KEY,
   NOTIFICATION_SMTP_USER_KEY,
   NOTIFICATION_TWILIO_ACCOUNT_SID_KEY,
   NOTIFICATION_TWILIO_AUTH_TOKEN_KEY,
@@ -63,6 +64,10 @@ export class EmailNotificationSender {
       );
       const smtpSecure =
         this.configService.get<string>(NOTIFICATION_SMTP_SECURE_KEY) === 'true';
+      const tlsRejectUnauthorized =
+        this.configService.get<string>(
+          NOTIFICATION_SMTP_TLS_REJECT_UNAUTHORIZED_KEY,
+        ) !== 'false';
       const fromName =
         this.configService.get<string>(NOTIFICATION_SMTP_FROM_NAME_KEY) ??
         'Notifications';
@@ -95,6 +100,9 @@ export class EmailNotificationSender {
             smtpUser && smtpPassword
               ? { user: smtpUser, pass: smtpPassword }
               : undefined,
+          ...(tlsRejectUnauthorized
+            ? {}
+            : { tls: { rejectUnauthorized: false } }),
         });
       }
 
@@ -103,9 +111,17 @@ export class EmailNotificationSender {
         notification.userId,
       );
 
+      const toAddress = notification.destinationEmail?.trim() || user.email;
+      if (!toAddress) {
+        return {
+          status: 'failed',
+          response: 'Recipient email address is missing.',
+        };
+      }
+
       const info = await this.transporter.sendMail({
         from: `${fromName} <${fromEmail}>`,
-        to: user.email,
+        to: toAddress,
         subject: notification.subject ?? 'Notification',
         text: notification.message,
         html: notification.message,

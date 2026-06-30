@@ -17,6 +17,33 @@ export interface PlatformNotificationRuleSeedEntry {
   priority?: number;
 }
 
+/** Meta fields written during email-verification token issue/confirm — not profile edits. */
+export const VERIFICATION_META_CHANGED_FIELD_NAMES = [
+  'verification_token',
+  'token_expires_at',
+  'email_verified',
+  'activationKey',
+] as const;
+
+/** Skip tenant-admin profile notifications when only verification meta changed. */
+export const CUSTOMER_PROFILE_UPDATED_RULE_FILTER: Record<string, unknown> = {
+  and: [
+    { '==': [{ var: 'data.objectType' }, 'customer'] },
+    {
+      '!!': {
+        filter: [
+          { var: 'data.changedFields' },
+          {
+            '!': {
+              in: [{ var: '' }, [...VERIFICATION_META_CHANGED_FIELD_NAMES]],
+            },
+          },
+        ],
+      },
+    },
+  ],
+};
+
 export const PLATFORM_NOTIFICATION_TEMPLATE_SEED: PlatformNotificationTemplateSeedEntry[] =
   [
     {
@@ -59,18 +86,15 @@ export const PLATFORM_NOTIFICATION_TEMPLATE_SEED: PlatformNotificationTemplateSe
     {
       key: 'customer_profile_updated',
       name: 'Customer profile updated',
-      subject: 'Customer profile updated — {{entity.fields.companyName}}',
+      subject:
+        'Customer profile updated{{#if entity.fields.companyName}} — {{entity.fields.companyName}}{{/if}}',
       message: [
         'Hello {{recipient.name}},',
         '',
-        'The customer profile for {{entity.fields.companyName}} was updated.',
+        '{{#if entity.fields.companyName}}The customer profile for {{entity.fields.companyName}} was updated.{{else}}A customer profile was updated.{{/if}}',
         '{{#if payload.changedFields}}Changed fields: {{payload.changedFields}}{{/if}}',
       ].join('\n'),
-      requiredPaths: [
-        'recipient.name',
-        'entity.fields.companyName',
-        'payload.changedFields',
-      ],
+      requiredPaths: ['recipient.name'],
     },
     {
       key: 'customer_email_verification',
@@ -151,19 +175,14 @@ export const PLATFORM_NOTIFICATION_RULE_SEED: PlatformNotificationRuleSeedEntry[
       eventName: PLATFORM_EVENT_NAMES.SOR_BOUND_INSTANCE_UPDATED,
       templateKey: 'customer_profile_updated',
       recipientSpec: { type: 'tenant_admins' },
-      filterJson: { '==': [{ var: 'data.objectType' }, 'customer'] },
+      filterJson: CUSTOMER_PROFILE_UPDATED_RULE_FILTER,
       priority: 100,
     },
     {
       eventName: PLATFORM_EVENT_NAMES.PROCESS_STEP_READY,
       templateKey: 'customer_email_verification',
-      recipientSpec: { type: 'assignee' },
-      filterJson: {
-        and: [
-          { '==': [{ var: 'data.subjectType' }, 'customer'] },
-          { '!!': [{ var: 'data.assigneeId' }] },
-        ],
-      },
+      recipientSpec: { type: 'workflow_customer_email' },
+      filterJson: { '!!': [{ var: 'refs.customerCoreId' }] },
       priority: 110,
     },
     {

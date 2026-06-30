@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import jsonLogic from 'json-logic-js';
+import { applyJsonLogicRule } from '../../common/json-logic/json-logic-rule.util';
 import { ProcessLifecycleFacade } from '../process-lifecycle.facade';
 import { ProcessFeatureFlagsService } from '../config/process-feature-flags.service';
 import { ProcessStartRulesService } from '../../process_start_rules/process_start_rules.service';
@@ -180,7 +180,7 @@ export class ProcessStartRuleEngineService {
     }
 
     try {
-      return Boolean(jsonLogic.apply(rule.filterJson, envelope));
+      return applyJsonLogicRule(rule.filterJson, envelope);
     } catch (error) {
       this.logger.warn(
         `Invalid filter_json on process start rule ${rule.ruleId}`,

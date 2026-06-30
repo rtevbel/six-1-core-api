@@ -48,8 +48,40 @@ export class NotificationContextBuilderService {
     await this.workflowProvider.apply(context, source, input, options);
     this.urlsProvider.apply(context, source, input.refs);
     await this.configObjectProvider.apply(context, source, input, options);
+    this.applyEntityRecipientFallback(context);
     this.urlsProvider.applyVerificationUrl(context, source);
 
     return context;
+  }
+
+  private applyEntityRecipientFallback(context: NotificationContext): void {
+    if (context.recipient.email) {
+      return;
+    }
+
+    const fields = context.entity.fields;
+    if (!fields || typeof fields !== 'object') {
+      return;
+    }
+
+    const email =
+      typeof fields.email === 'string' && fields.email.trim()
+        ? fields.email.trim()
+        : null;
+    if (!email) {
+      return;
+    }
+
+    context.recipient.email = email;
+    const firstName =
+      typeof fields.firstName === 'string' ? fields.firstName.trim() : '';
+    const lastName =
+      typeof fields.lastName === 'string' ? fields.lastName.trim() : '';
+    const name = [firstName, lastName].filter(Boolean).join(' ');
+    context.recipient.name =
+      name ||
+      (typeof context.entity.displayLabel === 'string'
+        ? context.entity.displayLabel
+        : null);
   }
 }

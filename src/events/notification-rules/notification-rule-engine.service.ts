@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import jsonLogic from 'json-logic-js';
+import { applyJsonLogicRule } from '../../common/json-logic/json-logic-rule.util';
 import { plainToInstance } from 'class-transformer';
 import type { EventEnvelope } from '../types';
 import { EventCatalogService } from '../event-catalog.service';
@@ -13,6 +13,7 @@ import { NotificationRecipientResolverService } from './notification-recipient-r
 import { NotificationDispatchDedupService } from './notification-dispatch-dedup.service';
 import { buildRuleDispatchEventLogPayload } from './event-log-platform-payload.util';
 import { normalizeEntityRef } from '../types';
+import { parseOptionalPositiveInt } from '../../notifications/context/notification-context-source.util';
 import {
   isDeprecatedNotificationEventName,
 } from '../constants/platform-event-names.constants';
@@ -74,12 +75,12 @@ export class NotificationRuleEngineService {
         continue;
       }
 
-      const recipientIds = await this.recipientResolver.resolve(
+      const deliveryTargets = await this.recipientResolver.resolveDeliveryTargets(
         rule.recipientSpec,
         envelope,
       );
 
-      if (recipientIds.length === 0) {
+      if (deliveryTargets.length === 0) {
         this.logger.warn(
           `Rule ${rule.ruleId} matched ${eventName} but resolved no recipients`,
         );
@@ -89,7 +90,8 @@ export class NotificationRuleEngineService {
       const eventId = await this.catalog.getIdByName(eventName);
       const entityRef = normalizeEntityRef(envelope.entity);
 
-      for (const recipientId of recipientIds) {
+      for (const target of deliveryTargets) {
+        const recipientId = target.userId;
         const dedupKey = this.dedup.buildDispatchKey(
           recipientId,
           eventId,
@@ -119,6 +121,7 @@ export class NotificationRuleEngineService {
           eventName,
           eventId,
           recipientId,
+          destinationEmail: target.destinationEmail,
           rule,
           record,
           entityRef,
@@ -136,7 +139,7 @@ export class NotificationRuleEngineService {
     }
 
     try {
-      return Boolean(jsonLogic.apply(rule.filterJson, envelope));
+      return applyJsonLogicRule(rule.filterJson, envelope);
     } catch (error) {
       this.logger.warn(
         `Invalid filter_json on rule ${rule.ruleId}`,
@@ -151,6 +154,7 @@ export class NotificationRuleEngineService {
     eventName: string;
     eventId: number;
     recipientId: number;
+    destinationEmail?: string;
     rule: EventNotificationRuleEntity;
     record: PlatformEventRecordEntity;
     entityRef: ReturnType<typeof normalizeEntityRef>;
@@ -160,24 +164,31 @@ export class NotificationRuleEngineService {
       eventName,
       eventId,
       recipientId,
+      destinationEmail,
       rule,
       record,
       entityRef,
     } = params;
 
+    const customerCoreId = this.resolveCustomerCoreId(envelope);
+
     const dto = plainToInstance(CreateEventLogDto, {
       eventId,
       userId: recipientId,
-      entityId: entityRef?.entityId ?? undefined,
-      entityType: entityRef?.entityType ?? undefined,
+      entityId:
+        customerCoreId ??
+        (entityRef?.entityId != null ? Number(entityRef.entityId) : undefined),
+      entityType: customerCoreId ? 'customer' : entityRef?.entityType ?? undefined,
       externalId: envelope.externalId ?? undefined,
       createdBy: envelope.createdBy ?? envelope.userId ?? 1,
+      status: 0,
     });
 
     const payload = buildRuleDispatchEventLogPayload(envelope, eventName, {
       ruleId: rule.ruleId,
       channelId: rule.channelId,
       templateId: rule.templateId,
+      ...(destinationEmail ? { destinationEmail } : {}),
     });
 
     const eventLog = await this.eventLogsService.create(1, dto, {
@@ -189,6 +200,26 @@ export class NotificationRuleEngineService {
 
     this.logger.debug(
       `Rule ${rule.ruleId} dispatched event_log for user ${recipientId} (${eventName})`,
+    );
+  }
+
+  private resolveCustomerCoreId(envelope: EventEnvelope): number | undefined {
+    const data =
+      envelope.data && typeof envelope.data === 'object' && !Array.isArray(envelope.data)
+        ? (envelope.data as Record<string, unknown>)
+        : {};
+    const context =
+      data.context && typeof data.context === 'object' && !Array.isArray(data.context)
+        ? (data.context as Record<string, unknown>)
+        : {};
+
+    return (
+      parseOptionalPositiveInt(envelope.refs?.customerCoreId) ??
+      parseOptionalPositiveInt(data.customerCoreId) ??
+      parseOptionalPositiveInt(data.customer_core_id) ??
+      parseOptionalPositiveInt(context.customerId) ??
+      parseOptionalPositiveInt(context.customer_id) ??
+      undefined
     );
   }
 }

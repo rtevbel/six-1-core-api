@@ -35,6 +35,7 @@ import { ProcessStepAssigneeService } from './process-step-assignee.service';
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
 import type { ProcessStepExtensionBindingSummary } from './process-step-extension-evaluator.types';
 import { ProcessFeatureFlagsService } from './config/process-feature-flags.service';
+import { coercePositiveInt } from './process-step-action-envelope.util';
 
 type AdvanceOptions = {
   cause?: 'event' | 'manual' | 'timer' | 'system';
@@ -173,7 +174,7 @@ export class StepOrchestratorService {
         });
       }
 
-      const allMandatoryApproved = await this.checkStepGates(
+      const requirementsMet = await this.checkRequirementsOnly(
         qr,
         s.step_instance_id,
       );
@@ -182,6 +183,10 @@ export class StepOrchestratorService {
         s.process_instance_id,
         s.step_instance_id,
       );
+      const allMandatoryApproved =
+        s.status === 'pending'
+          ? requirementsMet
+          : await this.checkStepGates(qr, s.step_instance_id);
 
       const now = new Date();
 
@@ -189,7 +194,7 @@ export class StepOrchestratorService {
         `Step ${s.step_instance_id} status=${s.status} requirements=${allMandatoryApproved} triggers=${triggersMet}`,
       );
 
-      if (s.status === 'pending' && allMandatoryApproved && triggersMet) {
+      if (s.status === 'pending' && requirementsMet && triggersMet) {
         await this.activateEligiblePendingStep(
           qr,
           s,
@@ -792,6 +797,14 @@ export class StepOrchestratorService {
       },
     });
     await adapter.onStepStateChanged(ctx);
+
+    if (engineState === 'completed') {
+      await this.configObjectExecutor.syncProcessContextAfterStepCompleted(
+        qr.manager,
+        step.step_instance_id,
+        step.process_instance_id,
+      );
+    }
   }
 
   private async maybeCompleteJob(
@@ -1061,7 +1074,7 @@ export class StepOrchestratorService {
     );
 
     for (const row of nextRows) {
-      const okReq = await this.checkStepGates(qr, row.step_instance_id);
+      const okReq = await this.checkRequirementsOnly(qr, row.step_instance_id);
       const okTrig = await this.evaluateTriggers(
         qr,
         processInstanceId,
@@ -1099,6 +1112,7 @@ export class StepOrchestratorService {
       tenantId?: number;
       processTemplateId?: number;
       correlationId?: string;
+      customerCoreId?: number;
     },
     opts: AdvanceOptions,
     postCommit?: PostCommitLifecycleWork,
@@ -1124,7 +1138,7 @@ export class StepOrchestratorService {
     );
 
     for (const row of rows) {
-      const okReq = await this.checkStepGates(qr, row.step_instance_id);
+      const okReq = await this.checkRequirementsOnly(qr, row.step_instance_id);
       const okTrig = await this.evaluateTriggers(
         qr,
         processInstanceId,
@@ -1204,6 +1218,7 @@ export class StepOrchestratorService {
       tenantId?: number;
       processTemplateId?: number;
       correlationId?: string;
+      customerCoreId?: number;
     },
     opts: AdvanceOptions,
     readyAt: Date = new Date(),
@@ -1574,6 +1589,7 @@ export class StepOrchestratorService {
       tenantId?: number;
       processTemplateId?: number;
       correlationId?: string;
+      customerCoreId?: number;
     },
     opts: AdvanceOptions,
   ) {
@@ -1603,12 +1619,19 @@ export class StepOrchestratorService {
     tenantId?: number;
     processTemplateId?: number;
     correlationId?: string;
+    customerCoreId?: number;
   }> {
     const proc = await loadProcessInstanceRow(qr.manager, processInstanceId);
+    const context = parseJsonColumn(proc?.context);
+    const customerCoreId =
+      coercePositiveInt(context?.customerId) ??
+      coercePositiveInt(context?.customer_id);
+
     return {
       tenantId: proc?.tenant_id ?? 0,
       processTemplateId: proc?.process_template_id,
       correlationId: proc?.correlation_id ?? undefined,
+      ...(customerCoreId ? { customerCoreId } : {}),
     };
   }
 

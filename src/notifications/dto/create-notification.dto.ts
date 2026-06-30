@@ -26,6 +26,13 @@ export class CreateNotificationDto {
   userId!: number;
 
   /**
+   * Direct email destination when the recipient is not a platform user.
+   */
+  @IsString()
+  @IsOptional()
+  destinationEmail?: string | null;
+
+  /**
    * Event ID linked to the notification.
    *
    * - Optional field.

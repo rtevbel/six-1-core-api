@@ -12,6 +12,7 @@ import { TenantUserRoleEntity } from '../../tenants/tenant_users/tenant_user_rol
 import { RoleDescriptionEntity } from '../../roles/entities/role-description.entity';
 import { PermissionDescriptionEntity } from '../../permissions/entities/permission_description.entity';
 import { EventLogEntity } from '../event_logs/entities/event_log.entity';
+import { CustomerEntity } from '../../customers/entities/customer.entity';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { EventLogEntity } from '../event_logs/entities/event_log.entity';
       RoleDescriptionEntity,
       PermissionDescriptionEntity,
       EventLogEntity,
+      CustomerEntity,
     ]),
   ],
   providers: [

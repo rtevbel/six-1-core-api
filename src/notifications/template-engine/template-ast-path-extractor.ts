@@ -8,6 +8,8 @@ type HbsPathExpression = HbsNode & {
   parts?: unknown[];
 };
 
+const BUILTIN_CONDITIONAL_BLOCK_HELPERS = new Set(['if', 'unless', 'each', 'with']);
+
 const BUILTIN_BLOCK_HELPERS = new Set([
   'if',
   'unless',
@@ -16,6 +18,13 @@ const BUILTIN_BLOCK_HELPERS = new Set([
   'lookup',
   'log',
 ]);
+
+export interface ExtractedTemplatePaths {
+  /** Every dot-path referenced anywhere in the template (for lazy hydration). */
+  all: string[];
+  /** Dot-paths referenced outside conditional blocks (for send validation). */
+  required: string[];
+}
 
 function isPathExpression(
   node: unknown,
@@ -27,7 +36,15 @@ function isPathExpression(
   );
 }
 
-function addPath(paths: Set<string>, path: HbsPathExpression): void {
+function addPath(
+  paths: Set<string>,
+  path: HbsPathExpression,
+  include: boolean,
+): void {
+  if (!include) {
+    return;
+  }
+
   const original = typeof path.original === 'string' ? path.original : '';
   if (!original || original === '.' || original === 'this') {
     return;
@@ -37,10 +54,13 @@ function addPath(paths: Set<string>, path: HbsPathExpression): void {
 
 function walkExpression(
   expression: unknown,
-  paths: Set<string>,
+  allPaths: Set<string>,
+  requiredPaths: Set<string>,
+  conditionalDepth: number,
 ): void {
   if (isPathExpression(expression)) {
-    addPath(paths, expression);
+    addPath(allPaths, expression, true);
+    addPath(requiredPaths, expression, conditionalDepth === 0);
     return;
   }
 
@@ -52,7 +72,7 @@ function walkExpression(
     const params = (expression as { params?: unknown }).params;
     if (Array.isArray(params)) {
       for (const param of params) {
-        walkExpression(param, paths);
+        walkExpression(param, allPaths, requiredPaths, conditionalDepth);
       }
     }
   }
@@ -60,19 +80,29 @@ function walkExpression(
 
 function walkParams(
   params: unknown,
-  paths: Set<string>,
+  allPaths: Set<string>,
+  requiredPaths: Set<string>,
+  conditionalDepth: number,
+  includeRequired = conditionalDepth === 0,
 ): void {
   if (!Array.isArray(params)) {
     return;
   }
   for (const param of params) {
-    walkExpression(param, paths);
+    if (isPathExpression(param)) {
+      addPath(allPaths, param, true);
+      addPath(requiredPaths, param, includeRequired);
+      continue;
+    }
+    walkExpression(param, allPaths, requiredPaths, conditionalDepth);
   }
 }
 
 function walkStatement(
   statement: unknown,
-  paths: Set<string>,
+  allPaths: Set<string>,
+  requiredPaths: Set<string>,
+  conditionalDepth: number,
 ): void {
   if (!statement || typeof statement !== 'object') {
     return;
@@ -89,15 +119,25 @@ function walkStatement(
         ) &&
         !BUILTIN_BLOCK_HELPERS.has(String((typed.path as HbsPathExpression).parts?.[0]))
       ) {
-        addPath(paths, typed.path as HbsPathExpression);
+        addPath(allPaths, typed.path as HbsPathExpression, true);
+        addPath(
+          requiredPaths,
+          typed.path as HbsPathExpression,
+          conditionalDepth === 0,
+        );
       } else {
-        walkParams(typed.params, paths);
+        walkParams(typed.params, allPaths, requiredPaths, conditionalDepth);
       }
       if (typed.hash && typeof typed.hash === 'object') {
         const pairs = (typed.hash as { pairs?: unknown }).pairs;
         if (Array.isArray(pairs)) {
           for (const pair of pairs) {
-            walkExpression((pair as { value?: unknown }).value, paths);
+            walkExpression(
+              (pair as { value?: unknown }).value,
+              allPaths,
+              requiredPaths,
+              conditionalDepth,
+            );
           }
         } else if (pairs && typeof pairs === 'object') {
           for (const pair of Object.values(pairs as Record<string, unknown>)) {
@@ -105,7 +145,7 @@ function walkStatement(
               pair && typeof pair === 'object' && 'value' in pair
                 ? (pair as { value?: unknown }).value
                 : pair;
-            walkExpression(value, paths);
+            walkExpression(value, allPaths, requiredPaths, conditionalDepth);
           }
         }
       }
@@ -118,22 +158,29 @@ function walkStatement(
             helperName as (typeof NOTIFICATION_HANDLEBARS_HELPERS)[number],
           )
         ) {
-          walkParams(typed.params, paths);
+          walkParams(typed.params, allPaths, requiredPaths, conditionalDepth);
         } else if (!BUILTIN_BLOCK_HELPERS.has(helperName)) {
-          addPath(paths, typed.path as HbsPathExpression);
-        } else if (BUILTIN_BLOCK_HELPERS.has(helperName)) {
-          walkParams(typed.params, paths);
+          addPath(allPaths, typed.path as HbsPathExpression, true);
+          addPath(
+            requiredPaths,
+            typed.path as HbsPathExpression,
+            conditionalDepth === 0,
+          );
+        } else if (BUILTIN_CONDITIONAL_BLOCK_HELPERS.has(helperName)) {
+          walkParams(typed.params, allPaths, requiredPaths, conditionalDepth, false);
+        } else {
+          walkParams(typed.params, allPaths, requiredPaths, conditionalDepth);
         }
       }
-      walkProgram(typed.program, paths);
+      walkProgram(typed.program, allPaths, requiredPaths, conditionalDepth + 1);
       if (typed.inverse) {
-        walkProgram(typed.inverse, paths);
+        walkProgram(typed.inverse, allPaths, requiredPaths, conditionalDepth + 1);
       }
       break;
     case 'PartialStatement':
-      walkParams(typed.params, paths);
+      walkParams(typed.params, allPaths, requiredPaths, conditionalDepth);
       if (typed.program) {
-        walkProgram(typed.program, paths);
+        walkProgram(typed.program, allPaths, requiredPaths, conditionalDepth);
       }
       break;
     case 'ContentStatement':
@@ -144,7 +191,12 @@ function walkStatement(
   }
 }
 
-function walkProgram(program: unknown, paths: Set<string>): void {
+function walkProgram(
+  program: unknown,
+  allPaths: Set<string>,
+  requiredPaths: Set<string>,
+  conditionalDepth: number,
+): void {
   if (!program || typeof program !== 'object') {
     return;
   }
@@ -153,22 +205,67 @@ function walkProgram(program: unknown, paths: Set<string>): void {
     return;
   }
   for (const statement of body) {
-    walkStatement(statement, paths);
+    walkStatement(statement, allPaths, requiredPaths, conditionalDepth);
   }
+}
+
+function sortPaths(paths: Set<string>): string[] {
+  return Array.from(paths).sort((a, b) => a.localeCompare(b));
+}
+
+function extractPathsFromTemplate(template: string): ExtractedTemplatePaths {
+  if (!template.trim()) {
+    return { all: [], required: [] };
+  }
+
+  const allPaths = new Set<string>();
+  const requiredPaths = new Set<string>();
+  const ast = Handlebars.parse(template) as unknown;
+  walkProgram(ast, allPaths, requiredPaths, 0);
+  return {
+    all: sortPaths(allPaths),
+    required: sortPaths(requiredPaths),
+  };
+}
+
+function mergeExtractedPaths(
+  templates: Array<string | null | undefined>,
+): ExtractedTemplatePaths {
+  const allPaths = new Set<string>();
+  const requiredPaths = new Set<string>();
+
+  for (const template of templates) {
+    if (!template) {
+      continue;
+    }
+    const extracted = extractPathsFromTemplate(template);
+    for (const path of extracted.all) {
+      allPaths.add(path);
+    }
+    for (const path of extracted.required) {
+      requiredPaths.add(path);
+    }
+  }
+
+  return {
+    all: sortPaths(allPaths),
+    required: sortPaths(requiredPaths),
+  };
 }
 
 /**
  * Extracts dot-path variable references from Handlebars templates.
  */
 export function extractTemplatePaths(template: string): string[] {
-  if (!template.trim()) {
-    return [];
-  }
+  return extractPathsFromTemplate(template).all;
+}
 
-  const paths = new Set<string>();
-  const ast = Handlebars.parse(template) as unknown;
-  walkProgram(ast, paths);
-  return Array.from(paths).sort((a, b) => a.localeCompare(b));
+/**
+ * Extracts dot-paths that must be present for notification send validation.
+ * Paths referenced only inside `#if` / `#unless` / `#each` blocks are excluded.
+ */
+export function extractRequiredTemplatePaths(template: string): string[] {
+  return extractPathsFromTemplate(template).required;
 }
 
 /**
@@ -177,14 +274,14 @@ export function extractTemplatePaths(template: string): string[] {
 export function extractTemplatePathsFromMany(
   templates: Array<string | null | undefined>,
 ): string[] {
-  const paths = new Set<string>();
-  for (const template of templates) {
-    if (!template) {
-      continue;
-    }
-    for (const path of extractTemplatePaths(template)) {
-      paths.add(path);
-    }
-  }
-  return Array.from(paths).sort((a, b) => a.localeCompare(b));
+  return mergeExtractedPaths(templates).all;
+}
+
+/**
+ * Extracts unconditionally required dot-paths across subject and message templates.
+ */
+export function extractRequiredTemplatePathsFromMany(
+  templates: Array<string | null | undefined>,
+): string[] {
+  return mergeExtractedPaths(templates).required;
 }

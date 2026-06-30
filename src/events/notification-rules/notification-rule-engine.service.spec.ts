@@ -7,6 +7,7 @@ describe('NotificationRuleEngineService', () => {
   };
   const recipientResolver = {
     resolve: jest.fn().mockResolvedValue([20]),
+    resolveDeliveryTargets: jest.fn().mockResolvedValue([{ userId: 20 }]),
   };
   const dedup = {
     buildDispatchKey: jest.fn().mockReturnValue('20:9:corr-1'),
@@ -46,7 +47,7 @@ describe('NotificationRuleEngineService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    recipientResolver.resolve.mockResolvedValue([20]);
+    recipientResolver.resolveDeliveryTargets.mockResolvedValue([{ userId: 20 }]);
     dedup.hasRecentDispatch.mockResolvedValue(false);
   });
 
@@ -64,13 +65,13 @@ describe('NotificationRuleEngineService', () => {
 
     await engine.process(envelope, { recordId: 100 } as any);
 
-    expect(recipientResolver.resolve).toHaveBeenCalledWith(
+    expect(recipientResolver.resolveDeliveryTargets).toHaveBeenCalledWith(
       { type: 'assignee' },
       envelope,
     );
     expect(eventLogsService.create).toHaveBeenCalledWith(
       1,
-      expect.objectContaining({ userId: 20, eventId: 9 }),
+      expect.objectContaining({ userId: 20, eventId: 9, status: 0 }),
       expect.objectContaining({
         ruleDispatch: { ruleId: 3, channelId: 2, templateId: 4 },
       }),

@@ -1,4 +1,7 @@
-import jsonLogic from 'json-logic-js';
+import * as jsonLogicPkg from 'json-logic-js';
+
+/** CommonJS module — default export is absent at runtime; use namespace fallback. */
+const jsonLogic: any = (jsonLogicPkg as any).default ?? (jsonLogicPkg as any);
 
 /**
  * Returns true when `value` is a plain object suitable as a json-logic rule root.

@@ -6,7 +6,7 @@ import {
 } from 'typeorm';
 import type { QueryDeepPartialEntity } from 'typeorm/query-builder/QueryPartialEntity';
 import { plainToInstance } from 'class-transformer';
-import jsonLogic from 'json-logic-js';
+import { applyJsonLogicRule } from '../../common/json-logic/json-logic-rule.util';
 import type { EventEnvelope } from '../types';
 import { EventsService } from '../events.service';
 import { EventCatalogService } from '../event-catalog.service';
@@ -128,12 +128,12 @@ export class ActionExecutorService {
     envelope: EventEnvelope,
     contextLabel = 'action',
   ): Promise<Record<string, unknown>> {
-    const recipientIds = await this.recipientResolver.resolve(
+    const recipientTargets = await this.recipientResolver.resolveDeliveryTargets(
       config.recipientSpec,
       envelope,
     );
 
-    if (recipientIds.length === 0) {
+    if (recipientTargets.length === 0) {
       throw new Error(
         `send_notification ${contextLabel} resolved no recipients`,
       );
@@ -159,7 +159,8 @@ export class ActionExecutorService {
 
     const notificationIds: number[] = [];
 
-    for (const recipientId of recipientIds) {
+    for (const target of recipientTargets) {
+      const recipientId = target.userId;
       const renderResult = await this.templateEngine.renderFromEnvelope(
         envelope,
         recipientId,
@@ -174,6 +175,7 @@ export class ActionExecutorService {
         recipientId,
         plainToInstance(CreateNotificationDto, {
           userId: recipientId,
+          destinationEmail: target.destinationEmail ?? null,
           eventId,
           type: channelType,
           subject: renderResult.subject,
@@ -189,7 +191,7 @@ export class ActionExecutorService {
 
     return {
       notificationIds,
-      recipientCount: recipientIds.length,
+      recipientCount: recipientTargets.length,
       channelId: config.channelId,
       templateId: config.templateId,
     };
@@ -367,7 +369,7 @@ export class ActionBindingEngineService {
     }
 
     try {
-      return Boolean(jsonLogic.apply(binding.filterJson, envelope));
+      return applyJsonLogicRule(binding.filterJson, envelope);
     } catch (error) {
       this.logger.warn(
         `Invalid filter_json on binding ${binding.bindingId}`,

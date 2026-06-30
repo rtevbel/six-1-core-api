@@ -35,6 +35,15 @@ export class NotificationEntity {
   userId!: number;
 
   @Column({
+    name: 'destination_email',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    comment: 'Direct email when recipient is not a platform user',
+  })
+  destinationEmail!: string | null;
+
+  @Column({
     name: 'event_id',
     type: 'bigint',
     unsigned: true,

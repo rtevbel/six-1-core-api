@@ -18,6 +18,7 @@ export interface ProcessStepEventContext {
   processTemplateId?: number;
   assigneeId?: number;
   assigneeIds?: number[];
+  customerCoreId?: number;
   correlationId?: string;
   cause?: string;
   actorTenantUserId?: number;
@@ -77,6 +78,9 @@ function buildProcessStepData(ctx: ProcessStepEventContext): Record<string, unkn
   }
   if (ctx.assigneeIds?.length) {
     data.assigneeIds = ctx.assigneeIds;
+  }
+  if (ctx.customerCoreId != null) {
+    data.customerCoreId = ctx.customerCoreId;
   }
 
   return appendDomainBindingHints(

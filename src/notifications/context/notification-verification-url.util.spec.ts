@@ -1,7 +1,7 @@
 import {
   readVerificationObjectTypeForUrl,
   readVerificationTokenForUrl,
-} from '../notification-verification-url.util';
+} from './notification-verification-url.util';
 
 describe('notification-verification-url.util', () => {
   it('reads token from payload and entity fields', () => {
@@ -22,6 +22,23 @@ describe('notification-verification-url.util', () => {
         {},
         {
           workflow: { subjectType: 'customer', subjectId: 1, context: {} },
+          entity: { objectType: null } as any,
+        },
+        null,
+      ),
+    ).toBe('customer');
+  });
+
+  it('prefers customer when workflow context has customerId', () => {
+    expect(
+      readVerificationObjectTypeForUrl(
+        {},
+        {
+          workflow: {
+            subjectType: 'workflow',
+            subjectId: 43,
+            context: { customerId: 63 },
+          },
           entity: { objectType: null } as any,
         },
         null,

@@ -26,6 +26,11 @@ import {
   PROCESS_SUBJECT_TYPE_WORKFLOW,
 } from './process-subject.constants';
 import type { ProcessInstanceSubjectInput } from './process-subject.types';
+import {
+  buildProcessContextResolutionRoot,
+  resolveChildContextFromParentPatch,
+  type ProcessBindingCoreRef,
+} from './process-instance-context.util';
 
 type ProcessInstanceRow = {
   process_instance_id: number;
@@ -109,7 +114,7 @@ export class ChildProcessOrchestrationService {
     }
 
     const childSubject = this.resolveChildSubject(parent, tpl);
-    const childContext = this.buildChildContext(parent, tpl);
+    const childContext = await this.buildChildContext(em, parent, tpl);
 
     const startParams: StartProcessParams = {
       tenantId: Number(parent.tenant_id),
@@ -499,17 +504,59 @@ export class ChildProcessOrchestrationService {
     };
   }
 
-  private buildChildContext(
+  private async buildChildContext(
+    em: EntityManager,
     parent: ProcessInstanceRow,
     tpl: TemplateStepCallConfig,
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
     const parentCtx = asRecord(parent.context) ?? {};
     const patch = asRecord(tpl.child_context_patch) ?? {};
+    const bindingCoreRefs = await this.loadValidBindingCoreRefs(
+      em,
+      parent.process_instance_id,
+    );
+    const parentRoot = buildProcessContextResolutionRoot({
+      tenantId: parent.tenant_id,
+      processInstanceId: parent.process_instance_id,
+      subjectType: parent.subject_type,
+      subjectId: parent.subject_id,
+      subjectMetadata: asRecord(parent.subject_metadata),
+      context: parentCtx,
+      bindingCoreRefs,
+    });
+    const resolved = resolveChildContextFromParentPatch(
+      parentCtx,
+      patch,
+      parentRoot,
+    );
     return {
-      ...parentCtx,
-      ...patch,
+      ...resolved,
       parentProcessInstanceId: parent.process_instance_id,
     };
+  }
+
+  private async loadValidBindingCoreRefs(
+    em: EntityManager,
+    processInstanceId: number,
+  ): Promise<ProcessBindingCoreRef[]> {
+    const rows: Array<{ core_id: number; object_type: string }> = await em.query(
+      `SELECT oi.core_id, co.object_type
+         FROM process_instance_step_object_instances oi
+         JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+        WHERE s.process_instance_id = ?
+          AND oi.status = 'valid'
+          AND oi.core_id IS NOT NULL
+        ORDER BY s.step_order ASC, oi.step_object_instance_id ASC`,
+      [processInstanceId],
+    );
+
+    return rows
+      .map((row) => ({
+        objectType: String(row.object_type ?? ''),
+        coreId: Number(row.core_id),
+      }))
+      .filter((row) => row.objectType && Number.isFinite(row.coreId) && row.coreId > 0);
   }
 
   private async mergeChildContextIntoParent(

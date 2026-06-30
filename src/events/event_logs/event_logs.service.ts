@@ -47,7 +47,10 @@ export class EventLogsService {
     }
 
     return await this.eventLogRepository.save(
-      this.eventLogRepository.create(createEventLogDto),
+      this.eventLogRepository.create({
+        ...createEventLogDto,
+        status: createEventLogDto.status ?? 0,
+      }),
     );
   }
 

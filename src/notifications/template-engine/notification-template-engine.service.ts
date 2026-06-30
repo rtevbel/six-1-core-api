@@ -3,7 +3,10 @@ import type Handlebars from 'handlebars';
 import type { EventEnvelope } from '../../events/types';
 import type { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
 import { NotificationContextBuilderService } from '../context/notification-context-builder.service';
-import { parseOptionalPositiveInt } from '../context/notification-context-source.util';
+import {
+  extractNotificationRefsFromPayload,
+  parseOptionalPositiveInt,
+} from '../context/notification-context-source.util';
 import type { NotificationContext } from '../context/notification-context.types';
 import { NotificationVariableResolverService } from '../services/notification-variable-resolver.service';
 import { createNotificationHandlebarsRuntime } from './handlebars-helpers.registry';
@@ -12,7 +15,10 @@ import {
   findEmptyReferencedPaths,
 } from './notification-legacy-context-shim.util';
 import type { TemplateRenderResult } from './template-render-result.interface';
-import { extractTemplatePathsFromMany } from './template-ast-path-extractor';
+import {
+  extractRequiredTemplatePathsFromMany,
+  extractTemplatePathsFromMany,
+} from './template-ast-path-extractor';
 
 /**
  * Handlebars notification template engine with lazy context hydration (NV4).
@@ -38,13 +44,13 @@ export class NotificationTemplateEngineService {
     messageTemplate: string,
     context: NotificationContext,
     legacyFlat?: Record<string, unknown>,
-    referencedPaths?: string[],
+    requiredPathsOverride?: string[],
   ): TemplateRenderResult {
-    const paths =
-      referencedPaths ??
-      extractTemplatePathsFromMany([subjectTemplate, messageTemplate]);
+    const requiredPaths =
+      requiredPathsOverride ??
+      extractRequiredTemplatePathsFromMany([subjectTemplate, messageTemplate]);
     const view = buildHandlebarsRenderView(context, legacyFlat);
-    const missingRequired = findEmptyReferencedPaths(view, paths);
+    const missingRequired = findEmptyReferencedPaths(view, requiredPaths);
 
     const subject = subjectTemplate
       ? this.compileAndRender(subjectTemplate, view)
@@ -67,6 +73,10 @@ export class NotificationTemplateEngineService {
       messageTemplate,
     ]);
     const legacyFlat = await this.variableResolver.resolve(eventLog);
+    const payload =
+      eventLog.payload && typeof eventLog.payload === 'object'
+        ? (eventLog.payload as Record<string, unknown>)
+        : {};
     const context = await this.contextBuilder.build(
       {
         source: {
@@ -76,6 +86,7 @@ export class NotificationTemplateEngineService {
         },
         recipientUserId: eventLog.userId,
         tenantId: this.resolveTenantId(eventLog, legacyFlat),
+        refs: extractNotificationRefsFromPayload(payload) ?? undefined,
       },
       { requiredPaths: paths },
     );
@@ -85,7 +96,6 @@ export class NotificationTemplateEngineService {
       messageTemplate,
       context,
       legacyFlat,
-      paths,
     );
   }
 
@@ -98,7 +108,7 @@ export class NotificationTemplateEngineService {
     subjectTemplate: string | null,
     messageTemplate: string,
   ): Promise<TemplateRenderResult> {
-    const paths = extractTemplatePathsFromMany([
+    const hydrationPaths = extractTemplatePathsFromMany([
       subjectTemplate,
       messageTemplate,
     ]);
@@ -108,15 +118,13 @@ export class NotificationTemplateEngineService {
         recipientUserId,
         tenantId: parseOptionalPositiveInt(envelope.tenantId),
       },
-      { requiredPaths: paths },
+      { requiredPaths: hydrationPaths },
     );
 
     return this.render(
       subjectTemplate,
       messageTemplate,
       context,
-      undefined,
-      paths,
     );
   }
 

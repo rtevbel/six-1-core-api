@@ -102,6 +102,7 @@ export class PlatformEventNotificationBridgeService {
       entityType: entityType ?? undefined,
       externalId: envelope.externalId ?? undefined,
       createdBy: envelope.createdBy ?? envelope.userId ?? 1,
+      status: 0,
     });
 
     const eventLog = await this.logs.create(1, dto, {

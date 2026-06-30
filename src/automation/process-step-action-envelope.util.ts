@@ -60,7 +60,8 @@ export function buildProcessStepActionRuntimeContext(
   params: ProcessStepActionEnvelopeParams,
 ): Record<string, unknown> {
   const processContext = params.processContext ?? {};
-  const entity = buildEntityFromSubject(params);
+  const entity =
+    buildEntityFromSubject(params) ?? resolveCustomerEntityRef(params);
 
   return {
     tenantId: params.tenantId,
@@ -145,6 +146,19 @@ export function coercePositiveInt(value: unknown): number | undefined {
   return Math.trunc(parsed);
 }
 
+function resolveCustomerEntityRef(
+  params: ProcessStepActionEnvelopeParams,
+): PlatformEntityRef | undefined {
+  const customerId =
+    coercePositiveInt(params.processContext?.customerId) ??
+    coercePositiveInt(params.processContext?.customer_id);
+  if (!customerId) {
+    return undefined;
+  }
+
+  return buildSorBoundPlatformEntityRef('customer', customerId);
+}
+
 /**
  * Resolves a positive integer from a dot-path on the process action runtime tree.
  */
@@ -175,6 +189,8 @@ export function buildProcessStepActionEnvelope(
 ): EventEnvelope {
   const runtimeContext = buildProcessStepActionRuntimeContext(params);
   const eventName = envelopeEventNameForRunOn(params.runOn);
+  const customerEntityRef =
+    buildEntityFromSubject(params) ?? resolveCustomerEntityRef(params);
 
   if (params.runOn === PROCESS_STEP_ACTION_RUN_ON_PROCESS_COMPLETED) {
     const opts = buildProcessInstanceEventOptions({
@@ -190,11 +206,15 @@ export function buildProcessStepActionEnvelope(
 
     return buildEventEnvelope(eventName, {
       ...opts,
+      entity: customerEntityRef ?? opts.entity,
       data: {
         ...(opts.data as Record<string, unknown>),
         runOn: params.runOn,
         context: runtimeContext.context,
         runtime: runtimeContext,
+        customerCoreId:
+          coercePositiveInt(params.processContext?.customerId) ??
+          coercePositiveInt(params.processContext?.customer_id),
       },
     });
   }
@@ -209,10 +229,14 @@ export function buildProcessStepActionEnvelope(
     correlationId: params.correlationId ?? undefined,
     actorTenantUserId: params.actorUserId,
     cause: 'process_step_action',
+    customerCoreId:
+      coercePositiveInt(params.processContext?.customerId) ??
+      coercePositiveInt(params.processContext?.customer_id),
   });
 
   return buildEventEnvelope(eventName, {
     ...opts,
+    entity: customerEntityRef ?? opts.entity,
     data: {
       ...(opts.data as Record<string, unknown>),
       runOn: params.runOn,

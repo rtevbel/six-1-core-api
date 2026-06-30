@@ -18,6 +18,7 @@ import {
   resolveCoreIdForObjectType,
   type ProcessStepAnchorContext,
 } from './process-step-core-ref.util';
+import { mergeBindingCoreIdsIntoProcessContext } from './process-instance-context.util';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -134,6 +135,56 @@ export class ConfigObjectStepExecutor {
         await this.validateByCustomInstanceId(instanceId, 0);
       }
     }
+  }
+
+  /**
+   * Merges valid sor_bound binding core ids into `process_instances.context`
+   * when a step completes (e.g. customerId after registration).
+   */
+  async syncProcessContextAfterStepCompleted(
+    em: EntityManager,
+    stepInstanceId: number,
+    processInstanceId: number,
+  ): Promise<void> {
+    if (!this.isEnabled()) {
+      return;
+    }
+
+    const bindings: Array<{ core_id: number; object_type: string }> = await em.query(
+      `SELECT oi.core_id, co.object_type
+         FROM process_instance_step_object_instances oi
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+        WHERE oi.step_instance_id = ?
+          AND oi.status = ?
+          AND oi.core_id IS NOT NULL`,
+      [stepInstanceId, PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID],
+    );
+
+    if (bindings.length === 0) {
+      return;
+    }
+
+    const [proc] = await em.query(
+      `SELECT context FROM process_instances WHERE process_instance_id = ? LIMIT 1`,
+      [processInstanceId],
+    );
+    if (!proc) {
+      return;
+    }
+
+    const currentContext = this.parseJsonRecord(proc.context) ?? {};
+    const merged = mergeBindingCoreIdsIntoProcessContext(
+      currentContext,
+      bindings.map((row) => ({
+        objectType: String(row.object_type ?? ''),
+        coreId: Number(row.core_id),
+      })),
+    );
+
+    await em.query(
+      `UPDATE process_instances SET context = ? WHERE process_instance_id = ?`,
+      [JSON.stringify(merged), processInstanceId],
+    );
   }
 
   /**

@@ -10,7 +10,10 @@ import {
   findEmptyReferencedPaths,
 } from '../template-engine/notification-legacy-context-shim.util';
 import { NotificationTemplateEngineService } from '../template-engine/notification-template-engine.service';
-import { extractTemplatePathsFromMany } from '../template-engine/template-ast-path-extractor';
+import {
+  extractRequiredTemplatePathsFromMany,
+  extractTemplatePathsFromMany,
+} from '../template-engine/template-ast-path-extractor';
 import type { PreviewNotificationTemplateDto } from './dto/preview-notification-template.dto';
 import type { PreviewNotificationTemplateResult } from './interfaces/preview-notification-template-result.interface';
 import type { CatalogBuildOptions } from './notification-variable-catalog.service';
@@ -41,17 +44,22 @@ export class NotificationTemplatePreviewService {
       dto.subject,
       dto.message,
     ]);
+    const requiredPaths = extractRequiredTemplatePathsFromMany([
+      dto.subject,
+      dto.message,
+    ]);
 
     if (dto.eventLogId) {
-      return this.previewFromEventLog(dto, referencedPaths);
+      return this.previewFromEventLog(dto, referencedPaths, requiredPaths);
     }
 
-    return this.previewFromEnvelope(dto, referencedPaths);
+    return this.previewFromEnvelope(dto, referencedPaths, requiredPaths);
   }
 
   private async previewFromEventLog(
     dto: PreviewNotificationTemplateDto,
     referencedPaths: string[],
+    requiredPaths: string[],
   ): Promise<PreviewNotificationTemplateResult> {
     const eventLog = await this.eventLogsService.findOne(
       dto.recipientUserId,
@@ -79,7 +87,7 @@ export class NotificationTemplatePreviewService {
       dto.message,
       context,
       legacyFlat,
-      referencedPaths,
+      requiredPaths,
     );
 
     const catalogOptions: CatalogBuildOptions = {
@@ -94,6 +102,7 @@ export class NotificationTemplatePreviewService {
     return this.buildPreviewResult({
       renderResult,
       referencedPaths,
+      requiredPaths,
       view,
       catalogOptions,
     });
@@ -102,6 +111,7 @@ export class NotificationTemplatePreviewService {
   private async previewFromEnvelope(
     dto: PreviewNotificationTemplateDto,
     referencedPaths: string[],
+    requiredPaths: string[],
   ): Promise<PreviewNotificationTemplateResult> {
     const envelope = dto.envelope as EventEnvelope;
     const context = await this.contextBuilder.build(
@@ -118,7 +128,7 @@ export class NotificationTemplatePreviewService {
       dto.message,
       context,
       undefined,
-      referencedPaths,
+      requiredPaths,
     );
 
     const catalogOptions: CatalogBuildOptions = {
@@ -129,6 +139,7 @@ export class NotificationTemplatePreviewService {
     return this.buildPreviewResult({
       renderResult,
       referencedPaths,
+      requiredPaths,
       view,
       catalogOptions,
     });
@@ -141,6 +152,7 @@ export class NotificationTemplatePreviewService {
       missingRequired: string[];
     };
     referencedPaths: string[];
+    requiredPaths: string[];
     view: Record<string, unknown>;
     catalogOptions: CatalogBuildOptions;
   }): Promise<PreviewNotificationTemplateResult> {
@@ -158,7 +170,7 @@ export class NotificationTemplatePreviewService {
       referencedPaths: params.referencedPaths,
       missingPaths: findEmptyReferencedPaths(
         params.view,
-        params.referencedPaths,
+        params.requiredPaths,
       ),
       unknownPaths,
       missingRequired: params.renderResult.missingRequired,

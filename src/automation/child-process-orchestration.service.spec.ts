@@ -212,7 +212,7 @@ describe('ChildProcessOrchestrationService', () => {
             subject_type: 'project',
             subject_id: 10,
             subject_metadata: null,
-            context: {},
+            context: { companyName: 'Acme', customerId: 59 },
             on_child_failure: 'pause_parent',
             correlation_id: 'c1',
           },
@@ -221,9 +221,13 @@ describe('ChildProcessOrchestrationService', () => {
           {
             child_template_id: 5,
             child_subject_policy: 'workflow',
-            child_context_patch: null,
+            child_context_patch: {
+              'context.customerId': 'context.customerId',
+              'context.companyName': 'context.companyName',
+            },
           },
         ])
+        .mockResolvedValueOnce([{ core_id: 59, object_type: 'customer' }])
         .mockResolvedValue([]);
 
       const qr = { manager: { query: emQuery } } as never;
@@ -248,6 +252,11 @@ describe('ChildProcessOrchestrationService', () => {
           parentInstanceId: 100,
           parentStepId: 50,
           skipHostOnStart: true,
+          context: expect.objectContaining({
+            companyName: 'Acme',
+            customerId: 59,
+            parentProcessInstanceId: 100,
+          }),
         }),
       );
       expect(emQuery).toHaveBeenCalledWith(

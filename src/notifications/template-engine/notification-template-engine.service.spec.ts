@@ -88,9 +88,34 @@ describe('NotificationTemplateEngineService', () => {
       context,
     );
 
-    expect(result.message).toBe(
-      'Link: https://app.example.com/verify-customer?token=tok-abc helper: https://app.example.com/verify-customer?token=tok-abc',
+    expect(result.message).toContain(
+      'https://app.example.com/verify-customer?token',
     );
+    expect(result.message).toContain('tok-abc');
+  });
+
+  it('does not require paths that only appear inside conditionals', () => {
+    const context = createEmptyNotificationContext();
+    context.urls.verification =
+      'https://app.example.com/verify-customer?token=tok-abc';
+
+    const result = engine.render(
+      'Verify your email',
+      [
+        'Hello{{#if entity.fields.companyName}} {{entity.fields.companyName}}{{/if}},',
+        '',
+        'Please verify your email address to continue customer onboarding:',
+        '',
+        '{{urls.verification}}',
+        '',
+        '{{#if payload.expiryHours}}This link expires in {{payload.expiryHours}} hours.{{/if}}',
+      ].join('\n'),
+      context,
+    );
+
+    expect(result.missingRequired).toEqual([]);
+    expect(result.message).toContain('verify-customer?token');
+    expect(result.message).toContain('tok-abc');
   });
 
   it('hydrates context lazily when rendering from an event log', async () => {

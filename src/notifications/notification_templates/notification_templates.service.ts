@@ -12,7 +12,10 @@ import {
   type RuntimeV2ListPagination,
 } from '../../common/runtime-v2-list-pagination';
 import { NotificationTemplateValidationService } from '../catalog/notification-template-validation.service';
-import { extractTemplatePathsFromMany } from '../template-engine/template-ast-path-extractor';
+import {
+  extractRequiredTemplatePathsFromMany,
+  extractTemplatePathsFromMany,
+} from '../template-engine/template-ast-path-extractor';
 
 import {
   NO_RECORD_FOUND_MESSAGE,
@@ -40,7 +43,7 @@ export class NotificationTemplatesService {
     createNotificationTemplateDto: CreateNotificationTemplateDto,
   ): Promise<NotificationTemplateEntity> {
     createNotificationTemplateDto.createdBy = userId;
-    const requiredPaths = extractTemplatePathsFromMany([
+    const requiredPaths = extractRequiredTemplatePathsFromMany([
       createNotificationTemplateDto.subject,
       createNotificationTemplateDto.message,
     ]);
@@ -219,7 +222,7 @@ export class NotificationTemplatesService {
       updateNotificationTemplateDto.subject ?? template.subject ?? null;
     const nextMessage =
       updateNotificationTemplateDto.message ?? template.message;
-    const requiredPaths = extractTemplatePathsFromMany([
+    const requiredPaths = extractRequiredTemplatePathsFromMany([
       nextSubject,
       nextMessage,
     ]);

@@ -7,7 +7,8 @@ export type RecipientSpecType =
   | 'event_payload_field'
   | 'tenant_role'
   | 'tenant_admins'
-  | 'assignee';
+  | 'assignee'
+  | 'workflow_customer_email';
 
 export interface ExplicitUserIdsRecipientSpec {
   type: 'explicit_user_ids';
@@ -42,13 +43,18 @@ export interface AssigneeRecipientSpec {
   path?: string;
 }
 
+export interface WorkflowCustomerEmailRecipientSpec {
+  type: 'workflow_customer_email';
+}
+
 export type RecipientSpec =
   | ExplicitUserIdsRecipientSpec
   | EventActorRecipientSpec
   | EventPayloadFieldRecipientSpec
   | TenantRoleRecipientSpec
   | TenantAdminsRecipientSpec
-  | AssigneeRecipientSpec;
+  | AssigneeRecipientSpec
+  | WorkflowCustomerEmailRecipientSpec;
 
 export const DEFAULT_RECIPIENT_SPEC: EventActorRecipientSpec = {
   type: 'event_actor',
@@ -105,6 +111,10 @@ export function parseRecipientSpec(raw: unknown): RecipientSpec {
   if (type === 'assignee') {
     const path = typeof spec.path === 'string' ? spec.path.trim() : undefined;
     return path ? { type: 'assignee', path } : { type: 'assignee' };
+  }
+
+  if (type === 'workflow_customer_email') {
+    return { type: 'workflow_customer_email' };
   }
 
   if (type === 'event_actor') {
