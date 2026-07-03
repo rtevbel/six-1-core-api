@@ -126,6 +126,10 @@ import type {
   ObjectListFieldCatalogView,
 } from './list-field-catalog/object-list-field-catalog.interface';
 import { EventsService } from '../events/events.service';
+import {
+  configScopeTenantId,
+  resolveStoredTenantId,
+} from '../common/utils/tenant-scope.util';
 import { ProcessStepLocksService } from '../process_instances/process_step_locks/process-step-locks.service';
 import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
 import {
@@ -2400,11 +2404,14 @@ export class ConfigObjectsService {
    * Resolves a standalone instance from `config_custom_object_instances`.
    */
   private async resolveStandaloneObjectInstance(
-    tenantId: number,
+    storedTenantId: number,
     objectType: string,
     instanceId: number,
   ): Promise<ConfigObjectResolvedStandaloneInstance | null> {
-    const schema = await this.getObjectSchema(tenantId, objectType);
+    const schema = await this.getObjectSchema(
+      configScopeTenantId(storedTenantId),
+      objectType,
+    );
 
     if (!schema) {
       return null;
@@ -2419,7 +2426,7 @@ export class ConfigObjectsService {
     const row = await this.customObjectInstanceRepository.findOne({
       where: {
         configCustomObjectInstanceId: instanceId,
-        tenantId,
+        tenantId: storedTenantId,
         configObjectId: schema.configObject.configObjectId,
       },
     });
@@ -2437,7 +2444,7 @@ export class ConfigObjectsService {
       resolutionMode: 'standalone',
       objectType,
       instanceId: row.configCustomObjectInstanceId,
-      tenantId,
+      tenantId: storedTenantId,
       schema,
       dynamicFields,
       sections: [],
@@ -2502,22 +2509,19 @@ export class ConfigObjectsService {
     coreId?: number,
     instanceId?: number,
   ): Promise<ConfigObjectResolvedInstance | null> {
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     const hasCore = typeof coreId === 'number' && coreId >= 1;
     const hasInst = typeof instanceId === 'number' && instanceId >= 1;
 
     if (hasInst) {
-      if (effectiveTenantId === null) {
-        throw new RpcException(
-          'tenantId is required when resolving by instanceId.',
-        );
-      }
+      const storedTenantId = resolveStoredTenantId(tenantId);
       return this.resolveStandaloneObjectInstance(
-        effectiveTenantId,
+        storedTenantId,
         objectType,
         instanceId as number,
       );
     }
+
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
     if (!hasCore) {
       throw new RpcException(
@@ -3073,20 +3077,16 @@ export class ConfigObjectsService {
     status?: ConfigCustomObjectInstanceStatus;
   }): Promise<ConfigCustomObjectInstanceEntity[]> {
     const { tenantId, configObjectId, status } = params;
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-
-    if (effectiveTenantId === null) {
-      throw new RpcException('tenantId is required.');
-    }
+    const storedTenantId = resolveStoredTenantId(tenantId);
 
     await this.getStandaloneConfigObjectForTenant(
       configObjectId,
-      effectiveTenantId,
+      configScopeTenantId(storedTenantId),
     );
 
     return this.customObjectInstanceRepository.find({
       where: {
-        tenantId: effectiveTenantId,
+        tenantId: storedTenantId,
         configObjectId,
         ...(status ? { status } : {}),
       },
@@ -3102,16 +3102,12 @@ export class ConfigObjectsService {
     configCustomObjectInstanceId: number;
   }): Promise<ConfigCustomObjectInstanceEntity | null> {
     const { tenantId, configCustomObjectInstanceId } = params;
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-
-    if (effectiveTenantId === null) {
-      throw new RpcException('tenantId is required.');
-    }
+    const storedTenantId = resolveStoredTenantId(tenantId);
 
     const row = await this.customObjectInstanceRepository.findOne({
       where: {
         configCustomObjectInstanceId,
-        tenantId: effectiveTenantId,
+        tenantId: storedTenantId,
       },
     });
 
@@ -3121,7 +3117,7 @@ export class ConfigObjectsService {
 
     await this.getStandaloneConfigObjectForTenant(
       row.configObjectId,
-      effectiveTenantId,
+      configScopeTenantId(storedTenantId),
     );
 
     return row;
@@ -3138,15 +3134,11 @@ export class ConfigObjectsService {
     status?: ConfigCustomObjectInstanceStatus;
   }): Promise<ConfigCustomObjectInstanceEntity> {
     const { tenantId, configObjectId, createdBy, payload, status } = params;
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-
-    if (effectiveTenantId === null) {
-      throw new RpcException('tenantId is required.');
-    }
+    const storedTenantId = resolveStoredTenantId(tenantId);
 
     const configObject = await this.getStandaloneConfigObjectForTenant(
       configObjectId,
-      effectiveTenantId,
+      configScopeTenantId(storedTenantId),
     );
 
     const nextPayload = this.normalizeCustomInstancePayload(payload);
@@ -3154,7 +3146,7 @@ export class ConfigObjectsService {
       typeof status === 'string' ? status : 'DRAFT';
 
     const entity = this.customObjectInstanceRepository.create({
-      tenantId: effectiveTenantId,
+      tenantId: storedTenantId,
       configObjectId: configObject.configObjectId,
       payload: nextPayload,
       status: nextStatus,
@@ -3165,7 +3157,7 @@ export class ConfigObjectsService {
     const saved = await this.customObjectInstanceRepository.save(entity);
 
     await this.logConfigChange(
-      effectiveTenantId,
+      storedTenantId,
       'custom_object_instance',
       saved.configCustomObjectInstanceId,
       'create',
@@ -3213,16 +3205,12 @@ export class ConfigObjectsService {
       payload,
       status,
     } = params;
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-
-    if (effectiveTenantId === null) {
-      throw new RpcException('tenantId is required.');
-    }
+    const storedTenantId = resolveStoredTenantId(tenantId);
 
     const row = await this.customObjectInstanceRepository.findOne({
       where: {
         configCustomObjectInstanceId,
-        tenantId: effectiveTenantId,
+        tenantId: storedTenantId,
       },
     });
 
@@ -3231,19 +3219,20 @@ export class ConfigObjectsService {
     }
 
     // G3: when this instance is bound to a process step, require the caller to hold the step lock.
+    // Super-admin / platform actors may omit tenantUserId; locks are acquired with userId in that case.
     const boundStepId = await this.stepLocks.resolveStepIdForCustomObjectInstance(
       configCustomObjectInstanceId,
     );
     if (boundStepId) {
       await this.stepLocks.assertCanMutateStep({
         stepInstanceId: boundStepId,
-        tenantUserId,
+        tenantUserId: tenantUserId ?? updatedBy,
       });
     }
 
     const configObject = await this.getStandaloneConfigObjectForTenant(
       row.configObjectId,
-      effectiveTenantId,
+      configScopeTenantId(storedTenantId),
     );
 
     const oldValue = {
@@ -3271,7 +3260,7 @@ export class ConfigObjectsService {
     const saved = await this.customObjectInstanceRepository.save(row);
 
     await this.logConfigChange(
-      effectiveTenantId,
+      storedTenantId,
       'custom_object_instance',
       saved.configCustomObjectInstanceId,
       'update',
@@ -3308,16 +3297,12 @@ export class ConfigObjectsService {
     deletedBy: number;
   }): Promise<void> {
     const { tenantId, configCustomObjectInstanceId, deletedBy } = params;
-    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-
-    if (effectiveTenantId === null) {
-      throw new RpcException('tenantId is required.');
-    }
+    const storedTenantId = resolveStoredTenantId(tenantId);
 
     const row = await this.customObjectInstanceRepository.findOne({
       where: {
         configCustomObjectInstanceId,
-        tenantId: effectiveTenantId,
+        tenantId: storedTenantId,
       },
     });
 
@@ -3327,7 +3312,7 @@ export class ConfigObjectsService {
 
     const configObject = await this.getStandaloneConfigObjectForTenant(
       row.configObjectId,
-      effectiveTenantId,
+      configScopeTenantId(storedTenantId),
     );
 
     const oldValue = {
@@ -3352,7 +3337,7 @@ export class ConfigObjectsService {
     await this.customObjectInstanceRepository.remove(row);
 
     await this.logConfigChange(
-      effectiveTenantId,
+      storedTenantId,
       'custom_object_instance',
       configCustomObjectInstanceId,
       'delete',

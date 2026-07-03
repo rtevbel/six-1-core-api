@@ -1,3 +1,8 @@
+import { RpcException } from '@nestjs/microservices';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../../tenants/system-tenant.bootstrap';
+
+export { GLOBAL_SYSTEM_TENANT_ID };
+
 /**
  * Resolves tenant scope for configuration-style APIs.
  *
@@ -20,7 +25,37 @@ export function resolveProcessTemplateStoredTenantId(
   tenantId: number | null | undefined,
 ): number {
   const effective = getEffectiveTenantId(tenantId);
-  return effective ?? 0;
+  return effective ?? GLOBAL_SYSTEM_TENANT_ID;
+}
+
+/** True when stored tenant id is the global / super-admin system scope. */
+export function isGlobalSystemTenantId(tenantId: number): boolean {
+  return tenantId === GLOBAL_SYSTEM_TENANT_ID;
+}
+
+/**
+ * Validates tenant id for rows stored with `tenant_id` (e.g. custom object instances).
+ *
+ * Unlike {@link getEffectiveTenantId}, system scope `0` is a valid stored tenant.
+ * `null` / omitted / negative values are rejected.
+ */
+export function resolveStoredTenantId(
+  tenantId: number | null | undefined,
+): number {
+  if (typeof tenantId !== 'number' || !Number.isFinite(tenantId) || tenantId < 0) {
+    throw new RpcException('tenantId is required.');
+  }
+  return tenantId;
+}
+
+/**
+ * Maps stored instance `tenant_id` to config/template lookup scope.
+ *
+ * System tenant `0` uses global config scope (`null`). Instance row queries
+ * should still use the raw stored id from {@link resolveStoredTenantId}.
+ */
+export function configScopeTenantId(storedTenantId: number): number | null {
+  return isGlobalSystemTenantId(storedTenantId) ? null : storedTenantId;
 }
 
 export type ProcessTemplateScopedWhere =

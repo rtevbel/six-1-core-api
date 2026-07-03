@@ -19,6 +19,10 @@ import {
   type ProcessStepAnchorContext,
 } from './process-step-core-ref.util';
 import { mergeBindingCoreIdsIntoProcessContext } from './process-instance-context.util';
+import {
+  ensureSystemTenantRow,
+} from '../tenants/system-tenant.bootstrap';
+import { isGlobalSystemTenantId } from '../common/utils/tenant-scope.util';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -126,13 +130,14 @@ export class ConfigObjectStepExecutor {
           : null;
 
       if (coreId) {
-        await this.validateByCoreLink(
+        await this.validateByCoreLinkInTransaction(
+          em,
           Number(link.tenant_id ?? 0),
           String(link.object_type ?? ''),
           coreId,
         );
       } else if (instanceId) {
-        await this.validateByCustomInstanceId(instanceId, 0);
+        await this.validateByCustomInstanceIdInTransaction(em, instanceId, 0);
       }
     }
   }
@@ -348,72 +353,90 @@ export class ConfigObjectStepExecutor {
       return { stepInstanceId: null, valid: false };
     }
 
-    return this.ds.transaction(async (em) => {
-      const [link] = await em.query(
-        `SELECT oi.step_object_instance_id,
-                oi.step_instance_id,
-                oi.config_object_id,
-                oi.binding_id,
-                b.completion_rule,
-                co.object_type,
-                pi.tenant_id,
-                pi.process_instance_id
-           FROM process_instance_step_object_instances oi
-           JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
-           JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
-           JOIN config_objects co ON co.config_object_id = oi.config_object_id
-           LEFT JOIN process_template_step_object_bindings b
-             ON b.binding_id = oi.binding_id
-          WHERE oi.config_custom_object_instance_id = ?
-          LIMIT 1
-          FOR UPDATE`,
-        [configCustomObjectInstanceId],
-      );
-
-      if (!link) {
-        return { stepInstanceId: null, valid: false };
-      }
-
-      const [instance] = await em.query(
-        `SELECT payload, status
-           FROM config_custom_object_instances
-          WHERE config_custom_object_instance_id = ?
-            AND tenant_id = ?
-          LIMIT 1`,
-        [configCustomObjectInstanceId, link.tenant_id],
-      );
-
-      if (!instance) {
-        return {
-          stepInstanceId: Number(link.step_instance_id),
-          valid: false,
-        };
-      }
-
-      const completionRule = this.parseCompletionRule(link.completion_rule);
-      const evaluation = await this.completenessService.isBindingComplete({
-        tenantId: Number(link.tenant_id),
-        objectType: String(link.object_type ?? ''),
-        resolutionMode: 'standalone',
-        completionRule,
-        instanceId: configCustomObjectInstanceId,
-        snapshot: {
-          fields: (instance.payload ?? {}) as Record<string, unknown>,
-          status: String(instance.status),
-        },
-      });
-
-      return this.finalizeBindingValidation(
+    return this.ds.transaction((em) =>
+      this.validateByCustomInstanceIdInTransaction(
         em,
-        link,
-        evaluation,
-        evaluation.valid ? JSON.stringify(instance.payload ?? {}) : null,
-        {
-          configCustomObjectInstanceId,
-          correlationId,
-        },
-      );
+        configCustomObjectInstanceId,
+        _updatedBy,
+        correlationId,
+      ),
+    );
+  }
+
+  /**
+   * Validates a standalone binding using the caller's transaction (avoids lock waits
+   * when invoked from step orchestration).
+   */
+  async validateByCustomInstanceIdInTransaction(
+    em: EntityManager,
+    configCustomObjectInstanceId: number,
+    _updatedBy: number,
+    correlationId?: string,
+  ): Promise<{ stepInstanceId: number | null; valid: boolean }> {
+    const [link] = await em.query(
+      `SELECT oi.step_object_instance_id,
+              oi.step_instance_id,
+              oi.config_object_id,
+              oi.binding_id,
+              b.completion_rule,
+              co.object_type,
+              pi.tenant_id,
+              pi.process_instance_id
+         FROM process_instance_step_object_instances oi
+         JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+         JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+         LEFT JOIN process_template_step_object_bindings b
+           ON b.binding_id = oi.binding_id
+        WHERE oi.config_custom_object_instance_id = ?
+        LIMIT 1
+        FOR UPDATE`,
+      [configCustomObjectInstanceId],
+    );
+
+    if (!link) {
+      return { stepInstanceId: null, valid: false };
+    }
+
+    const [instance] = await em.query(
+      `SELECT payload, status
+         FROM config_custom_object_instances
+        WHERE config_custom_object_instance_id = ?
+          AND tenant_id = ?
+        LIMIT 1`,
+      [configCustomObjectInstanceId, link.tenant_id],
+    );
+
+    if (!instance) {
+      return {
+        stepInstanceId: Number(link.step_instance_id),
+        valid: false,
+      };
+    }
+
+    const completionRule = this.parseCompletionRule(link.completion_rule);
+    const evaluation = await this.completenessService.isBindingComplete({
+      tenantId: Number(link.tenant_id),
+      objectType: String(link.object_type ?? ''),
+      resolutionMode: 'standalone',
+      completionRule,
+      instanceId: configCustomObjectInstanceId,
+      snapshot: {
+        fields: (instance.payload ?? {}) as Record<string, unknown>,
+        status: String(instance.status),
+      },
     });
+
+    return this.finalizeBindingValidation(
+      em,
+      link,
+      evaluation,
+      evaluation.valid ? JSON.stringify(instance.payload ?? {}) : null,
+      {
+        configCustomObjectInstanceId,
+        correlationId,
+      },
+    );
   }
 
   /**
@@ -429,83 +452,102 @@ export class ConfigObjectStepExecutor {
       return { stepInstanceIds: [], anyValid: false };
     }
 
+    return this.ds.transaction((em) =>
+      this.validateByCoreLinkInTransaction(
+        em,
+        tenantId,
+        objectType,
+        coreId,
+        correlationId,
+      ),
+    );
+  }
+
+  /**
+   * Re-validates core-linked bindings using the caller's transaction.
+   */
+  async validateByCoreLinkInTransaction(
+    em: EntityManager,
+    tenantId: number,
+    objectType: string,
+    coreId: number,
+    correlationId?: string,
+  ): Promise<{ stepInstanceIds: number[]; anyValid: boolean }> {
     const stepInstanceIds: number[] = [];
     let anyValid = false;
 
-    await this.ds.transaction(async (em) => {
-      const links = await em.query(
-        `SELECT oi.step_object_instance_id,
-                oi.step_instance_id,
-                oi.config_object_id,
-                oi.binding_id,
-                oi.core_id,
-                b.completion_rule,
-                co.object_type,
-                co.binding_mode AS config_binding_mode,
-                pi.tenant_id,
-                pi.process_instance_id
-           FROM process_instance_step_object_instances oi
-           JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
-           JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
-           JOIN config_objects co ON co.config_object_id = oi.config_object_id
-           LEFT JOIN process_template_step_object_bindings b
-             ON b.binding_id = oi.binding_id
-          WHERE oi.core_id = ?
-            AND co.object_type = ?
-            AND oi.status IN ('active', 'failed')
-          FOR UPDATE`,
-        [coreId, objectType],
+    const links = await em.query(
+      `SELECT oi.step_object_instance_id,
+              oi.step_instance_id,
+              oi.config_object_id,
+              oi.binding_id,
+              oi.core_id,
+              b.completion_rule,
+              co.object_type,
+              co.binding_mode AS config_binding_mode,
+              pi.tenant_id,
+              pi.process_instance_id
+         FROM process_instance_step_object_instances oi
+         JOIN process_instance_steps s ON s.step_instance_id = oi.step_instance_id
+         JOIN process_instances pi ON pi.process_instance_id = s.process_instance_id
+         JOIN config_objects co ON co.config_object_id = oi.config_object_id
+         LEFT JOIN process_template_step_object_bindings b
+           ON b.binding_id = oi.binding_id
+        WHERE oi.core_id = ?
+          AND co.object_type = ?
+          AND oi.status IN ('active', 'failed')
+        FOR UPDATE`,
+      [coreId, objectType],
+    );
+
+    if (!links?.length) {
+      return { stepInstanceIds: [], anyValid: false };
+    }
+
+    for (const link of links) {
+      const linkTenantId = Number(link.tenant_id ?? tenantId ?? 0);
+      const resolutionMode = this.normalizeResolutionMode(
+        link.config_binding_mode,
+      );
+      const completionRule = this.parseCompletionRule(link.completion_rule);
+      const evaluation = await this.completenessService.isBindingComplete({
+        tenantId: linkTenantId,
+        objectType,
+        resolutionMode,
+        completionRule,
+        coreId,
+      });
+
+      const fields = evaluation.valid
+        ? (
+            await this.completenessService.buildFieldSnapshot({
+              tenantId: linkTenantId,
+              objectType,
+              resolutionMode,
+              coreId,
+            })
+          )?.fields ?? {}
+        : {};
+
+      const result = await this.finalizeBindingValidation(
+        em,
+        link,
+        evaluation,
+        evaluation.valid ? JSON.stringify(fields) : null,
+        {
+          coreId,
+          objectType,
+          correlationId,
+        },
       );
 
-      if (!links?.length) {
-        return;
+      if (result.stepInstanceId) {
+        stepInstanceIds.push(result.stepInstanceId);
       }
-
-      for (const link of links) {
-        const linkTenantId = Number(link.tenant_id ?? tenantId ?? 0);
-        const resolutionMode = this.normalizeResolutionMode(
-          link.config_binding_mode,
-        );
-        const completionRule = this.parseCompletionRule(link.completion_rule);
-        const evaluation = await this.completenessService.isBindingComplete({
-          tenantId: linkTenantId,
-          objectType,
-          resolutionMode,
-          completionRule,
-          coreId,
-        });
-
-        const fields = evaluation.valid
-          ? (
-              await this.completenessService.buildFieldSnapshot({
-                tenantId: linkTenantId,
-                objectType,
-                resolutionMode,
-                coreId,
-              })
-            )?.fields ?? {}
-          : {};
-
-        const result = await this.finalizeBindingValidation(
-          em,
-          link,
-          evaluation,
-          evaluation.valid ? JSON.stringify(fields) : null,
-          {
-            coreId,
-            objectType,
-            correlationId,
-          },
-        );
-
-        if (result.stepInstanceId) {
-          stepInstanceIds.push(result.stepInstanceId);
-        }
-        if (result.valid) {
-          anyValid = true;
-        }
+      if (result.valid) {
+        anyValid = true;
       }
-    });
+    }
 
     return {
       stepInstanceIds: Array.from(new Set(stepInstanceIds)),
@@ -904,6 +946,10 @@ export class ConfigObjectStepExecutor {
     configObjectId: number,
     createdBy: number,
   ): Promise<number> {
+    if (isGlobalSystemTenantId(tenantId)) {
+      await ensureSystemTenantRow(em);
+    }
+
     const [configObject] = await em.query(
       `SELECT config_object_id, binding_mode
          FROM config_objects

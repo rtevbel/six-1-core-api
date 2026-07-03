@@ -6,7 +6,7 @@ import { ConfigCustomObjectInstanceStatus } from '../entities/config_custom_obje
  */
 export class ListCustomObjectInstancesDto {
   @IsInt()
-  @Min(1)
+  @Min(0)
   tenantId!: number;
 
   @IsInt()
@@ -23,7 +23,7 @@ export class ListCustomObjectInstancesDto {
  */
 export class GetCustomObjectInstanceDto {
   @IsInt()
-  @Min(1)
+  @Min(0)
   tenantId!: number;
 
   @IsInt()
@@ -36,7 +36,7 @@ export class GetCustomObjectInstanceDto {
  */
 export class CreateCustomObjectInstanceDto {
   @IsInt()
-  @Min(1)
+  @Min(0)
   tenantId!: number;
 
   @IsInt()
@@ -61,7 +61,7 @@ export class CreateCustomObjectInstanceDto {
  */
 export class UpdateCustomObjectInstanceDto {
   @IsInt()
-  @Min(1)
+  @Min(0)
   tenantId!: number;
 
   @IsInt()
@@ -76,6 +76,9 @@ export class UpdateCustomObjectInstanceDto {
   /**
    * When this instance is bound to a process step (Object Runner),
    * step mutation is guarded by collaboration locks (G3).
+   *
+   * Omit for super-admin saves when gateway only forwards `updatedBy`; core
+   * falls back to `updatedBy` to match lock acquire (`userId` as holder).
    */
   @IsOptional()
   @IsInt()
@@ -96,7 +99,7 @@ export class UpdateCustomObjectInstanceDto {
  */
 export class DeleteCustomObjectInstanceDto {
   @IsInt()
-  @Min(1)
+  @Min(0)
   tenantId!: number;
 
   @IsInt()

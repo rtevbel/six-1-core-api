@@ -54,9 +54,11 @@ export class ResolveConfigInstanceDto {
   /**
    * Tenant scope for schema resolution. Omit for global / super-admin published
    * template-set scope (same rules as `GetConfigSchemaDto`).
+   *
+   * For standalone `instanceId` resolve, `0` is valid (system/global process scope).
    */
   @IsInt()
-  @Min(1)
+  @Min(0)
   @IsOptional()
   tenantId?: number;
 

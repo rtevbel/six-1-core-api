@@ -27,6 +27,7 @@ import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 import { EventsService } from '../events/events.service';
+import { ProcessStepLocksService } from '../process_instances/process_step_locks/process-step-locks.service';
 import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
 
 describe('ConfigObjectsService', () => {
@@ -44,6 +45,11 @@ describe('ConfigObjectsService', () => {
   let panelRepo: Repository<ConfigObjectViewPanelEntity>;
   let auditLogRepo: Repository<ConfigAuditLogEntity>;
   let customerMetaRepo: Repository<CustomerMetaEntity>;
+  let customObjectInstanceRepo: Repository<ConfigCustomObjectInstanceEntity>;
+  let stepLocksService: {
+    resolveStepIdForCustomObjectInstance: jest.Mock;
+    assertCanMutateStep: jest.Mock;
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -145,6 +151,13 @@ describe('ConfigObjectsService', () => {
           provide: EventsService,
           useValue: { emit: jest.fn() },
         },
+        {
+          provide: ProcessStepLocksService,
+          useValue: {
+            resolveStepIdForCustomObjectInstance: jest.fn().mockResolvedValue(null),
+            assertCanMutateStep: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -164,6 +177,10 @@ describe('ConfigObjectsService', () => {
     panelRepo = module.get(getRepositoryToken(ConfigObjectViewPanelEntity));
     auditLogRepo = module.get(getRepositoryToken(ConfigAuditLogEntity));
     customerMetaRepo = module.get(getRepositoryToken(CustomerMetaEntity));
+    customObjectInstanceRepo = module.get(
+      getRepositoryToken(ConfigCustomObjectInstanceEntity),
+    );
+    stepLocksService = module.get(ProcessStepLocksService);
 
     jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue(null as any);
     jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
@@ -194,6 +211,265 @@ describe('ConfigObjectsService', () => {
         createdBy: 99,
       }),
     ).rejects.toThrow(RpcException);
+  });
+
+  describe('standalone custom object instances (stored tenantId)', () => {
+    const standaloneConfigObject = {
+      configObjectId: 6,
+      configTemplateSetId: 20,
+      objectType: 'demo_intake',
+      bindingMode: 'standalone',
+      status: 'PUBLISHED',
+    } as ConfigObjectEntity;
+
+    function mockStandaloneSchemaLookup(): void {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+    }
+
+    it('resolveObjectInstance rejects null tenantId when resolving by instanceId', async () => {
+      await expect(
+        service.resolveObjectInstance(null, 'demo_intake', undefined, 44),
+      ).rejects.toThrow('tenantId is required.');
+    });
+
+    it('resolveObjectInstance accepts tenantId 0 for standalone instanceId resolve', async () => {
+      mockStandaloneSchemaLookup();
+      jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce({
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+        configObjectId: 6,
+        payload: { site_name: 'North lot' },
+        status: 'DRAFT',
+      } as ConfigCustomObjectInstanceEntity);
+
+      const resolved = await service.resolveObjectInstance(
+        0,
+        'demo_intake',
+        undefined,
+        44,
+      );
+
+      expect(resolved).toMatchObject({
+        resolutionMode: 'standalone',
+        objectType: 'demo_intake',
+        instanceId: 44,
+        tenantId: 0,
+        dynamicFields: { site_name: 'North lot' },
+      });
+    });
+
+    it('getCustomObjectInstance accepts tenantId 0 for system-scoped rows', async () => {
+      jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce({
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+        configObjectId: 6,
+        payload: {},
+        status: 'DRAFT',
+      } as ConfigCustomObjectInstanceEntity);
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+
+      const row = await service.getCustomObjectInstance({
+        tenantId: 0,
+        configCustomObjectInstanceId: 44,
+      });
+
+      expect(row).toMatchObject({
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+      });
+    });
+
+    it('uses global template set scope when validating standalone definition for tenantId 0', async () => {
+      jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce({
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+        configObjectId: 6,
+        payload: {},
+        status: 'DRAFT',
+      } as ConfigCustomObjectInstanceEntity);
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      const templateSetFindOne = jest
+        .spyOn(templateSetRepo, 'findOne')
+        .mockResolvedValueOnce({
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        } as any);
+
+      await service.getCustomObjectInstance({
+        tenantId: 0,
+        configCustomObjectInstanceId: 44,
+      });
+
+      expect(templateSetFindOne).toHaveBeenCalledWith({
+        where: { configTemplateSetId: 20 },
+      });
+    });
+
+    it('updateCustomObjectInstance accepts tenantId 0 for system-scoped rows', async () => {
+      const row = {
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+        configObjectId: 6,
+        payload: {},
+        status: 'DRAFT',
+        updatedBy: null,
+      } as ConfigCustomObjectInstanceEntity;
+
+      jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce(row);
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+      jest.spyOn(customObjectInstanceRepo, 'save').mockImplementation(async (entity) => ({
+        ...entity,
+        payload: { site_name: 'Updated lot' },
+      }) as ConfigCustomObjectInstanceEntity);
+      jest.spyOn(auditLogRepo, 'create').mockReturnValue({} as any);
+      jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+      const saved = await service.updateCustomObjectInstance({
+        tenantId: 0,
+        configCustomObjectInstanceId: 44,
+        updatedBy: 99,
+        payload: { site_name: 'Updated lot' },
+      });
+
+      expect(saved.payload).toEqual({ site_name: 'Updated lot' });
+      expect(customObjectInstanceRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ tenantId: 0 }),
+      );
+    });
+
+    it('updateCustomObjectInstance falls back to updatedBy for step lock when tenantUserId omitted', async () => {
+      const row = {
+        configCustomObjectInstanceId: 44,
+        tenantId: 0,
+        configObjectId: 6,
+        payload: {},
+        status: 'DRAFT',
+        updatedBy: null,
+      } as ConfigCustomObjectInstanceEntity;
+
+      stepLocksService.resolveStepIdForCustomObjectInstance.mockResolvedValueOnce(115);
+      stepLocksService.assertCanMutateStep.mockResolvedValueOnce(undefined);
+
+      jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce(row);
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+      jest.spyOn(customObjectInstanceRepo, 'save').mockImplementation(async (entity) => ({
+        ...entity,
+        payload: { full_name: 'Ali shoaib' },
+      }) as ConfigCustomObjectInstanceEntity);
+      jest.spyOn(auditLogRepo, 'create').mockReturnValue({} as any);
+      jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+      await service.updateCustomObjectInstance({
+        tenantId: 0,
+        configCustomObjectInstanceId: 44,
+        updatedBy: 1,
+        payload: { full_name: 'Ali shoaib' },
+      });
+
+      expect(stepLocksService.assertCanMutateStep).toHaveBeenCalledWith({
+        stepInstanceId: 115,
+        tenantUserId: 1,
+      });
+    });
+
+    it('listCustomObjectInstances accepts tenantId 0 and queries stored tenant_id', async () => {
+      jest
+        .spyOn(configObjectRepo, 'findOne')
+        .mockResolvedValueOnce(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+      const find = jest
+        .spyOn(customObjectInstanceRepo, 'find')
+        .mockResolvedValueOnce([]);
+
+      await service.listCustomObjectInstances({
+        tenantId: 0,
+        configObjectId: 6,
+      });
+
+      expect(find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 0,
+            configObjectId: 6,
+          }),
+        }),
+      );
+    });
+
+    it('resolveObjectInstance still resolves SoR objects when tenantId is null', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 20,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        configObjectId: 120,
+        configTemplateSetId: 20,
+        objectType: 'customer',
+        bindingMode: 'sor_bound',
+        status: 'PUBLISHED',
+      } as any);
+
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(customerMetaRepo, 'findOne').mockResolvedValueOnce({
+        customerId: 9,
+        metaJson: { company_name: 'Acme' },
+      } as any);
+      jest.spyOn(dataSource, 'getMetadata').mockReturnValue({
+        primaryColumns: [{ propertyName: 'customerId' }],
+      } as any);
+      jest.spyOn(dataSource, 'getRepository').mockReturnValue({
+        findOne: jest.fn().mockResolvedValue({ customerId: 9, email: 'a@b.c' }),
+      } as any);
+
+      const resolved = await service.resolveObjectInstance(null, 'customer', 9);
+
+      expect(resolved).toMatchObject({
+        resolutionMode: 'sor_bound',
+        coreId: 9,
+      });
+    });
   });
 
   it('getObjectSchema should return null when no active template set exists', async () => {

@@ -8,6 +8,13 @@ import {
   PROCESS_INSTANCE_STEP_OBJECT_STATUS_VALID,
 } from './process-step-object-binding.constants';
 
+jest.mock('../tenants/system-tenant.bootstrap', () => ({
+  ...jest.requireActual('../tenants/system-tenant.bootstrap'),
+  ensureSystemTenantRow: jest.fn().mockResolvedValue(undefined),
+}));
+
+import { ensureSystemTenantRow } from '../tenants/system-tenant.bootstrap';
+
 describe('ConfigObjectStepExecutor', () => {
   const emit = jest.fn();
   const flags = { isConfigObjectStepsEnabled: jest.fn().mockReturnValue(true) };
@@ -153,6 +160,45 @@ describe('ConfigObjectStepExecutor', () => {
           }),
         }),
       );
+    });
+
+    it('ensures system tenant exists before global-scope standalone provisioning', async () => {
+      const qr = {
+        manager: {
+          query: jest
+            .fn()
+            .mockResolvedValueOnce([
+              { tenant_id: 0, created_by: 1, process_instance_id: 50 },
+            ])
+            .mockResolvedValueOnce([
+              {
+                step_object_instance_id: 30,
+                step_instance_id: 83,
+                binding_id: 9,
+                config_object_id: 6,
+                config_custom_object_instance_id: null,
+                core_id: null,
+                status: PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
+                binding_mode: 'create_on_enter',
+                is_mandatory: 1,
+                completion_rule: { type: 'payload_valid' },
+                object_type: 'demo_intake',
+                config_binding_mode: 'standalone',
+              },
+            ])
+            .mockResolvedValueOnce([
+              { config_object_id: 6, binding_mode: 'standalone' },
+            ])
+            .mockResolvedValueOnce({ insertId: 88 })
+            .mockResolvedValueOnce(undefined),
+        },
+      };
+
+      await executor.provisionBindingsOnStepReady(qr as never, {
+        stepInstanceId: 83,
+      });
+
+      expect(ensureSystemTenantRow).toHaveBeenCalledWith(qr.manager);
     });
 
     it('defers sor_bound create_on_enter bindings without provisioning on step ready', async () => {

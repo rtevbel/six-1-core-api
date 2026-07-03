@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 // Importing the service and controller for tenants
 import { TenantsService } from './tenants.service';
 import { TenantsController } from './tenants.controller';
+import { SystemTenantBootstrapService } from './system-tenant-bootstrap.service';
 
 // Importing submodules related to tenant management
 import { TenantTypesModule } from './tenant_types/tenant_types.module'; // Handles tenant types
@@ -48,6 +49,6 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
   controllers: [TenantsController],
 
   // Specifies the providers that contain the business logic.
-  providers: [TenantsService],
+  providers: [TenantsService, SystemTenantBootstrapService],
 })
 export class TenantsModule {}
