@@ -113,6 +113,68 @@ export function normalizeQueryConfigInlineRelation(
   return out;
 }
 
+const JOIN_TABLE_KEYS = [
+  'join_table',
+  'join_local_key',
+  'join_foreign_key',
+  'target_table',
+] as const;
+
+function assertJoinIdentifier(
+  value: unknown,
+  label: string,
+): string {
+  if (typeof value !== 'string' || !/^[a-zA-Z0-9_]+$/.test(value.trim())) {
+    throw new RelationAuthoringValidationError(
+      `${label} must be a safe SQL identifier`,
+    );
+  }
+  return value.trim();
+}
+
+/**
+ * Validates optional many-to-many `queryConfig.join_table` metadata.
+ */
+export function normalizeQueryConfigJoinTable(
+  queryConfig: Record<string, unknown>,
+): Record<string, unknown> {
+  const out = { ...queryConfig };
+  if (out.join_table === undefined || out.join_table === null) {
+    return out;
+  }
+
+  for (const key of JOIN_TABLE_KEYS) {
+    out[key] = assertJoinIdentifier(out[key], `queryConfig.${key}`);
+  }
+
+  if (out.target_primary_key !== undefined && out.target_primary_key !== null) {
+    out.target_primary_key = assertJoinIdentifier(
+      out.target_primary_key,
+      'queryConfig.target_primary_key',
+    );
+  }
+
+  const extra = Object.keys(out).filter(
+    (k) =>
+      ![
+        ...JOIN_TABLE_KEYS,
+        'target_primary_key',
+        'inlineRelation',
+        'sor_table',
+        'foreign_key',
+        'local_key',
+        'via',
+      ].includes(k),
+  );
+  if (extra.length) {
+    throw new RelationAuthoringValidationError(
+      `queryConfig: unknown keys with join_table: ${extra.join(', ')}`,
+    );
+  }
+
+  return out;
+}
+
 /**
  * X-relation: validates `relationManifestsByKey`.
  *
@@ -274,6 +336,19 @@ export function validateAndNormalizeRelationManifestsByKey(
           `relationManifestsByKey.${key}.columns is required for mode relation_membership`,
         );
       }
+      if (!entry.actions || typeof entry.actions !== 'object' || Array.isArray(entry.actions)) {
+        throw new RelationAuthoringValidationError(
+          `relationManifestsByKey.${key}.actions is required for mode relation_membership`,
+        );
+      }
+      const membershipActions = entry.actions as Record<string, unknown>;
+      for (const actionKey of ['assignRef', 'unassignRef', 'listRef'] as const) {
+        membershipActions[actionKey] = assertRefToken(
+          membershipActions[actionKey],
+          `relationManifestsByKey.${key}.actions.${actionKey}`,
+        );
+      }
+      entry.actions = membershipActions;
     }
 
     if (entry.mode === 'embedded_form') {

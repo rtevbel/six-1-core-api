@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import type { Type } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
@@ -76,8 +78,18 @@ import {
   validateLookupSelectAuthoringMetadata,
 } from './field-runtime-authoring';
 import {
+  FieldRulesValidationError,
+  validateFieldRulesJson,
+} from './field-rules';
+import {
+  FieldValidationJsonValidationError,
+  isValidFileFieldValue,
+  validateFieldValidationJson,
+} from './field-validation';
+import {
   mapRelationAuthoringErrorToRpc,
   normalizeQueryConfigInlineRelation,
+  normalizeQueryConfigJoinTable,
   validateAndNormalizeRelationManifestsByKey,
 } from './relation-authoring';
 import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
@@ -141,6 +153,25 @@ import {
 } from '../events/platform-config-object-event.util';
 import { provisionSorBoundCoreRecordFromSave } from '../automation/sor-bound-core-record.provisioner';
 import { PROCESS_INSTANCE_STEP_OBJECT_STATUS_ACTIVE } from '../automation/process-step-object-binding.constants';
+import {
+  manyToManyJoinConfigToQueryConfig,
+  resolveManyToManyJoinConfig,
+} from './list-query/resolve-many-to-many-join-config';
+import {
+  loadManyToOneSnapshotsForPrimary,
+  loadOneToManySnapshotsForRelations,
+  serializeEntityRow,
+} from './composite-snapshot/composite-snapshot.loader';
+import type { ConfigObjectCompositeSnapshotView } from './interfaces/config-object-composite-snapshot.interface';
+import { getSorMetaTableDescriptor } from './sor-meta-table';
+import {
+  assertReferenceListDataRefKnown,
+  buildReferenceListCatalog,
+  buildSchemaLookupCatalog,
+  isReferenceListStrictValidationEnabled,
+  ReferenceListValidationError,
+} from './reference-list';
+import type { ReferenceListCatalogView } from './reference-list/reference-list.types';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -279,6 +310,7 @@ export class ConfigObjectsService {
     private readonly dataSource: DataSource,
     private readonly eventsService: EventsService,
     private readonly stepLocks: ProcessStepLocksService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -2232,11 +2264,61 @@ export class ConfigObjectsService {
       base,
       templateSet.configTemplateSetId,
     );
+    const withLookupCatalog = this.attachLookupCatalogToSchema(schema);
     this.schemaCache.set(cacheKey, {
       expiresAt: Date.now() + this.runtimeCacheTtlMs,
-      value: schema,
+      value: withLookupCatalog,
     });
-    return schema;
+    return withLookupCatalog;
+  }
+
+  /**
+   * Canonical lookup `dataRef` catalog for gateway, mobile, and Designer clients.
+   */
+  getReferenceListCatalog(): ReferenceListCatalogView {
+    return buildReferenceListCatalog();
+  }
+
+  private attachLookupCatalogToSchema(
+    schema: ConfigObjectRunnerSchemaView,
+  ): ConfigObjectRunnerSchemaView {
+    const dataRefs: string[] = [];
+    for (const field of schema.fieldRegistry) {
+      const dataRef = field.lookupSelectConfig?.dataRef;
+      if (typeof dataRef === 'string' && dataRef.trim()) {
+        dataRefs.push(dataRef);
+      }
+    }
+
+    const lookupCatalog = buildSchemaLookupCatalog({ dataRefs });
+    if (lookupCatalog.length === 0) {
+      return schema;
+    }
+
+    return {
+      ...schema,
+      lookupCatalog,
+    };
+  }
+
+  private assertReferenceListDataRefOnSave(dataRef: string): void {
+    const strict = isReferenceListStrictValidationEnabled(this.configService);
+    try {
+      const unknown = assertReferenceListDataRefKnown(dataRef, { strict });
+      if (!unknown && !strict) {
+        this.logger.warn(
+          `Unknown lookup dataRef "${dataRef.trim()}" saved in non-strict mode.`,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ReferenceListValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.LookupSelectInvalid,
+          error.message,
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -2324,12 +2406,9 @@ export class ConfigObjectsService {
       });
     }
 
-    /** Related core columns (`relatedFieldRegistryByRelationKey`), aligned with Object Runner schema (designer parity). */
+    /** Related core columns (`relatedFieldRegistryByRelationKey`), including M2M membership targets. */
     const relatedCompoundSeen = new Set<string>();
     for (const rel of schema?.relations ?? []) {
-      if (rel.cardinality === 'many_to_many') {
-        continue;
-      }
       const descriptors =
         schema?.relatedFieldRegistryByRelationKey?.[rel.relationshipKey] ?? [];
       const toCanon = canonicalizeObjectType(rel.toObjectType);
@@ -2573,6 +2652,92 @@ export class ConfigObjectsService {
     };
 
     return resolved;
+  }
+
+  /**
+   * Composite read for admin records: primary row + related FK/child snapshots.
+   * Works for `system_table`, `sor_bound`, and other registry-backed types.
+   */
+  async resolveCompositeSnapshot(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+    id: number;
+  }): Promise<ConfigObjectCompositeSnapshotView | null> {
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      params.objectType,
+    );
+    const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
+    const schema = await this.getObjectSchema(
+      effectiveTenantId,
+      canonicalObjectType,
+    );
+    if (!schema) {
+      return null;
+    }
+
+    const entityClass = resolveEntityClassForObjectType(canonicalObjectType);
+    if (!entityClass) {
+      return null;
+    }
+
+    const primaryRow = await loadCoreEntityFromRegistry(
+      this.dataSource,
+      canonicalObjectType,
+      params.id,
+    );
+    if (!primaryRow) {
+      return null;
+    }
+
+    if (
+      effectiveTenantId !== null &&
+      typeof (primaryRow as Record<string, unknown>).tenantId === 'number' &&
+      (primaryRow as Record<string, unknown>).tenantId !== effectiveTenantId
+    ) {
+      throw new RpcException(
+        `Requested ${canonicalObjectType} record does not belong to the specified tenant.`,
+      );
+    }
+
+    const relations = await this.getMergedRelationshipCatalogForObjectType(
+      canonicalObjectType,
+    );
+
+    const relatedSnapshots: Record<string, unknown> = {
+      ...(await loadManyToOneSnapshotsForPrimary(
+        this.dataSource,
+        entityClass,
+        primaryRow,
+      )),
+      ...(await loadOneToManySnapshotsForRelations(this.dataSource, {
+        primaryEntityClass: entityClass,
+        primaryRow,
+        relations,
+      })),
+    };
+
+    let dynamicFields: Record<string, unknown> | undefined;
+    if (schema.configObject.bindingMode === 'sor_bound') {
+      const metaJson = await this.loadSorBoundMetaJson(
+        canonicalObjectType,
+        params.id,
+      );
+      dynamicFields = this.mergeDynamicFieldsFromSource(
+        schema,
+        metaJson ?? undefined,
+      );
+    }
+
+    return {
+      objectType: canonicalObjectType,
+      id: params.id,
+      tenantId: effectiveTenantId,
+      bindingMode: schema.configObject.bindingMode,
+      schema,
+      primary: serializeEntityRow(primaryRow),
+      dynamicFields,
+      relatedSnapshots,
+    };
   }
 
   /**
@@ -3733,13 +3898,18 @@ export class ConfigObjectsService {
     if (rulesJson === undefined) {
       return null;
     }
-    if (rulesJson === null) {
-      return null;
+    try {
+      const normalized = validateFieldRulesJson(rulesJson);
+      return normalized as Record<string, unknown> | null;
+    } catch (error) {
+      if (error instanceof FieldRulesValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.FieldRulesInvalid,
+          error.message,
+        );
+      }
+      throw error;
     }
-    if (typeof rulesJson !== 'object' || Array.isArray(rulesJson)) {
-      throw new RpcException('rulesJson must be a plain object or null.');
-    }
-    return rulesJson as Record<string, unknown>;
   }
 
   /**
@@ -4483,7 +4653,7 @@ export class ConfigObjectsService {
       return null;
     }
     try {
-      const next = { ...validationJson };
+      const next = validateFieldValidationJson({ ...validationJson });
       if (
         Object.prototype.hasOwnProperty.call(
           next,
@@ -4498,9 +4668,11 @@ export class ConfigObjectsService {
       if (
         Object.prototype.hasOwnProperty.call(next, '_six1LookupSelectAuthoring')
       ) {
-        next._six1LookupSelectAuthoring = validateLookupSelectAuthoringMetadata(
+        const lookup = validateLookupSelectAuthoringMetadata(
           next._six1LookupSelectAuthoring,
         );
+        this.assertReferenceListDataRefOnSave(lookup.dataRef);
+        next._six1LookupSelectAuthoring = lookup;
       }
       if (
         Object.prototype.hasOwnProperty.call(
@@ -4533,6 +4705,12 @@ export class ConfigObjectsService {
           error.message,
         );
       }
+      if (error instanceof FieldValidationJsonValidationError) {
+        throw authoringRpcException(
+          AuthoringErrorCode.FieldValidationInvalid,
+          error.message,
+        );
+      }
       throw error;
     }
   }
@@ -4541,10 +4719,50 @@ export class ConfigObjectsService {
     queryConfig: Record<string, unknown>,
   ): Record<string, unknown> {
     try {
-      return normalizeQueryConfigInlineRelation({ ...queryConfig });
+      return normalizeQueryConfigJoinTable(
+        normalizeQueryConfigInlineRelation({ ...queryConfig }),
+      );
     } catch (error) {
       mapRelationAuthoringErrorToRpc(error);
     }
+  }
+
+  private enrichManyToManyRelationDescriptor(
+    rel: RelationDescriptor,
+  ): RelationDescriptor {
+    if (rel.cardinality !== 'many_to_many') {
+      return rel;
+    }
+    if (
+      rel.queryConfig &&
+      typeof rel.queryConfig.join_table === 'string' &&
+      rel.queryConfig.join_table.trim()
+    ) {
+      return rel;
+    }
+
+    const rootEntity = resolveEntityClassForObjectType(rel.fromObjectType);
+    const relatedEntity = resolveEntityClassForObjectType(rel.toObjectType);
+    if (!rootEntity || !relatedEntity) {
+      return rel;
+    }
+
+    const joinConfig = resolveManyToManyJoinConfig(this.dataSource, {
+      rootEntityClass: rootEntity as Type<object>,
+      relatedEntityClass: relatedEntity as Type<object>,
+      queryConfig: rel.queryConfig ?? {},
+    });
+    if (!joinConfig) {
+      return rel;
+    }
+
+    return {
+      ...rel,
+      queryConfig: {
+        ...(rel.queryConfig ?? {}),
+        ...manyToManyJoinConfigToQueryConfig(joinConfig),
+      },
+    };
   }
 
   private safeNormalizeRelationManifestsJson(
@@ -4646,9 +4864,9 @@ export class ConfigObjectsService {
       });
     }
 
-    return Array.from(byKey.values()).sort((a, b) =>
-      a.relationshipKey.localeCompare(b.relationshipKey),
-    );
+    return Array.from(byKey.values())
+      .map((rel) => this.enrichManyToManyRelationDescriptor(rel))
+      .sort((a, b) => a.relationshipKey.localeCompare(b.relationshipKey));
   }
 
   /**
@@ -7612,50 +7830,34 @@ export class ConfigObjectsService {
     objectType: string,
     coreId: number,
   ): Promise<Record<string, unknown> | null> {
-    if (objectType === 'project') {
-      const meta = await this.projectMetaRepository.findOne({
-        where: { projectId: coreId },
-      });
-      return meta ? meta.metaJson : null;
+    const descriptor = getSorMetaTableDescriptor(objectType);
+    if (!descriptor) {
+      return null;
     }
 
-    if (objectType === 'task') {
-      const meta = await this.taskMetaRepository.findOne({
-        where: { taskId: coreId },
+    const row = await this.dataSource
+      .getRepository(descriptor.metaEntity)
+      .findOne({
+        where: { [descriptor.coreIdProperty]: coreId } as Record<string, unknown>,
       });
-      return meta ? meta.metaJson : null;
+
+    if (!row) {
+      return null;
     }
 
-    if (objectType === 'customer') {
-      const meta = await this.customerMetaRepository.findOne({
-        where: { customerId: coreId },
-      });
-      return meta ? meta.metaJson : null;
+    const metaJson = (row as Record<string, unknown>)[descriptor.metaJsonProperty];
+    if (
+      !metaJson ||
+      typeof metaJson !== 'object' ||
+      Array.isArray(metaJson)
+    ) {
+      return null;
     }
 
-    if (objectType === 'customer_contact') {
-      const meta = await this.customerContactInfoMetaRepository.findOne({
-        where: { customerContactId: coreId },
-      });
-      return meta ? meta.metaJson : null;
-    }
-
-    if (objectType === 'resource') {
-      const meta = await this.resourceMetaRepository.findOne({
-        where: { resourceId: coreId },
-      });
-      return meta ? meta.metaJson : null;
-    }
-
-    return null;
+    return metaJson as Record<string, unknown>;
   }
 }
 
 function isValidAttachmentFieldValue(value: unknown): boolean {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
-  }
-  const v = value as Record<string, unknown>;
-  const key = v.key;
-  return typeof key === 'string' && key.trim().length > 0;
+  return isValidFileFieldValue(value);
 }

@@ -9,6 +9,7 @@ import type { RelationDescriptor } from '../interfaces/relation-descriptor.inter
 import { appendParameterizedListFilterPredicate } from './append-parameterized-list-filter-predicate';
 import type { ListFilterOperator } from './append-parameterized-list-filter-predicate';
 import { inferListFilterFieldTypeFromColumn } from './list-filter-field-type';
+import { resolveManyToManyJoinConfig } from './resolve-many-to-many-join-config';
 
 function relationTargetConstructor(relation: {
   type?: unknown;
@@ -108,12 +109,6 @@ export function appendRelatedExistsFilter(
 ): void {
   const { rootEntityClass, rootAlias, rel, filter } = options;
 
-  if (rel.cardinality === 'many_to_many') {
-    throw new RpcException(
-      'Related list filtering does not yet support many-to-many relationships.',
-    );
-  }
-
   const relatedCanonical = canonicalizeObjectType(rel.toObjectType);
   const resolvedRelated =
     resolveEntityClassForObjectType(relatedCanonical) ??
@@ -125,6 +120,18 @@ export function appendRelatedExistsFilter(
     throw new RpcException(
       `Related type "${rel.toObjectType}" is not mapped to an entity.`,
     );
+  }
+
+  if (rel.cardinality === 'many_to_many') {
+    appendManyToManyRelatedExistsFilter(dataSource, qb, {
+      rootEntityClass,
+      rootAlias,
+      relatedEntityClass,
+      rel,
+      filter,
+      paramNamespace: options.paramNamespace,
+    });
+    return;
   }
 
   let relatedMd;
@@ -181,6 +188,85 @@ export function appendRelatedExistsFilter(
   }
 
   const relatedExpression = `${subAlias}.${filter.fieldKey}`;
+  appendParameterizedListFilterPredicate(
+    subQ as SelectQueryBuilder<object>,
+    relatedExpression,
+    {
+      operator: filter.operator,
+      value: filter.value,
+      logicalField: `${rel.relationshipKey}.${filter.fieldKey}`,
+      fieldType: inferListFilterFieldTypeFromColumn(relatedColumn),
+    },
+    `${options.paramNamespace}_rv`,
+  );
+
+  qb.andWhere(`EXISTS (${subQ.getQuery()})`, subQ.getParameters());
+}
+
+function appendManyToManyRelatedExistsFilter(
+  dataSource: DataSource,
+  qb: SelectQueryBuilder<object>,
+  options: {
+    rootEntityClass: Type<object>;
+    rootAlias: string;
+    relatedEntityClass: Type<object>;
+    rel: RelationDescriptor;
+    filter: RelatedExistsStructuredFilterClause;
+    paramNamespace: string;
+  },
+): void {
+  const { rootEntityClass, rootAlias, relatedEntityClass, rel, filter } =
+    options;
+
+  const joinConfig = resolveManyToManyJoinConfig(dataSource, {
+    rootEntityClass,
+    relatedEntityClass,
+    queryConfig: rel.queryConfig ?? {},
+  });
+
+  if (!joinConfig) {
+    throw new RpcException(
+      `Many-to-many relationship "${rel.relationshipKey}" has no join_table configuration and could not be inferred from ORM metadata.`,
+    );
+  }
+
+  let relatedMd;
+  try {
+    relatedMd = dataSource.getMetadata(relatedEntityClass);
+  } catch {
+    throw new RpcException(
+      `Failed to resolve entity metadata for related type "${rel.toObjectType}".`,
+    );
+  }
+
+  const relatedColumn = relatedMd.findColumnWithPropertyName(filter.fieldKey);
+  if (
+    !relatedColumn ||
+    !/^[A-Za-z0-9_]+$/.test(filter.fieldKey) ||
+    filter.fieldKey.startsWith('_')
+  ) {
+    throw new RpcException(
+      `Related filter field "${filter.fieldKey}" is not a mapped column.`,
+    );
+  }
+
+  const joinAlias = `jm_${options.paramNamespace}`;
+  const relatedAlias = `rel_${options.paramNamespace}`;
+
+  const subQ = qb
+    .subQuery()
+    .select('1')
+    .from(joinConfig.junctionEntityClass, joinAlias)
+    .innerJoin(
+      relatedEntityClass,
+      relatedAlias,
+      `${joinAlias}.${joinConfig.joinForeignProperty} = ${relatedAlias}.${joinConfig.relatedPrimaryProperty}`,
+    )
+    .andWhere(
+      `${joinAlias}.${joinConfig.joinLocalProperty} = ${rootAlias}.${joinConfig.rootPrimaryProperty}`,
+    );
+
+  const relatedExpression = `${relatedAlias}.${filter.fieldKey}`;
   appendParameterizedListFilterPredicate(
     subQ as SelectQueryBuilder<object>,
     relatedExpression,

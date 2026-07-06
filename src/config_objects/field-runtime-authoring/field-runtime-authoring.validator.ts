@@ -131,6 +131,7 @@ export function validateDerivedRuntimeAuthoringMetadata(
       'separator',
       'nullDisplayValue',
       'trim',
+      'displayOnly',
     ]);
     for (const k of Object.keys(o)) {
       if (!allowed.has(k)) {
@@ -189,6 +190,16 @@ export function validateDerivedRuntimeAuthoringMetadata(
         throw new Error('_six1DerivedRuntimeAuthoring.trim must be boolean');
       }
       out.trim = o.trim;
+    }
+    if (o.displayOnly !== undefined) {
+      if (typeof o.displayOnly !== 'boolean') {
+        throw new Error(
+          '_six1DerivedRuntimeAuthoring.displayOnly must be boolean',
+        );
+      }
+      out.displayOnly = o.displayOnly;
+    } else {
+      out.displayOnly = true;
     }
     return out;
   } catch (error) {

@@ -8,6 +8,13 @@ import { inferDtoCapabilityOverridesForObjectType } from './dto-write-capability
 import type { FieldWriteCapability } from './field-write-capability.types';
 import { validateCoreFieldDescriptor } from './core-field-descriptor.validator';
 
+function isDerivedDisplayOnly(descriptor: CoreFieldDescriptor): boolean {
+  if (!descriptor.derivedRuntimeConfig) {
+    return false;
+  }
+  return descriptor.derivedRuntimeConfig.displayOnly !== false;
+}
+
 /** Inferred defaults for create/update eligibility before explicit overrides. */
 export interface InferredWriteCapability {
   canCreate: boolean;
@@ -34,6 +41,10 @@ export function inferWriteCapabilityForDescriptor(params: {
   const { bindingMode, objectType, descriptor, isCustomOnly } = params;
 
   if (descriptor.readOnly === true) {
+    return { canCreate: false, canUpdate: false };
+  }
+
+  if (isDerivedDisplayOnly(descriptor)) {
     return { canCreate: false, canUpdate: false };
   }
 

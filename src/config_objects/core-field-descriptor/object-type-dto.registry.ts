@@ -3,17 +3,27 @@ import { CreateCategoryDto } from '../../categories/dto/create-category.dto';
 import { UpdateCategoryDescriptionDto } from '../../categories/dto/update-category-description.dto';
 import { UpdateCategoryDto } from '../../categories/dto/update-category.dto';
 import { CreateCustomerContactInfoDto } from '../../customers/customer_contact_info/dto/create-customer_contact_info.dto';
+import { CreateCustomerContactInfoMetaDto } from '../../customers/customer_contact_info/dto/create-customer_contact_info_meta.dto';
 import { CreateCustomerInvitationDto } from '../../customers/customer_invitations/dto/create-customer_invitation.dto';
 import { UpdateCustomerContactInfoDto } from '../../customers/customer_contact_info/dto/update-customer_contact_info.dto';
+import { UpdateCustomerContactInfoMetaDto } from '../../customers/customer_contact_info/dto/update-customer_contact_info_meta.dto';
 import { UpdateCustomerInvitationDto } from '../../customers/customer_invitations/dto/update-customer_invitation.dto';
 import { CreateCustomerDto } from '../../customers/dto/create-customer.dto';
+import { CreateCustomerMetaDto } from '../../customers/dto/create-customer_meta.dto';
 import { UpdateCustomerDto } from '../../customers/dto/update-customer.dto';
+import { UpdateCustomerMetaDto } from '../../customers/dto/update-customer_meta.dto';
 import { CreateEventListenerDto } from '../../events/event_listeners/dto/create-event_listener.dto';
 import { UpdateEventListenerDto } from '../../events/event_listeners/dto/update-event_listener.dto';
 import { CreateEventLogDto } from '../../events/event_logs/dto/create-event_log.dto';
 import { UpdateEventLogDto } from '../../events/event_logs/dto/update-event_log.dto';
 import { CreateEventDto } from '../../events/dto/create-event.dto';
 import { UpdateEventDto } from '../../events/dto/update-event.dto';
+import { CreateEventNotificationRuleDto } from '../../events/event_notification_rules/dto/create-event_notification_rule.dto';
+import { UpdateEventNotificationRuleDto } from '../../events/event_notification_rules/dto/update-event_notification_rule.dto';
+import { CreateActionBindingDto } from '../../events/platform-actions/dto/create-action_binding.dto';
+import { UpdateActionBindingDto } from '../../events/platform-actions/dto/update-action_binding.dto';
+import { CreatePlatformActionDto } from '../../events/platform-actions/dto/create-platform_action.dto';
+import { UpdatePlatformActionDto } from '../../events/platform-actions/dto/update-platform_action.dto';
 import { CreateNotificationChannelDto } from '../../notifications/notification_channels/dto/create-notification_channel.dto';
 import { UpdateNotificationChannelDto } from '../../notifications/notification_channels/dto/update-notification_channel.dto';
 import { CreateNotificationLogDto } from '../../notifications/notification_logs/dto/create-notification_log.dto';
@@ -31,8 +41,10 @@ import { UpdateProcessInstanceStepDto } from '../../process_instances/process_in
 import { CreateProcessTemplateDto } from '../../process_templates/dto/create-process_template.dto';
 import { UpdateProcessTemplateDto } from '../../process_templates/dto/update-process_template.dto';
 import { CreateProjectDto } from '../../projects/dto/create-project.dto';
+import { CreateProjectMetaDto } from '../../projects/dto/create-project_meta.dto';
 import { CreateProjectStepStatusMappingDto } from '../../projects/dto/create-project-step-status-mapping.dto';
 import { UpdateProjectDto } from '../../projects/dto/update-project.dto';
+import { UpdateProjectMetaDto } from '../../projects/dto/update-project_meta.dto';
 import { UpdateProjectStepStatusMappingDto } from '../../projects/dto/update-project-step-status-mapping.dto';
 import { CreateProjectTaskStatusDto } from '../../projects/project_task_statuses/dto/create-project_task_status.dto';
 import { UpdateProjectTaskStatusDto } from '../../projects/project_task_statuses/dto/update-project_task_status.dto';
@@ -43,17 +55,31 @@ import { UpdateTaskCommentDto } from '../../projects/tasks/comments/dto/update-c
 import { CreateTaskMentionDto } from '../../projects/tasks/mentions/dto/create-mention.dto';
 import { UpdateTaskMentionDto } from '../../projects/tasks/mentions/dto/update-mention.dto';
 import { CreateTaskDto } from '../../projects/tasks/dto/create-task.dto';
+import { CreateTaskMetaDto } from '../../projects/tasks/dto/create-task_meta.dto';
 import { UpdateTaskDto } from '../../projects/tasks/dto/update-task.dto';
+import { UpdateTaskMetaDto } from '../../projects/tasks/dto/update-task_meta.dto';
 import { CreateRoleDto } from '../../roles/dto/create-role.dto';
 import { UpdateRoleDto } from '../../roles/dto/update-role.dto';
 import { CreateResourceDto } from '../../scheduler/dto/create-resource.dto';
 import { CreateResourceAssignmentDto } from '../../scheduler/dto/create-resource-assignment.dto';
+import { CreateResourceAssignmentShiftDto } from '../../scheduler/dto/create-resource_assignment_shift.dto';
 import { CreateResourceAvailabilityDto } from '../../scheduler/dto/create-resource-availability.dto';
 import { CreateResourceBlackoutDateDto } from '../../scheduler/dto/create-resource-blackout-date.dto';
+import { CreateResourceMetaDto } from '../../scheduler/dto/create-resource_meta.dto';
+import { CreateScheduledTaskDto } from '../../scheduler/dto/create-scheduled_task.dto';
+import { CreateScheduledTaskEventDto } from '../../scheduler/dto/create-scheduled_task_event.dto';
+import { CreateScheduledTaskHistoryDto } from '../../scheduler/dto/create-scheduled_task_history.dto';
+import { CreateTaskDependencyDto } from '../../scheduler/dto/create-task_dependency.dto';
 import { UpdateResourceDto } from '../../scheduler/dto/update-resource.dto';
 import { UpdateResourceAssignmentDto } from '../../scheduler/dto/update-resource-assignment.dto';
+import { UpdateResourceAssignmentShiftDto } from '../../scheduler/dto/update-resource_assignment_shift.dto';
 import { UpdateResourceAvailabilityDto } from '../../scheduler/dto/update-resource-availability.dto';
 import { UpdateResourceBlackoutDateDto } from '../../scheduler/dto/update-resource-blackout-date.dto';
+import { UpdateResourceMetaDto } from '../../scheduler/dto/update-resource_meta.dto';
+import { UpdateScheduledTaskDto } from '../../scheduler/dto/update-scheduled_task.dto';
+import { UpdateScheduledTaskEventDto } from '../../scheduler/dto/update-scheduled_task_event.dto';
+import { UpdateScheduledTaskHistoryDto } from '../../scheduler/dto/update-scheduled_task_history.dto';
+import { UpdateTaskDependencyDto } from '../../scheduler/dto/update-task_dependency.dto';
 import { CreateSystemLanguageDto } from '../../settings/system_languages/dto/create-system-language.dto';
 import { UpdateSystemLanguageDto } from '../../settings/system_languages/dto/update-system-language.dto';
 import { CreateSystemStatusDto } from '../../settings/system_statuses/dto/create-system-status.dto';
@@ -86,6 +112,16 @@ import { CreateUserDto } from '../../users/dto/create-user.dto';
 import { CreateUserNotificationPreferenceDto } from '../../users/user-notification-preferences/dto/create-user-notification-preference.dto';
 import { UpdateUserDto } from '../../users/dto/update-user.dto';
 import { UpdateUserNotificationPreferenceDto } from '../../users/user-notification-preferences/dto/update-user-notification-preference.dto';
+import { CreateSharedProjectDto } from '../../sharing/dto/shared-projects/create-shared-project.dto';
+import { UpdateSharedProjectDto } from '../../sharing/dto/shared-projects/update-shared-project.dto';
+import { CreateSharedResourceDto } from '../../sharing/dto/shared-resources/create-shared-resource.dto';
+import { UpdateSharedResourceDto } from '../../sharing/dto/shared-resources/update-shared-resource.dto';
+import { CreateSharedTaskDto } from '../../sharing/dto/shared-tasks/create-shared-task.dto';
+import { UpdateSharedTaskDto } from '../../sharing/dto/shared-tasks/update-shared-task.dto';
+import { CreateSharingInvitationDto } from '../../sharing/dto/sharing-invitations/create-sharing-invitation.dto';
+import { UpdateSharingInvitationDto } from '../../sharing/dto/sharing-invitations/update-sharing-invitation.dto';
+import { CreateSharingLogDto } from '../../sharing/dto/sharing-logs/create-sharing-log.dto';
+import { UpdateSharingLogDto } from '../../sharing/dto/sharing-logs/update-sharing-log.dto';
 
 export interface ObjectTypeDtoPair {
   createDto?: Function;
@@ -362,6 +398,90 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
   process_instance_steps: {
     createDto: CreateProcessInstanceStepDto,
     updateDto: UpdateProcessInstanceStepDto,
+  },
+  event_notification_rule: {
+    createDto: CreateEventNotificationRuleDto,
+    updateDto: UpdateEventNotificationRuleDto,
+  },
+  event_notification_rules: {
+    createDto: CreateEventNotificationRuleDto,
+    updateDto: UpdateEventNotificationRuleDto,
+  },
+  platform_action: {
+    createDto: CreatePlatformActionDto,
+    updateDto: UpdatePlatformActionDto,
+  },
+  platform_actions: {
+    createDto: CreatePlatformActionDto,
+    updateDto: UpdatePlatformActionDto,
+  },
+  action_binding: {
+    createDto: CreateActionBindingDto,
+    updateDto: UpdateActionBindingDto,
+  },
+  action_bindings: {
+    createDto: CreateActionBindingDto,
+    updateDto: UpdateActionBindingDto,
+  },
+  customer_meta: {
+    createDto: CreateCustomerMetaDto,
+    updateDto: UpdateCustomerMetaDto,
+  },
+  customer_contact_info_meta: {
+    createDto: CreateCustomerContactInfoMetaDto,
+    updateDto: UpdateCustomerContactInfoMetaDto,
+  },
+  project_meta: {
+    createDto: CreateProjectMetaDto,
+    updateDto: UpdateProjectMetaDto,
+  },
+  task_meta: {
+    createDto: CreateTaskMetaDto,
+    updateDto: UpdateTaskMetaDto,
+  },
+  resource_meta: {
+    createDto: CreateResourceMetaDto,
+    updateDto: UpdateResourceMetaDto,
+  },
+  scheduled_tasks: {
+    createDto: CreateScheduledTaskDto,
+    updateDto: UpdateScheduledTaskDto,
+  },
+  scheduled_task_events: {
+    createDto: CreateScheduledTaskEventDto,
+    updateDto: UpdateScheduledTaskEventDto,
+  },
+  scheduled_task_history: {
+    createDto: CreateScheduledTaskHistoryDto,
+    updateDto: UpdateScheduledTaskHistoryDto,
+  },
+  task_dependencies: {
+    createDto: CreateTaskDependencyDto,
+    updateDto: UpdateTaskDependencyDto,
+  },
+  resource_assignment_shifts: {
+    createDto: CreateResourceAssignmentShiftDto,
+    updateDto: UpdateResourceAssignmentShiftDto,
+  },
+  shared_projects: {
+    createDto: CreateSharedProjectDto,
+    updateDto: UpdateSharedProjectDto,
+  },
+  shared_resources: {
+    createDto: CreateSharedResourceDto,
+    updateDto: UpdateSharedResourceDto,
+  },
+  shared_tasks: {
+    createDto: CreateSharedTaskDto,
+    updateDto: UpdateSharedTaskDto,
+  },
+  sharing_invitations: {
+    createDto: CreateSharingInvitationDto,
+    updateDto: UpdateSharingInvitationDto,
+  },
+  sharing_logs: {
+    createDto: CreateSharingLogDto,
+    updateDto: UpdateSharingLogDto,
   },
 };
 

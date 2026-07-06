@@ -1,5 +1,6 @@
 export {
   normalizeQueryConfigInlineRelation,
+  normalizeQueryConfigJoinTable,
   RelationAuthoringValidationError,
   validateAndNormalizeRelationManifestsByKey,
   mapRelationAuthoringErrorToRpc,

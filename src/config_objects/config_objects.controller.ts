@@ -7,6 +7,7 @@ import { ConfigLifecycleService } from './config_lifecycle.service';
 import {
   MICROSERVICE_GET_CONFIG_SCHEMA_PATTERN,
   MICROSERVICE_GET_OBJECT_LIST_FIELD_CATALOG_PATTERN,
+  MICROSERVICE_GET_REFERENCE_LIST_CATALOG_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELDS_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN,
   MICROSERVICE_LIST_CONFIG_OBJECTS_PATTERN,
@@ -19,6 +20,7 @@ import {
   MICROSERVICE_UPDATE_CUSTOM_OBJECT_INSTANCE_PATTERN,
   MICROSERVICE_DELETE_CUSTOM_OBJECT_INSTANCE_PATTERN,
   MICROSERVICE_RESOLVE_CONFIG_INSTANCE_PATTERN,
+  MICROSERVICE_RESOLVE_COMPOSITE_SNAPSHOT_PATTERN,
   MICROSERVICE_APPLY_SOR_BOUND_INSTANCE_PATCH_PATTERN,
   MICROSERVICE_VERIFY_CONFIG_OBJECT_EMAIL_PATTERN,
   MICROSERVICE_GET_CONFIG_LIFECYCLES_PATTERN,
@@ -71,8 +73,10 @@ import {
   MICROSERVICE_RESOLVE_STATUS_FROM_LIFECYCLE_STATE_PATTERN,
 } from './constants';
 import { GetConfigSchemaDto } from './dto/get-config-schema.dto';
+import { GetReferenceListCatalogDto } from './dto/get-reference-list-catalog.dto';
 import { GetObjectListFieldCatalogDto } from './dto/get-object-list-field-catalog.dto';
 import { ResolveConfigInstanceDto } from './dto/resolve-config-instance.dto';
+import { ResolveCompositeSnapshotDto } from './dto/resolve-composite-snapshot.dto';
 import { VerifyConfigObjectEmailDto } from './dto/verify-config-object-email.dto';
 import {
   CreateCustomObjectInstanceDto,
@@ -85,6 +89,7 @@ import { GetConfigLifecyclesDto } from './dto/get-config-lifecycles.dto';
 import { GetConfigRelationshipsDto } from './dto/get-config-relationships.dto';
 import { GetRelatedFieldCatalogDto } from './dto/get-related-field-catalog.dto';
 import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
+import type { ConfigObjectCompositeSnapshotView } from './interfaces/config-object-composite-snapshot.interface';
 import {
   ApplySorBoundInstancePatchResult,
   ConfigObjectRunnerSchemaView,
@@ -92,6 +97,7 @@ import {
 } from './interfaces/config-object-resolved-instance.interface';
 import type { VerifyConfigObjectEmailResult } from './interfaces/verify-config-object-email-result.interface';
 import type { ObjectListFieldCatalogView } from './list-field-catalog/object-list-field-catalog.interface';
+import type { ReferenceListCatalogView } from './reference-list/reference-list.types';
 import { ApplySorBoundInstancePatchDto } from './dto/apply-sor-bound-instance-patch.dto';
 import { ConfigObjectEntity } from './entities/config_object.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
@@ -238,6 +244,17 @@ export class ConfigObjectsController {
   }
 
   /**
+   * Returns the canonical lookup `dataRef` catalog for Designer, gateway, and mobile.
+   */
+  @MessagePattern(MICROSERVICE_GET_REFERENCE_LIST_CATALOG_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async getReferenceListCatalog(
+    @Payload('data') _dto: GetReferenceListCatalogDto,
+  ): Promise<ReferenceListCatalogView> {
+    return this.configObjectsService.getReferenceListCatalog();
+  }
+
+  /**
    * Resolves a configurable object instance by combining the core entity
    * and its dynamic field values.
    *
@@ -255,6 +272,21 @@ export class ConfigObjectsController {
       dto.coreId,
       dto.instanceId,
     );
+  }
+
+  /**
+   * Composite read: primary row + related FK/child snapshots (multi-table admin records).
+   */
+  @MessagePattern(MICROSERVICE_RESOLVE_COMPOSITE_SNAPSHOT_PATTERN)
+  @UsePipes(AppRpcValidationPipe)
+  async resolveCompositeSnapshot(
+    @Payload('data') dto: ResolveCompositeSnapshotDto,
+  ): Promise<ConfigObjectCompositeSnapshotView | null> {
+    return this.configObjectsService.resolveCompositeSnapshot({
+      tenantId: dto.tenantId ?? null,
+      objectType: dto.objectType,
+      id: dto.id,
+    });
   }
 
   /**

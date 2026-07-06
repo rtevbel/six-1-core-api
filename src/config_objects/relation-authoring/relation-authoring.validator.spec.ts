@@ -1,5 +1,6 @@
 import {
   normalizeQueryConfigInlineRelation,
+  normalizeQueryConfigJoinTable,
   validateAndNormalizeRelationManifestsByKey,
   RelationAuthoringValidationError,
 } from './relation-authoring.validator';
@@ -51,6 +52,7 @@ describe('validateAndNormalizeRelationManifestsByKey', () => {
         actions: {
           assignRef: 'six1:action:role.permissions.assign',
           unassignRef: 'six1:action:role.permissions.unassign',
+          listRef: 'six1:action:role.permissions.list',
         },
         queryDefaults: {
           pageSize: 25,
@@ -110,11 +112,32 @@ describe('validateAndNormalizeRelationManifestsByKey', () => {
     ).toThrow(/targetEntityKey is required/);
   });
 
-  it('rejects URLs in dataRef', () => {
+  it('rejects relation_membership when listRef is missing', () => {
     expect(() =>
       validateAndNormalizeRelationManifestsByKey({
-        x: { dataRef: 'https://example.com/x' },
+        role_permissions: {
+          mode: 'relation_membership',
+          targetEntityKey: 'permission',
+          displayMode: 'table',
+          columns: ['code'],
+          actions: {
+            assignRef: 'six1:action:role.permissions.assign',
+            unassignRef: 'six1:action:role.permissions.unassign',
+          },
+        },
       }),
-    ).toThrow(/not a URL/);
+    ).toThrow(/listRef/);
+  });
+});
+
+describe('normalizeQueryConfigJoinTable', () => {
+  it('validates join_table metadata', () => {
+    const out = normalizeQueryConfigJoinTable({
+      join_table: 'role_permissions',
+      join_local_key: 'role_id',
+      join_foreign_key: 'permission_id',
+      target_table: 'permissions',
+    });
+    expect(out.join_table).toBe('role_permissions');
   });
 });

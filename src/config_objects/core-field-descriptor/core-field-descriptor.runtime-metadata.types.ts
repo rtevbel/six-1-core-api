@@ -28,4 +28,6 @@ export interface CoreFieldDerivedRuntimeConfig {
   separator?: string;
   nullDisplayValue?: string;
   trim?: boolean;
+  /** When true (default), derived values are read-only in write-schema merge. */
+  displayOnly?: boolean;
 }

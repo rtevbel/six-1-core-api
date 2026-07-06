@@ -19,6 +19,7 @@ import { ConfigObjectFieldRuleEntity } from '../entities/config_object_field_rul
 import type { CoreFieldDescriptor } from '../core-field-descriptor/core-field-descriptor.types';
 import type { RelationDescriptor } from './relation-descriptor.interface';
 import type { ConfigObjectVerificationFieldMap } from '../verification/config-object-verification.constants';
+import type { ReferenceListCatalogEntry } from '../reference-list/reference-list.types';
 
 /**
  * Union type for all core system-of-record entities currently supported
@@ -91,6 +92,11 @@ export interface ConfigObjectRunnerSchemaView extends ConfigObjectSchemaView {
   relationManifestsByKey?: Record<string, Record<string, unknown> | null>;
   /** Parsed `verification_field_map` when configured on the config object. */
   verificationFieldMap?: ConfigObjectVerificationFieldMap | null;
+  /**
+   * Lookup catalog slice for `dataRef` tokens referenced by this object's fields.
+   * Full catalog: `v0.1_get_reference_list_catalog`.
+   */
+  lookupCatalog?: ReferenceListCatalogEntry[];
 }
 
 /**

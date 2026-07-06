@@ -24,6 +24,10 @@ import { CustomerMetaEntity } from '../../customers/entities/customer_meta.entit
 import { EventEntity } from '../../events/entities/event.entity';
 import { EventListenerEntity } from '../../events/event_listeners/entities/event_listener.entity';
 import { EventLogEntity } from '../../events/event_logs/entities/event_log.entity';
+import { EventNotificationRuleEntity } from '../../events/event_notification_rules/entities/event_notification_rule.entity';
+import { ActionBindingEntity } from '../../events/platform-actions/entities/action_binding.entity';
+import { PlatformActionEntity } from '../../events/platform-actions/entities/platform_action.entity';
+import { PlatformEventRecordEntity } from '../../events/platform-bus/entities/platform_event_record.entity';
 import { NotificationEntity } from '../../notifications/entities/notification.entity';
 import { NotificationChannelEntity } from '../../notifications/notification_channels/entities/notification_channel.entity';
 import { NotificationLogEntity } from '../../notifications/notification_logs/entities/notification_log.entity';
@@ -130,6 +134,10 @@ const ENTITY_CLASSES: Function[] = [
   EventEntity,
   EventListenerEntity,
   EventLogEntity,
+  EventNotificationRuleEntity,
+  ActionBindingEntity,
+  PlatformActionEntity,
+  PlatformEventRecordEntity,
   NotificationEntity,
   NotificationChannelEntity,
   NotificationLogEntity,
@@ -223,6 +231,10 @@ const OBJECT_TYPE_ALIASES: Record<string, string> = {
   event: 'events',
   event_log: 'event_logs',
   event_listener: 'event_listeners',
+  event_notification_rule: 'event_notification_rules',
+  platform_action: 'platform_actions',
+  action_binding: 'action_bindings',
+  platform_event_record: 'platform_event_records',
   notification: 'notifications',
   notification_channel: 'notification_channels',
   notification_template: 'notification_templates',
@@ -304,4 +316,9 @@ export function resolveObjectTypeForEntityClass(
   entityClass: Function,
 ): string | null {
   return resolveTableNameForEntityClass(entityClass);
+}
+
+/** Canonical singular object_type keys (e.g. `customer`, `role`). */
+export function listCanonicalObjectTypes(): string[] {
+  return Object.keys(OBJECT_TYPE_ALIASES);
 }

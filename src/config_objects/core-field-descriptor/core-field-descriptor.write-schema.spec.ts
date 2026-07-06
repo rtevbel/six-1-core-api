@@ -73,6 +73,32 @@ describe('mergeWriteSchemaCapabilities', () => {
     expect(merged.find((d) => d.fieldKey === 'createdAt')?.canCreate).toBe(false);
     expect(merged.find((d) => d.fieldKey === 'createdAt')?.canUpdate).toBe(false);
   });
+
+  it('marks derived runtime fields as non-writable when displayOnly is true', () => {
+    const merged = mergeWriteSchemaCapabilities(
+      [
+        {
+          fieldKey: 'displayName',
+          label: 'Display name',
+          fieldType: 'text',
+          orderIndex: 1,
+          derivedRuntimeConfig: {
+            schemaVersion: 1,
+            operation: 'concat',
+            sourceFieldKeys: ['firstName', 'lastName'],
+            displayOnly: true,
+          },
+        },
+      ],
+      {
+        bindingMode: 'sor_bound',
+        objectType: 'customer',
+      },
+    );
+    const field = merged.find((d) => d.fieldKey === 'displayName');
+    expect(field?.canCreate).toBe(false);
+    expect(field?.canUpdate).toBe(false);
+  });
 });
 
 describe('finalizeCoreFieldDescriptors', () => {

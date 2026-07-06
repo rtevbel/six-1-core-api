@@ -27,6 +27,7 @@ import { ResourceMetaEntity } from '../scheduler/entities/resource_meta.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
 import { ConfigObjectStatusMappingEntity } from './entities/config_object_status_mapping.entity';
 import { EventsService } from '../events/events.service';
+import { ConfigService } from '@nestjs/config';
 import { ProcessStepLocksService } from '../process_instances/process_step_locks/process-step-locks.service';
 import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
 
@@ -156,6 +157,12 @@ describe('ConfigObjectsService', () => {
           useValue: {
             resolveStepIdForCustomObjectInstance: jest.fn().mockResolvedValue(null),
             assertCanMutateStep: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn().mockReturnValue(undefined),
           },
         },
       ],
@@ -598,6 +605,57 @@ describe('ConfigObjectsService', () => {
     );
     expect(schema?.relatedFieldRegistryByRelationKey).toBeDefined();
     expect(schema?.relationManifestsByKey).toBeDefined();
+    expect(schema?.lookupCatalog?.[0]?.token).toBe('core.system_statuses.list');
+  });
+
+  it('getReferenceListCatalog should return canonical lookup entries', () => {
+    const catalog = service.getReferenceListCatalog();
+    expect(catalog.catalogVersion).toBe(1);
+    expect(catalog.entries.some((e) => e.token === 'core.roles.list')).toBe(true);
+    expect(
+      catalog.entries.some((e) => e.token === 'entity-key:tenant_user'),
+    ).toBe(true);
+  });
+
+  it('resolveCompositeSnapshot returns null when schema is missing', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce(null);
+    const result = await service.resolveCompositeSnapshot({
+      tenantId: 1,
+      objectType: 'tenant_user',
+      id: 100,
+    });
+    expect(result).toBeNull();
+  });
+
+  it('resolveCompositeSnapshot rejects tenant mismatch on primary row', async () => {
+    jest.spyOn(service, 'getObjectSchema').mockResolvedValueOnce({
+      configObject: { objectType: 'tenant_user', bindingMode: 'system_table' },
+      fields: [],
+      fieldRegistry: [],
+      runnerKind: 'system_entity',
+      supportsCustomFields: false,
+      resolveInstanceWith: 'none',
+      fieldSchemaSource: 'entity_dto',
+      fieldMergePolicy: { order: 'sor_first_then_custom' },
+      sorFieldDescriptors: [],
+      mergedFieldOrder: [],
+    } as any);
+
+    jest
+      .spyOn(
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        require('./core-entity-registry.loader') as typeof import('./core-entity-registry.loader'),
+        'loadCoreEntityFromRegistry',
+      )
+      .mockResolvedValueOnce({ tenantUserId: 100, tenantId: 99, userId: 10 });
+
+    await expect(
+      service.resolveCompositeSnapshot({
+        tenantId: 1,
+        objectType: 'tenant_user',
+        id: 100,
+      }),
+    ).rejects.toThrow(/does not belong to the specified tenant/);
   });
 
   it('getObjectSchema should resolve legacy plural objectType rows for canonical requests', async () => {

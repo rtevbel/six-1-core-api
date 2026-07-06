@@ -19,6 +19,8 @@ export const AuthoringErrorCode = {
   DerivedDisplayInvalid: 'SIX1_AUTHORING_DERIVED_DISPLAY_INVALID',
   LookupSelectInvalid: 'SIX1_AUTHORING_LOOKUP_SELECT_INVALID',
   DerivedRuntimeInvalid: 'SIX1_AUTHORING_DERIVED_RUNTIME_INVALID',
+  FieldRulesInvalid: 'SIX1_AUTHORING_FIELD_RULES_INVALID',
+  FieldValidationInvalid: 'SIX1_AUTHORING_FIELD_VALIDATION_INVALID',
 } as const;
 
 export type AuthoringErrorCodeValue =

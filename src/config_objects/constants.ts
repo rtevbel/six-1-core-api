@@ -14,6 +14,12 @@ export const MICROSERVICE_GET_OBJECT_LIST_FIELD_CATALOG_PATTERN =
   'v0.1_get_object_list_field_catalog';
 
 /**
+ * Canonical lookup `dataRef` catalog for Designer, gateway, and mobile clients.
+ */
+export const MICROSERVICE_GET_REFERENCE_LIST_CATALOG_PATTERN =
+  'v0.1_get_reference_list_catalog';
+
+/**
  * Message pattern used to list configuration objects for a tenant and
  * optional template set.
  */
@@ -83,6 +89,12 @@ export const MICROSERVICE_DELETE_CONFIG_FIELD_RULE_PATTERN =
  */
 export const MICROSERVICE_RESOLVE_CONFIG_INSTANCE_PATTERN =
   'v0.1_resolve_config_instance';
+
+/**
+ * Composite read: primary row + related FK/child snapshots for admin records.
+ */
+export const MICROSERVICE_RESOLVE_COMPOSITE_SNAPSHOT_PATTERN =
+  'v0.1_resolve_composite_snapshot';
 
 /**
  * Message pattern used to apply allowlisted SoR + meta patches in one transaction

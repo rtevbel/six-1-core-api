@@ -64,4 +64,13 @@ describe('validateDerivedRuntimeAuthoringMetadata', () => {
       }),
     ).toThrow(DerivedRuntimeAuthoringValidationError);
   });
+
+  it('defaults displayOnly to true', () => {
+    const out = validateDerivedRuntimeAuthoringMetadata({
+      schemaVersion: 1,
+      operation: 'concat',
+      sourceFieldKeys: ['a'],
+    });
+    expect(out.displayOnly).toBe(true);
+  });
 });

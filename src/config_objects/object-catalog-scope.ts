@@ -76,6 +76,12 @@ export const SYSTEM_TABLE_OBJECT_TYPES = [
   'process_instance_step_object_instances',
   'process_instance_step_requirement_submissions',
   'process_instance_step_triggers',
+
+  // Platform events & notifications (Runner admin)
+  'event_notification_rules',
+  'platform_actions',
+  'action_bindings',
+  'platform_event_records',
 ] as const;
 
 const JUNCTION_ONLY_OBJECT_TYPE_SET = new Set<string>(JUNCTION_ONLY_OBJECT_TYPES);
