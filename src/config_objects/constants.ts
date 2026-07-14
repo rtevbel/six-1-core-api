@@ -72,6 +72,16 @@ export const MICROSERVICE_DELETE_CONFIG_FIELD_PATTERN =
   'v0.1_delete_config_field';
 
 /**
+ * Runtime field metadata overlays for `system_table` config objects (lookup/derived on existing keys).
+ */
+export const MICROSERVICE_LIST_RUNTIME_FIELD_METADATA_PATTERN =
+  'v0.1_list_runtime_field_metadata';
+export const MICROSERVICE_UPSERT_RUNTIME_FIELD_METADATA_PATTERN =
+  'v0.1_upsert_runtime_field_metadata';
+export const MICROSERVICE_DELETE_RUNTIME_FIELD_METADATA_PATTERN =
+  'v0.1_delete_runtime_field_metadata';
+
+/**
  * Message patterns used to manage configuration field-rule metadata.
  */
 export const MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN =
@@ -334,6 +344,10 @@ export const MICROSERVICE_RESOLVE_STATUS_FROM_LIFECYCLE_STATE_PATTERN =
 /** Designer/API: `config_object_fields` are not allowed for `system_table` objects. */
 export const CONFIG_OBJECT_SYSTEM_TABLE_FIELDS_FORBIDDEN_MESSAGE =
   'Custom config fields are not supported when binding_mode is system_table.';
+
+/** Runtime field metadata RPCs apply only when `binding_mode` is `system_table`. */
+export const CONFIG_OBJECT_RUNTIME_FIELD_METADATA_BINDING_FORBIDDEN_MESSAGE =
+  'Runtime field metadata is only supported when binding_mode is system_table.';
 
 /**
  * Runtime: `resolve_config_instance` with coreId is not the path for `system_table`;

@@ -22,3 +22,13 @@ export interface ReferenceListCatalogView {
   generatedAt: string;
   entries: ReferenceListCatalogEntry[];
 }
+
+/**
+ * Resolved slice returned when gateway/mobile requests a single `dataRef` or
+ * `entityKey` via `v0.1_get_reference_list_catalog`.
+ */
+export interface ReferenceListCatalogLookupView {
+  catalogVersion: typeof REFERENCE_LIST_CATALOG_VERSION;
+  entityKey: string;
+  entry: ReferenceListCatalogEntry;
+}

@@ -2,7 +2,7 @@
 
 import { PartialType } from '@nestjs/mapped-types';
 import { CreateUserNotificationPreferenceDto } from './create-user-notification-preference.dto';
-import { IsNotEmpty, IsNumber } from 'class-validator';
+import { IsNotEmpty, IsNumberString } from 'class-validator';
 import { Type } from 'class-transformer';
 
 /**
@@ -16,12 +16,12 @@ export class UpdateUserNotificationPreferenceDto extends PartialType(
    * The ID of the user preference entry.
    *
    * - Required field.
-   * - Must be a number.
+   * - Must be a numeric string (bigint primary key).
    *
-   * @type {number}
+   * @type {string}
    */
   @IsNotEmpty()
-  @Type(() => Number)
-  @IsNumber()
-  preference_id!: number;
+  @Type(() => String)
+  @IsNumberString()
+  preferenceId!: string;
 }

@@ -10,5 +10,5 @@ export class FiltersDto extends CatalogDynamicListFiltersMixin {
   @IsString()
   @MaxLength(64)
   @Matches(/^[A-Za-z0-9_]+$/)
-  sortBy: string = 'status_id';
+  sortBy: string = 'statusId';
 }

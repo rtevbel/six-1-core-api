@@ -11,7 +11,7 @@ export const REFERENCE_LIST_STRICT_VALIDATION_KEY =
 /** Prefix for entity-backed lookup tokens (`entity-key:customer`, …). */
 export const ENTITY_KEY_DATA_REF_PREFIX = 'entity-key:';
 
-/** Prefix for shared platform reference lists (`core.system_statuses.list`, …). */
+/** Prefix for shared platform reference lists (`core.system_status.list`, …). */
 export const CORE_DATA_REF_PREFIX = 'core.';
 
 /** Resolution hint for gateway/mobile: list options via object runner manifest `api.list`. */

@@ -11,6 +11,7 @@ import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
 import { ConfigObjectEntity } from './entities/config_object.entity';
 import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
+import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
 import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
@@ -40,6 +41,7 @@ describe('ConfigObjectsService', () => {
   let configObjectRepo: Repository<ConfigObjectEntity>;
   let fieldRepo: Repository<ConfigObjectFieldEntity>;
   let fieldRuleRepo: Repository<ConfigObjectFieldRuleEntity>;
+  let runtimeFieldMetadataRepo: Repository<ConfigObjectRuntimeFieldMetadataEntity>;
   let lifecycleRepo: Repository<ConfigObjectLifecycleEntity>;
   let relationshipRepo: Repository<ConfigObjectRelationshipEntity>;
   let viewRepo: Repository<ConfigObjectViewEntity>;
@@ -70,6 +72,10 @@ describe('ConfigObjectsService', () => {
         },
         {
           provide: getRepositoryToken(ConfigObjectFieldRuleEntity),
+          useClass: Repository,
+        },
+        {
+          provide: getRepositoryToken(ConfigObjectRuntimeFieldMetadataEntity),
           useClass: Repository,
         },
         {
@@ -176,6 +182,9 @@ describe('ConfigObjectsService', () => {
     configObjectRepo = module.get(getRepositoryToken(ConfigObjectEntity));
     fieldRepo = module.get(getRepositoryToken(ConfigObjectFieldEntity));
     fieldRuleRepo = module.get(getRepositoryToken(ConfigObjectFieldRuleEntity));
+    runtimeFieldMetadataRepo = module.get(
+      getRepositoryToken(ConfigObjectRuntimeFieldMetadataEntity),
+    );
     lifecycleRepo = module.get(getRepositoryToken(ConfigObjectLifecycleEntity));
     relationshipRepo = module.get(
       getRepositoryToken(ConfigObjectRelationshipEntity),
@@ -605,16 +614,64 @@ describe('ConfigObjectsService', () => {
     );
     expect(schema?.relatedFieldRegistryByRelationKey).toBeDefined();
     expect(schema?.relationManifestsByKey).toBeDefined();
-    expect(schema?.lookupCatalog?.[0]?.token).toBe('core.system_statuses.list');
+    expect(schema?.lookupCatalog?.[0]?.token).toBe('core.system_status.list');
   });
 
   it('getReferenceListCatalog should return canonical lookup entries', () => {
     const catalog = service.getReferenceListCatalog();
-    expect(catalog.catalogVersion).toBe(1);
-    expect(catalog.entries.some((e) => e.token === 'core.roles.list')).toBe(true);
+    expect(catalog).toHaveProperty('entries');
+    expect(catalog?.catalogVersion).toBe(1);
     expect(
-      catalog.entries.some((e) => e.token === 'entity-key:tenant_user'),
+      (catalog as { entries: { token: string }[] }).entries.some(
+        (e) => e.token === 'core.roles.list',
+      ),
     ).toBe(true);
+    expect(
+      (catalog as { entries: { token: string }[] }).entries.some(
+        (e) => e.token === 'core.system_status.list',
+      ),
+    ).toBe(true);
+    expect(
+      (catalog as { entries: { token: string }[] }).entries.some(
+        (e) => e.token === 'core.system_language.list',
+      ),
+    ).toBe(true);
+    expect(
+      (catalog as { entries: { token: string }[] }).entries.some(
+        (e) => e.token === 'entity-key:tenant_user',
+      ),
+    ).toBe(true);
+  });
+
+  it('getReferenceListCatalog should resolve singular dataRef for gateway lookup', () => {
+    const lookup = service.getReferenceListCatalog({
+      dataRef: 'core.system_status.list',
+    });
+    expect(lookup).toEqual(
+      expect.objectContaining({
+        entityKey: 'system_status',
+        entry: expect.objectContaining({
+          token: 'core.system_status.list',
+          objectType: 'system_status',
+          valueKey: 'statusId',
+          labelKey: 'name',
+        }),
+      }),
+    );
+  });
+
+  it('getReferenceListCatalog should normalize legacy plural dataRef', () => {
+    const lookup = service.getReferenceListCatalog({
+      dataRef: 'core.system_statuses.list',
+    });
+    expect(lookup).toEqual(
+      expect.objectContaining({
+        entityKey: 'system_status',
+        entry: expect.objectContaining({
+          token: 'core.system_status.list',
+        }),
+      }),
+    );
   });
 
   it('resolveCompositeSnapshot returns null when schema is missing', async () => {
@@ -700,6 +757,7 @@ describe('ConfigObjectsService', () => {
     } as any);
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
 
     const schema = await service.getObjectSchema(1, 'tenant_teams');
@@ -787,7 +845,7 @@ describe('ConfigObjectsService', () => {
     expect(schema?.relations?.some((r) => r.relationshipKey === 'role_custom_checklist')).toBe(true);
     expect(
       schema?.relatedFieldRegistryByRelationKey?.role_permissions?.some(
-        (f) => f.fieldKey === 'permission_id',
+        (f) => f.fieldKey === 'permissionId',
       ),
     ).toBe(true);
     expect(
@@ -1308,7 +1366,45 @@ describe('ConfigObjectsService', () => {
     );
   });
 
-  it('createConfigRelationship should reject unpublished toObjectType (B-4)', async () => {
+  it('createConfigRelationship should allow draft relationship endpoints', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'DRAFT',
+    } as any);
+    jest
+      .spyOn(configObjectRepo, 'findOne')
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'role',
+        status: 'DRAFT',
+      } as any)
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        objectType: 'permission',
+        status: 'DRAFT',
+      } as any);
+    jest.spyOn(relationshipRepo, 'findOne').mockResolvedValueOnce(null);
+    jest
+      .spyOn(relationshipRepo, 'create')
+      .mockImplementation((dto) => ({ ...dto, configObjectRelationshipId: 503 }) as any);
+    jest.spyOn(relationshipRepo, 'save').mockImplementation(async (e) => e as any);
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const saved = await service.createConfigRelationship({
+      tenantId: 1,
+      fromObjectType: 'role',
+      toObjectType: 'permission',
+      relationshipKey: 'role_permission_draft',
+      cardinality: 'one_to_many',
+      createdBy: 1,
+    });
+
+    expect(saved.configObjectRelationshipId).toBe(503);
+  });
+
+  it('createConfigRelationship should reject missing toObjectType (B-4)', async () => {
     jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
       configTemplateSetId: 10,
       tenantId: 1,
@@ -1363,7 +1459,7 @@ describe('ConfigObjectsService', () => {
         updatedBy: 10,
         displayName: 'x',
       }),
-    ).rejects.toThrow('No active published template set found');
+    ).rejects.toThrow('No active config template set found');
   });
 
   it('deleteConfigRelationship should reject relationship outside tenant scope', async () => {
@@ -1386,7 +1482,7 @@ describe('ConfigObjectsService', () => {
         configObjectRelationshipId: 78,
         deletedBy: 10,
       }),
-    ).rejects.toThrow('No active published template set found');
+    ).rejects.toThrow('No active config template set found');
   });
 
   it('getRelatedFieldCatalogForRelationship should return field keys from target schema', async () => {
@@ -1482,6 +1578,139 @@ describe('ConfigObjectsService', () => {
     expect(templateSetRepo.findOne).toHaveBeenCalledWith({
       where: { configTemplateSetId: 10 },
     });
+  });
+
+  it('createConfigView should auto-provision draft system_table config object when missing', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    jest
+      .spyOn(templateSetRepo, 'findOne')
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        tenantId: 1,
+        status: 'PUBLISHED',
+      } as any)
+      .mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        tenantId: 1,
+      } as any);
+
+    jest.spyOn(configObjectRepo, 'create').mockImplementation(
+      (dto) =>
+        ({
+          ...dto,
+          configObjectId: 501,
+        }) as any,
+    );
+    jest.spyOn(configObjectRepo, 'save').mockImplementation(async (entity) => {
+      if (Array.isArray(entity)) {
+        return entity as any;
+      }
+      return entity as any;
+    });
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce(null as any);
+    jest.spyOn(viewRepo, 'create').mockImplementation(
+      (dto) =>
+        ({
+          ...dto,
+          configObjectViewId: 9001,
+        }) as any,
+    );
+    jest.spyOn(viewRepo, 'save').mockImplementation(async (entity) => {
+      if (Array.isArray(entity)) {
+        return entity as any;
+      }
+      return entity as any;
+    });
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const view = await service.createConfigView({
+      tenantId: 1,
+      objectType: 'role',
+      createdBy: 1,
+      viewKey: 'system_roles',
+      viewType: 'list',
+      name: 'System Roles',
+      roleKey: null,
+      isDefault: false,
+    });
+
+    expect(configObjectRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        objectType: 'role',
+        bindingMode: 'system_table',
+        sorTableName: 'roles',
+        status: 'DRAFT',
+      }),
+    );
+    expect(view.configObjectViewId).toBe(9001);
+    expect(view.viewKey).toBe('system_roles');
+  });
+
+  it('createConfigView should allow view creation against an existing draft config object', async () => {
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+      configObjectId: 501,
+      configTemplateSetId: 10,
+      objectType: 'project',
+      status: 'DRAFT',
+    } as any);
+
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+    } as any);
+
+    jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce(null as any);
+    jest.spyOn(viewRepo, 'create').mockImplementation(
+      (dto) =>
+        ({
+          ...dto,
+          configObjectViewId: 9002,
+        }) as any,
+    );
+    jest.spyOn(viewRepo, 'save').mockImplementation(async (entity) => {
+      if (Array.isArray(entity)) {
+        return entity as any;
+      }
+      return entity as any;
+    });
+    jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+    jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+
+    const view = await service.createConfigView({
+      tenantId: 1,
+      objectType: 'project',
+      createdBy: 1,
+      viewKey: 'project_list_draft',
+      viewType: 'list',
+      name: 'Project List',
+    });
+
+    expect(configObjectRepo.create).not.toHaveBeenCalled();
+    expect(view.configObjectViewId).toBe(9002);
+    expect(view.viewKey).toBe('project_list_draft');
+  });
+
+  it('createConfigView should reject non-system_table object types without config object', async () => {
+    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+      configTemplateSetId: 10,
+      tenantId: 1,
+      status: 'PUBLISHED',
+    } as any);
+    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+
+    await expect(
+      service.createConfigView({
+        tenantId: 1,
+        objectType: 'custom_invoice',
+        createdBy: 1,
+        viewKey: 'custom_invoice_list',
+        viewType: 'list',
+        name: 'Custom Invoice List',
+      }),
+    ).rejects.toThrow('Config object not found for view creation.');
   });
 
   it('listConfigObjects should apply configTemplateSetId when passed as a string (global scope)', async () => {
@@ -3070,6 +3299,233 @@ describe('ConfigObjectsService', () => {
 
     expect(result.allowed).toBe(true);
     expect(result.missingPermissions).toEqual([]);
+  });
+
+  describe('runtime field metadata (system_table)', () => {
+    const systemTableConfigObject = {
+      configObjectId: 200,
+      configTemplateSetId: 10,
+      objectType: 'tenant_teams',
+      bindingMode: 'system_table',
+      sorTableName: 'tenant_teams',
+      status: 'PUBLISHED',
+    } as const;
+
+    function mockAuthoringScope(): void {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+        configTemplateSetId: 10,
+        tenantId: 1,
+        status: 'PUBLISHED',
+      } as any);
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+        ...systemTableConfigObject,
+      } as any);
+    }
+
+    it('getObjectSchema should merge lookupSelectConfig from runtime field metadata', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 10,
+        tenantId: 1,
+        status: 'PUBLISHED',
+      } as any);
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...systemTableConfigObject,
+      } as any);
+      jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValueOnce([
+        {
+          configObjectRuntimeFieldMetadataId: 501,
+          configObjectId: 200,
+          fieldKey: 'tenantId',
+          validationJson: {
+            _six1LookupSelectAuthoring: {
+              schemaVersion: 1,
+              dataRef: 'core.system_statuses.list',
+              valueKey: 'statusId',
+              labelKey: 'name',
+            },
+          },
+          rulesJson: null,
+          createdBy: 1,
+          updatedBy: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ] as any);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+      const schema = await service.getObjectSchema(1, 'tenant_teams');
+
+      expect(schema).not.toBeNull();
+      const tenantIdField = schema?.fieldRegistry.find(
+        (field) => field.fieldKey === 'tenantId',
+      );
+      expect(tenantIdField?.lookupSelectConfig?.dataRef).toBe(
+        'core.system_statuses.list',
+      );
+      expect(schema?.fields).toHaveLength(1);
+      expect(schema?.fields[0].field.fieldKey).toBe('tenantId');
+    });
+
+    it('upsertRuntimeFieldMetadata should create overlay and invalidate caches', async () => {
+      mockAuthoringScope();
+      jest.spyOn(runtimeFieldMetadataRepo, 'findOne').mockResolvedValue(null as any);
+      const createSpy = jest
+        .spyOn(runtimeFieldMetadataRepo, 'create')
+        .mockImplementation((row) => ({
+          ...row,
+          configObjectRuntimeFieldMetadataId: 77,
+        }) as any);
+      jest
+        .spyOn(runtimeFieldMetadataRepo, 'save')
+        .mockImplementation(async (entity) => entity as any);
+      jest.spyOn(auditLogRepo, 'create').mockImplementation((row) => row as any);
+      jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
+      const invalidateSpy = jest
+        .spyOn(service, 'invalidateRuntimeCaches')
+        .mockResolvedValue({
+          ttlMs: 30_000,
+          cleared: { schema: 1, view: 0, manifest: 1 },
+        });
+
+      const saved = await service.upsertRuntimeFieldMetadata({
+        tenantId: 1,
+        objectType: 'tenant_teams',
+        fieldKey: 'tenantId',
+        updatedBy: 8,
+        validationJson: {
+          _six1LookupSelectAuthoring: {
+            schemaVersion: 1,
+            dataRef: 'core.system_statuses.list',
+            valueKey: 'statusId',
+            labelKey: 'name',
+          },
+        },
+      });
+
+      expect(createSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ fieldKey: 'tenantId' }),
+      );
+      expect(saved.fieldKey).toBe('tenantId');
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          entityKey: 'tenant_teams',
+          includeSchemaCache: true,
+          includeManifestCache: true,
+        }),
+      );
+    });
+
+    it('upsertRuntimeFieldMetadata should reject unknown field_key', async () => {
+      mockAuthoringScope();
+
+      try {
+        await service.upsertRuntimeFieldMetadata({
+          tenantId: 1,
+          objectType: 'tenant_teams',
+          fieldKey: 'not_a_real_column',
+          updatedBy: 8,
+          validationJson: {
+            _six1LookupSelectAuthoring: {
+              schemaVersion: 1,
+              dataRef: 'core.system_statuses.list',
+              valueKey: 'statusId',
+              labelKey: 'name',
+            },
+          },
+        });
+        fail('expected throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(RpcException);
+        expect((e as RpcException).getError()).toMatchObject({
+          code: AuthoringErrorCode.RuntimeFieldMetadataUnknownFieldKey,
+        });
+      }
+    });
+
+    it('upsertRuntimeFieldMetadata should reject lookup and derived together', async () => {
+      mockAuthoringScope();
+
+      try {
+        await service.upsertRuntimeFieldMetadata({
+          tenantId: 1,
+          objectType: 'tenant_teams',
+          fieldKey: 'name',
+          updatedBy: 8,
+          validationJson: {
+            _six1LookupSelectAuthoring: {
+              schemaVersion: 1,
+              dataRef: 'core.system_statuses.list',
+              valueKey: 'statusId',
+              labelKey: 'name',
+            },
+            _six1DerivedRuntimeAuthoring: {
+              schemaVersion: 1,
+              operation: 'concat',
+              sourceFieldKeys: ['name'],
+            },
+          },
+        });
+        fail('expected throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(RpcException);
+        expect((e as RpcException).getError()).toMatchObject({
+          code: AuthoringErrorCode.RuntimeFieldMetadataLookupDerivedExclusive,
+        });
+      }
+    });
+
+    it('upsertRuntimeFieldMetadata should reject non-system_table binding mode', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+        configTemplateSetId: 10,
+        tenantId: 1,
+        status: 'PUBLISHED',
+      } as any);
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+        configObjectId: 10,
+        configTemplateSetId: 10,
+        objectType: 'project',
+        bindingMode: 'sor_bound',
+        status: 'PUBLISHED',
+      } as any);
+
+      try {
+        await service.upsertRuntimeFieldMetadata({
+          tenantId: 1,
+          objectType: 'project',
+          fieldKey: 'name',
+          updatedBy: 8,
+          validationJson: {
+            _six1LookupSelectAuthoring: {
+              schemaVersion: 1,
+              dataRef: 'core.system_statuses.list',
+              valueKey: 'statusId',
+              labelKey: 'name',
+            },
+          },
+        });
+        fail('expected throw');
+      } catch (e) {
+        expect(e).toBeInstanceOf(RpcException);
+        expect((e as RpcException).getError()).toMatchObject({
+          code: AuthoringErrorCode.RuntimeFieldMetadataBindingModeInvalid,
+        });
+      }
+    });
+
+    it('deleteRuntimeFieldMetadata should be idempotent', async () => {
+      mockAuthoringScope();
+      jest.spyOn(runtimeFieldMetadataRepo, 'findOne').mockResolvedValue(null as any);
+      const removeSpy = jest.spyOn(runtimeFieldMetadataRepo, 'remove');
+
+      await service.deleteRuntimeFieldMetadata({
+        tenantId: 1,
+        objectType: 'tenant_teams',
+        fieldKey: 'tenantId',
+        deletedBy: 8,
+      });
+
+      expect(removeSpy).not.toHaveBeenCalled();
+    });
   });
 });
 

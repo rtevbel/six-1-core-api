@@ -86,7 +86,7 @@ export class SystemStatusesController {
   ): Promise<UpdateResult> {
     return this.systemStatusesService.update(
       userId,
-      updateSystemStatusDto.status_id,
+      updateSystemStatusDto.statusId,
       updateSystemStatusDto,
     );
   }

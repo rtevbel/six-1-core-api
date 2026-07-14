@@ -30,7 +30,7 @@ export class CreatePermissionDto {
   @IsOptional()
   @IsInt()
   @IsPositive()
-  permission_id?: number;
+  permissionId?: number;
 
   /**
    * The status ID of the permission.
@@ -42,7 +42,7 @@ export class CreatePermissionDto {
    */
   @IsInt()
   @IsPositive()
-  status_id!: number;
+  statusId!: number;
 
   /**
    * The ID of the user who created the permission.
@@ -54,7 +54,7 @@ export class CreatePermissionDto {
    */
   @IsOptional()
   @IsNumber()
-  created_by!: number;
+  createdBy!: number;
 
   /**
    * The ID of the user who last updated the permission.
@@ -66,7 +66,7 @@ export class CreatePermissionDto {
    */
   @IsOptional()
   @IsNumber()
-  updated_by?: number;
+  updatedBy?: number;
 
   /**
    * The creation timestamp of the permission.
@@ -78,7 +78,7 @@ export class CreatePermissionDto {
    */
   @IsOptional()
   @IsDate()
-  created_at?: Date;
+  createdAt?: Date;
 
   /**
    * The update timestamp of the permission.
@@ -90,7 +90,7 @@ export class CreatePermissionDto {
    */
   @IsOptional()
   @IsDate()
-  updated_at?: Date;
+  updatedAt?: Date;
 
   /**
    * List of permission descriptions.

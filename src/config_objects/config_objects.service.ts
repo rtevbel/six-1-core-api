@@ -5,6 +5,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
+import type { ConfigTemplateSetStatus } from './entities/config_template_set.entity';
 import {
   ConfigObjectBindingMode,
   ConfigObjectEntity,
@@ -12,6 +13,7 @@ import {
 } from './entities/config_object.entity';
 import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
+import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
@@ -44,6 +46,7 @@ import {
 import {
   CONFIG_OBJECT_SYSTEM_TABLE_FIELDS_FORBIDDEN_MESSAGE,
   CONFIG_OBJECT_SYSTEM_TABLE_RESOLVE_FORBIDDEN_MESSAGE,
+  CONFIG_OBJECT_RUNTIME_FIELD_METADATA_BINDING_FORBIDDEN_MESSAGE,
 } from './constants';
 import type { ConfigObjectViewType } from './constants/config-object-view-type';
 import {
@@ -95,6 +98,7 @@ import {
 import type { RelationDescriptor } from './interfaces/relation-descriptor.interface';
 import { generateOrmRelationDescriptorsForObjectType } from './relation-catalog/relation-catalog.generator';
 import { finalizeCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.write-schema';
+import { generateBaseCoreFieldDescriptors } from './core-field-descriptor/core-field-descriptor.generator';
 import { resolveConfigObjectVerificationFieldMap } from './verification/config-object-verification.util';
 import { getSorBoundMetaFieldLookupDescriptor } from './verification/sor-bound-meta-field-lookup.registry';
 import type { CoreFieldDescriptor } from './core-field-descriptor/core-field-descriptor.types';
@@ -118,7 +122,10 @@ import {
   ConfigObjectStatusMappingEntity,
   ConfigObjectStatusSource,
 } from './entities/config_object_status_mapping.entity';
-import { inferDefaultBindingModeForObjectType } from './object-catalog-scope';
+import {
+  inferDefaultBindingModeForObjectType,
+  isSystemTableObjectType,
+} from './object-catalog-scope';
 import type {
   ConfigObjectRuntimeManifestView,
   RuntimeComposedSubmitPayloadView,
@@ -138,6 +145,18 @@ import type {
   ObjectListFieldCatalogView,
 } from './list-field-catalog/object-list-field-catalog.interface';
 import { EventsService } from '../events/events.service';
+
+/** Config object statuses that Object Designer may author against. */
+const AUTHORABLE_CONFIG_OBJECT_STATUSES: ConfigObjectStatus[] = [
+  'DRAFT',
+  'PUBLISHED',
+];
+
+/** Template set statuses eligible for authoring lookups. */
+const AUTHORABLE_TEMPLATE_SET_STATUSES: ConfigTemplateSetStatus[] = [
+  'DRAFT',
+  'PUBLISHED',
+];
 import {
   configScopeTenantId,
   resolveStoredTenantId,
@@ -168,10 +187,14 @@ import {
   assertReferenceListDataRefKnown,
   buildReferenceListCatalog,
   buildSchemaLookupCatalog,
+  resolveReferenceListCatalogLookup,
   isReferenceListStrictValidationEnabled,
   ReferenceListValidationError,
 } from './reference-list';
-import type { ReferenceListCatalogView } from './reference-list/reference-list.types';
+import type {
+  ReferenceListCatalogLookupView,
+  ReferenceListCatalogView,
+} from './reference-list/reference-list.types';
 
 /**
  * Service responsible for resolving configuration metadata and
@@ -273,6 +296,8 @@ export class ConfigObjectsService {
     private readonly configObjectFieldRepository: Repository<ConfigObjectFieldEntity>,
     @InjectRepository(ConfigObjectFieldRuleEntity)
     private readonly configObjectFieldRuleRepository: Repository<ConfigObjectFieldRuleEntity>,
+    @InjectRepository(ConfigObjectRuntimeFieldMetadataEntity)
+    private readonly runtimeFieldMetadataRepository: Repository<ConfigObjectRuntimeFieldMetadataEntity>,
     @InjectRepository(ConfigObjectLifecycleEntity)
     private readonly lifecycleRepository: Repository<ConfigObjectLifecycleEntity>,
     @InjectRepository(ConfigObjectRelationshipEntity)
@@ -369,6 +394,25 @@ export class ConfigObjectsService {
   /**
    * Canonical `config_objects.object_type` format is singular, lowercase.
    */
+  private buildCandidateObjectTypes(
+    objectType: string,
+    canonicalObjectType: string,
+  ): string[] {
+    const sorEntityClass = resolveEntityClassForObjectType(canonicalObjectType);
+    const sorTableObjectType = sorEntityClass
+      ? resolveObjectTypeForEntityClass(sorEntityClass)
+      : null;
+    return Array.from(
+      new Set(
+        [
+          canonicalObjectType,
+          objectType?.trim().toLowerCase(),
+          sorTableObjectType?.trim().toLowerCase(),
+        ].filter((value): value is string => Boolean(value)),
+      ),
+    );
+  }
+
   private normalizeCanonicalObjectTypeOrThrow(objectType: string): string {
     const canonical = canonicalizeObjectType(objectType);
     if (!canonical) {
@@ -2188,18 +2232,9 @@ export class ConfigObjectsService {
   ): Promise<ConfigObjectRunnerSchemaView | null> {
     const canonicalObjectType =
       this.normalizeCanonicalObjectTypeOrThrow(objectType);
-    const sorEntityClass = resolveEntityClassForObjectType(canonicalObjectType);
-    const sorTableObjectType = sorEntityClass
-      ? resolveObjectTypeForEntityClass(sorEntityClass)
-      : null;
-    const candidateObjectTypes = Array.from(
-      new Set(
-        [
-          canonicalObjectType,
-          objectType?.trim().toLowerCase(),
-          sorTableObjectType?.trim().toLowerCase(),
-        ].filter((value): value is string => Boolean(value)),
-      ),
+    const candidateObjectTypes = this.buildCandidateObjectTypes(
+      objectType,
+      canonicalObjectType,
     );
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     this.clearExpiredRuntimeCaches();
@@ -2252,9 +2287,12 @@ export class ConfigObjectsService {
       return null;
     }
 
-    const fieldViews = await this.loadFieldViewsForConfigObjectId(
-      configObject.configObjectId,
-    );
+    const fieldViews =
+      configObject.bindingMode === 'system_table'
+        ? await this.loadRuntimeFieldMetadataAsFieldViews(
+            configObject.configObjectId,
+          )
+        : await this.loadFieldViewsForConfigObjectId(configObject.configObjectId);
 
     const base = this.enrichSchemaViewWithRunner({
       configObject,
@@ -2274,8 +2312,23 @@ export class ConfigObjectsService {
 
   /**
    * Canonical lookup `dataRef` catalog for gateway, mobile, and Designer clients.
+   *
+   * When `dataRef` or `entityKey` is provided, returns a resolved lookup slice
+   * (`entityKey` + `entry`) for Object Runner lookup-options hydration.
    */
-  getReferenceListCatalog(): ReferenceListCatalogView {
+  getReferenceListCatalog(params?: {
+    dataRef?: string;
+    entityKey?: string;
+  }): ReferenceListCatalogView | ReferenceListCatalogLookupView | null {
+    const dataRef =
+      typeof params?.dataRef === 'string' ? params.dataRef.trim() : '';
+    const entityKey =
+      typeof params?.entityKey === 'string' ? params.entityKey.trim() : '';
+
+    if (dataRef.length > 0 || entityKey.length > 0) {
+      return resolveReferenceListCatalogLookup({ dataRef, entityKey });
+    }
+
     return buildReferenceListCatalog();
   }
 
@@ -3892,6 +3945,357 @@ export class ConfigObjectsService {
     );
   }
 
+  /**
+   * Lists runtime field metadata overlays for a `system_table` config object.
+   */
+  async listRuntimeFieldMetadata(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+  }): Promise<ConfigObjectRuntimeFieldMetadataEntity[]> {
+    const configObject = await this.resolveSystemTableConfigObjectForMetadata(
+      params,
+    );
+
+    return this.runtimeFieldMetadataRepository.find({
+      where: { configObjectId: configObject.configObjectId },
+      order: { fieldKey: 'ASC' },
+    });
+  }
+
+  /**
+   * Creates or updates runtime field metadata for one existing `system_table` column key.
+   */
+  async upsertRuntimeFieldMetadata(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+    fieldKey: string;
+    validationJson: Record<string, unknown>;
+    rulesJson?: Record<string, unknown> | null;
+    updatedBy: number;
+  }): Promise<ConfigObjectRuntimeFieldMetadataEntity> {
+    const {
+      tenantId,
+      objectType,
+      fieldKey,
+      validationJson,
+      rulesJson,
+      updatedBy,
+    } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const configObject = await this.resolveSystemTableConfigObjectForMetadata({
+      tenantId,
+      objectType,
+    });
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      objectType,
+    );
+    const normalizedFieldKey = fieldKey.trim();
+    if (!normalizedFieldKey) {
+      throw new RpcException(
+        'field_key cannot be empty after trimming.',
+      );
+    }
+    this.assertSystemTableRuntimeFieldKeyKnown(
+      canonicalObjectType,
+      normalizedFieldKey,
+    );
+
+    const normalizedValidationJson =
+      this.applyRuntimeFieldMetadataValidationJson(validationJson);
+    const normalizedRulesJson =
+      typeof rulesJson === 'undefined'
+        ? undefined
+        : this.normalizeFieldRulesJson(rulesJson);
+
+    const existing = await this.runtimeFieldMetadataRepository.findOne({
+      where: {
+        configObjectId: configObject.configObjectId,
+        fieldKey: normalizedFieldKey,
+      },
+    });
+
+    if (!existing) {
+      const created = await this.runtimeFieldMetadataRepository.save(
+        this.runtimeFieldMetadataRepository.create({
+          configObjectId: configObject.configObjectId,
+          fieldKey: normalizedFieldKey,
+          validationJson: normalizedValidationJson,
+          rulesJson:
+            typeof normalizedRulesJson === 'undefined'
+              ? null
+              : normalizedRulesJson,
+          createdBy: updatedBy,
+          updatedBy,
+        }),
+      );
+
+      await this.logConfigChange(
+        effectiveTenantId,
+        'runtime_field_metadata',
+        created.configObjectRuntimeFieldMetadataId,
+        'create',
+        updatedBy,
+        null,
+        {
+          configObjectId: created.configObjectId,
+          objectType: canonicalObjectType,
+          fieldKey: created.fieldKey,
+          validationJson: created.validationJson ?? null,
+          rulesJson: created.rulesJson ?? null,
+        },
+      );
+      await this.invalidateRuntimeCachesAfterMetadataChange({
+        tenantId: effectiveTenantId,
+        objectType: canonicalObjectType,
+      });
+      return created;
+    }
+
+    const oldValue = {
+      configObjectId: existing.configObjectId,
+      objectType: canonicalObjectType,
+      fieldKey: existing.fieldKey,
+      validationJson: existing.validationJson ?? null,
+      rulesJson: existing.rulesJson ?? null,
+    };
+
+    existing.validationJson = normalizedValidationJson;
+    if (typeof normalizedRulesJson !== 'undefined') {
+      existing.rulesJson = normalizedRulesJson;
+    }
+    existing.updatedBy = updatedBy;
+
+    const saved = await this.runtimeFieldMetadataRepository.save(existing);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'runtime_field_metadata',
+      saved.configObjectRuntimeFieldMetadataId,
+      'update',
+      updatedBy,
+      oldValue,
+      {
+        configObjectId: saved.configObjectId,
+        objectType: canonicalObjectType,
+        fieldKey: saved.fieldKey,
+        validationJson: saved.validationJson ?? null,
+        rulesJson: saved.rulesJson ?? null,
+      },
+    );
+    await this.invalidateRuntimeCachesAfterMetadataChange({
+      tenantId: effectiveTenantId,
+      objectType: canonicalObjectType,
+    });
+    return saved;
+  }
+
+  /**
+   * Removes a runtime field metadata overlay (idempotent).
+   */
+  async deleteRuntimeFieldMetadata(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+    fieldKey: string;
+    deletedBy: number;
+  }): Promise<void> {
+    const { tenantId, objectType, fieldKey, deletedBy } = params;
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const configObject = await this.resolveSystemTableConfigObjectForMetadata({
+      tenantId,
+      objectType,
+    });
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      objectType,
+    );
+    const normalizedFieldKey = fieldKey.trim();
+    if (!normalizedFieldKey) {
+      throw new RpcException(
+        'field_key cannot be empty after trimming.',
+      );
+    }
+
+    const existing = await this.runtimeFieldMetadataRepository.findOne({
+      where: {
+        configObjectId: configObject.configObjectId,
+        fieldKey: normalizedFieldKey,
+      },
+    });
+
+    if (!existing) {
+      return;
+    }
+
+    const oldValue = {
+      configObjectId: existing.configObjectId,
+      objectType: canonicalObjectType,
+      fieldKey: existing.fieldKey,
+      validationJson: existing.validationJson ?? null,
+      rulesJson: existing.rulesJson ?? null,
+    };
+
+    await this.runtimeFieldMetadataRepository.remove(existing);
+
+    await this.logConfigChange(
+      effectiveTenantId,
+      'runtime_field_metadata',
+      existing.configObjectRuntimeFieldMetadataId,
+      'delete',
+      deletedBy,
+      oldValue,
+      null,
+    );
+    await this.invalidateRuntimeCachesAfterMetadataChange({
+      tenantId: effectiveTenantId,
+      objectType: canonicalObjectType,
+    });
+  }
+
+  private async resolveSystemTableConfigObjectForMetadata(params: {
+    tenantId: number | null | undefined;
+    objectType: string;
+  }): Promise<ConfigObjectEntity> {
+    const effectiveTenantId = this.getEffectiveTenantId(params.tenantId);
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      params.objectType,
+    );
+    const candidateObjectTypes = this.buildCandidateObjectTypes(
+      params.objectType,
+      canonicalObjectType,
+    );
+
+    const templateSet =
+      await this.findTemplateSetForAuthoringScope(effectiveTenantId);
+    if (!templateSet) {
+      throw new RpcException('Config object not found.');
+    }
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: {
+        configTemplateSetId: templateSet.configTemplateSetId,
+        objectType: In(candidateObjectTypes),
+        status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
+      },
+    });
+
+    if (!configObject) {
+      throw new RpcException('Config object not found.');
+    }
+
+    const scopedTemplateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+    if (!scopedTemplateSet) {
+      throw new RpcException(
+        'Config object does not belong to the specified tenant.',
+      );
+    }
+
+    if (configObject.bindingMode !== 'system_table') {
+      throw authoringRpcException(
+        AuthoringErrorCode.RuntimeFieldMetadataBindingModeInvalid,
+        CONFIG_OBJECT_RUNTIME_FIELD_METADATA_BINDING_FORBIDDEN_MESSAGE,
+      );
+    }
+
+    return configObject;
+  }
+
+  private assertSystemTableRuntimeFieldKeyKnown(
+    objectType: string,
+    fieldKey: string,
+  ): void {
+    const baseKeys = new Set(
+      generateBaseCoreFieldDescriptors({
+        bindingMode: 'system_table',
+        objectType,
+      }).map((descriptor) => descriptor.fieldKey),
+    );
+
+    if (!baseKeys.has(fieldKey)) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RuntimeFieldMetadataUnknownFieldKey,
+        `field_key "${fieldKey}" is not a known base column for object type "${objectType}".`,
+      );
+    }
+  }
+
+  private applyRuntimeFieldMetadataValidationJson(
+    validationJson: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const hasLookup = Object.prototype.hasOwnProperty.call(
+      validationJson,
+      '_six1LookupSelectAuthoring',
+    );
+    const hasDerived = Object.prototype.hasOwnProperty.call(
+      validationJson,
+      '_six1DerivedRuntimeAuthoring',
+    );
+
+    if (hasLookup && hasDerived) {
+      throw authoringRpcException(
+        AuthoringErrorCode.RuntimeFieldMetadataLookupDerivedExclusive,
+        'Lookup-select and derived-runtime authoring are mutually exclusive per field.',
+      );
+    }
+
+    return this.applyDerivedDisplayAuthoringInValidationJson(validationJson) ?? {};
+  }
+
+  private async invalidateRuntimeCachesAfterMetadataChange(params: {
+    tenantId: number | null;
+    objectType: string;
+  }): Promise<void> {
+    await this.invalidateRuntimeCaches({
+      tenantId: params.tenantId ?? undefined,
+      entityKey: params.objectType,
+      includeSchemaCache: true,
+      includeViewCache: false,
+      includeManifestCache: true,
+    });
+  }
+
+  private async loadRuntimeFieldMetadataAsFieldViews(
+    configObjectId: number,
+  ): Promise<ConfigObjectFieldView[]> {
+    const rows = await this.runtimeFieldMetadataRepository.find({
+      where: { configObjectId },
+      order: { fieldKey: 'ASC' },
+    });
+
+    return rows.map((row) => this.runtimeFieldMetadataRowToFieldView(row));
+  }
+
+  private runtimeFieldMetadataRowToFieldView(
+    row: ConfigObjectRuntimeFieldMetadataEntity,
+  ): ConfigObjectFieldView {
+    const field = {
+      configObjectFieldId: row.configObjectRuntimeFieldMetadataId,
+      configObjectId: row.configObjectId,
+      fieldKey: row.fieldKey,
+      label: row.fieldKey,
+      description: null,
+      fieldType: 'text',
+      validationJson: row.validationJson,
+      defaultValue: null,
+      isRequired: false,
+      isSystem: false,
+      orderIndex: 0,
+      sectionKey: null,
+      createdBy: row.createdBy,
+      updatedBy: row.updatedBy,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    } as ConfigObjectFieldEntity;
+
+    return {
+      field,
+      rules: [],
+    };
+  }
+
   private normalizeFieldRulesJson(
     rulesJson: unknown,
   ): Record<string, unknown> | null {
@@ -4776,24 +5180,19 @@ export class ConfigObjectsService {
     }
   }
 
-  private async assertRelationshipEndpointsPublishedInScope(
+  private async assertRelationshipEndpointsInAuthoringScope(
     tenantId: number | null | undefined,
     fromObjectType: string,
     toObjectType: string,
   ): Promise<void> {
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
-    const templateSetWhere =
-      effectiveTenantId === null
-        ? { status: 'PUBLISHED' as const }
-        : { tenantId: effectiveTenantId, status: 'PUBLISHED' as const };
-    const templateSet = await this.templateSetRepository.findOne({
-      where: templateSetWhere,
-      order: { configTemplateSetId: 'ASC' },
-    });
+    const templateSet = await this.findTemplateSetForAuthoringScope(
+      effectiveTenantId,
+    );
     if (!templateSet) {
       throw authoringRpcException(
         AuthoringErrorCode.RelationPublishedEndpoints,
-        'No active published template set found for relationship authoring scope.',
+        'No active config template set found for relationship authoring scope.',
       );
     }
 
@@ -4802,27 +5201,27 @@ export class ConfigObjectsService {
         where: {
           configTemplateSetId: templateSet.configTemplateSetId,
           objectType: fromObjectType,
-          status: 'PUBLISHED',
+          status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
         },
       }),
       this.configObjectRepository.findOne({
         where: {
           configTemplateSetId: templateSet.configTemplateSetId,
           objectType: toObjectType,
-          status: 'PUBLISHED',
+          status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
         },
       }),
     ]);
     if (!from) {
       throw authoringRpcException(
         AuthoringErrorCode.RelationPublishedEndpoints,
-        `fromObjectType "${fromObjectType}" must be a PUBLISHED configurable object.`,
+        `fromObjectType "${fromObjectType}" must exist as a DRAFT or PUBLISHED configurable object.`,
       );
     }
     if (!to) {
       throw authoringRpcException(
         AuthoringErrorCode.RelationPublishedEndpoints,
-        `toObjectType "${toObjectType}" must be a PUBLISHED configurable object.`,
+        `toObjectType "${toObjectType}" must exist as a DRAFT or PUBLISHED configurable object.`,
       );
     }
   }
@@ -4975,7 +5374,7 @@ export class ConfigObjectsService {
       );
     }
 
-    await this.assertRelationshipEndpointsPublishedInScope(
+    await this.assertRelationshipEndpointsInAuthoringScope(
       tenantId,
       fromObjectType,
       toObjectType,
@@ -5060,7 +5459,7 @@ export class ConfigObjectsService {
       throw new RpcException('Config relationship not found.');
     }
 
-    await this.assertRelationshipEndpointsPublishedInScope(
+    await this.assertRelationshipEndpointsInAuthoringScope(
       tenantId,
       rel.fromObjectType,
       rel.toObjectType,
@@ -5143,7 +5542,7 @@ export class ConfigObjectsService {
       return;
     }
 
-    await this.assertRelationshipEndpointsPublishedInScope(
+    await this.assertRelationshipEndpointsInAuthoringScope(
       tenantId,
       rel.fromObjectType,
       rel.toObjectType,
@@ -5513,6 +5912,133 @@ export class ConfigObjectsService {
     });
   }
 
+  private formatDisplayNameForObjectType(objectType: string): string {
+    return objectType
+      .split('_')
+      .filter((part) => part.length > 0)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  private resolveSorTableNameForConfigObject(
+    canonicalObjectType: string,
+  ): string {
+    const entityClass = resolveEntityClassForObjectType(canonicalObjectType);
+    if (entityClass) {
+      const tableName = resolveObjectTypeForEntityClass(entityClass);
+      if (tableName) {
+        return tableName;
+      }
+    }
+
+    throw new RpcException(
+      `Unable to resolve SoR table for object type "${canonicalObjectType}".`,
+    );
+  }
+
+  private async findTemplateSetForAuthoringScope(
+    effectiveTenantId: number | null,
+  ): Promise<ConfigTemplateSetEntity | null> {
+    const where =
+      effectiveTenantId === null
+        ? { status: In(AUTHORABLE_TEMPLATE_SET_STATUSES) }
+        : {
+            tenantId: effectiveTenantId,
+            status: In(AUTHORABLE_TEMPLATE_SET_STATUSES),
+          };
+
+    let templateSet = await this.templateSetRepository.findOne({
+      where,
+      order: { configTemplateSetId: 'ASC' },
+    });
+
+    if (!templateSet && effectiveTenantId !== null) {
+      templateSet = await this.templateSetRepository.findOne({
+        where: {
+          tenantId: IsNull(),
+          status: In(AUTHORABLE_TEMPLATE_SET_STATUSES),
+        },
+        order: { configTemplateSetId: 'ASC' },
+      });
+    }
+
+    return templateSet;
+  }
+
+  /**
+   * Resolves an authorable `config_objects` row for view authoring, auto-provisioning
+   * platform `system_table` definitions as `DRAFT` when they are missing.
+   */
+  private async ensureConfigObjectForViewAuthoring(params: {
+    objectType: string;
+    effectiveTenantId: number | null;
+    createdBy: number;
+  }): Promise<ConfigObjectEntity> {
+    const canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(
+      params.objectType,
+    );
+
+    const templateSet = await this.findTemplateSetForAuthoringScope(
+      params.effectiveTenantId,
+    );
+    if (!templateSet) {
+      throw new RpcException(
+        'Config template set not found for view creation.',
+      );
+    }
+
+    const existing = await this.configObjectRepository.findOne({
+      where: {
+        configTemplateSetId: templateSet.configTemplateSetId,
+        objectType: canonicalObjectType,
+        status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
+      },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    if (!isSystemTableObjectType(canonicalObjectType)) {
+      throw new RpcException('Config object not found for view creation.');
+    }
+
+    const sorTableName =
+      this.resolveSorTableNameForConfigObject(canonicalObjectType);
+
+    const created = await this.configObjectRepository.save(
+      this.configObjectRepository.create({
+        configTemplateSetId: templateSet.configTemplateSetId,
+        objectType: canonicalObjectType,
+        bindingMode: 'system_table',
+        sorTableName,
+        displayName: this.formatDisplayNameForObjectType(canonicalObjectType),
+        description: null,
+        status: 'DRAFT',
+      }),
+    );
+
+    await this.logConfigChange(
+      params.effectiveTenantId,
+      'object',
+      created.configObjectId,
+      'create',
+      params.createdBy,
+      null,
+      {
+        objectType: created.objectType,
+        bindingMode: created.bindingMode,
+        sorTableName: created.sorTableName,
+        displayName: created.displayName,
+        description: created.description ?? null,
+        status: created.status,
+        configTemplateSetId: created.configTemplateSetId,
+        autoProvisioned: true,
+      },
+    );
+
+    return created;
+  }
+
   /**
    * Creates a new view definition for an object type and logs the change.
    */
@@ -5541,16 +6067,11 @@ export class ConfigObjectsService {
 
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
-    const configObject = await this.configObjectRepository.findOne({
-      where: {
-        objectType,
-        status: 'PUBLISHED',
-      },
+    const configObject = await this.ensureConfigObjectForViewAuthoring({
+      objectType,
+      effectiveTenantId,
+      createdBy,
     });
-
-    if (!configObject) {
-      throw new RpcException('Config object not found for view creation.');
-    }
 
     const templateSet = await this.templateSetRepository.findOne({
       where: this.templateSetWhereForTenantScope(
@@ -5789,6 +6310,7 @@ export class ConfigObjectsService {
     const configObject = await this.configObjectRepository.findOne({
       where: {
         objectType: entityKey,
+        status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
       },
     });
 

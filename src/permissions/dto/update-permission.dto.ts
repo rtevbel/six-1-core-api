@@ -1,6 +1,7 @@
 import { OmitType, PartialType } from '@nestjs/mapped-types';
 import { CreatePermissionDto } from './create-permission.dto';
 import { UpdatePermissionDescriptionDto } from './update-permission_description.dto';
+import { UpdatePermissionRoleDto } from './update-permission-role.dto';
 import {
   IsArray,
   IsNotEmpty,
@@ -30,7 +31,7 @@ export class UpdatePermissionDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  permission_id!: number;
+  permissionId!: number;
 
   /**
    * List of updated permission descriptions.
@@ -44,4 +45,13 @@ export class UpdatePermissionDto extends PartialType(
   @Type(() => UpdatePermissionDescriptionDto)
   @ValidateNested({ each: true })
   descriptions: UpdatePermissionDescriptionDto[] = [];
+
+  /**
+   * Junction rows for roles assigned to this permission.
+   */
+  @IsOptional()
+  @IsArray()
+  @Type(() => UpdatePermissionRoleDto)
+  @ValidateNested({ each: true })
+  roles?: UpdatePermissionRoleDto[];
 }

@@ -1,3 +1,6 @@
+/** Max `limit` for permissions list queries (catalog-backed dynamic list). */
+export const PERMISSIONS_MAX_PAGE_SIZE = 500;
+
 // PERMISSIONS CONTROLLER MESSAGE PATTERNS
 export const MICROSERVICE_CREATE_PERMISSION_PATTERN = 'v0.1_create_permission';
 export const MICROSERVICE_FIND_ALL_PERMISSION_PATTERN =

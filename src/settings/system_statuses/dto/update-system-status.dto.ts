@@ -20,5 +20,5 @@ export class UpdateSystemStatusDto extends PartialType(CreateSystemStatusDto) {
    */
   @IsNotEmpty()
   @IsNumber()
-  status_id!: number;
+  statusId!: number;
 }

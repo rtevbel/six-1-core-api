@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { PermissionEntity } from './entities/permission.entity';
 import { PermissionDescriptionEntity } from './entities/permission_description.entity';
+import { RolePermissionEntity } from '../roles/entities/role-permission.entity';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { FiltersDto } from './dto/filters.dto';
@@ -22,27 +23,28 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { PERMISSIONS_MAX_PAGE_SIZE } from './constants';
 
 @Injectable()
 export class PermissionsService {
   private static readonly FALLBACK_FIELDS = new Set([
-    'permission_id',
-    'status_id',
+    'permissionId',
+    'statusId',
     'name',
-    'created_by',
-    'updated_by',
-    'created_at',
-    'updated_at',
+    'createdBy',
+    'updatedBy',
+    'createdAt',
+    'updatedAt',
   ]);
 
   private static readonly FALLBACK_EXPR: Record<string, string> = {
-    permission_id: 'p.permission_id',
-    status_id: 'p.status_id',
+    permissionId: 'p.permission_id',
+    statusId: 'p.status_id',
     name: `(SELECT pd.name FROM permission_descriptions pd WHERE pd.permission_id = p.permission_id ORDER BY pd.language_id ASC LIMIT 1)`,
-    created_by: 'p.created_by',
-    updated_by: 'p.updated_by',
-    created_at: 'p.created_at',
-    updated_at: 'p.updated_at',
+    createdBy: 'p.created_by',
+    updatedBy: 'p.updated_by',
+    createdAt: 'p.created_at',
+    updatedAt: 'p.updated_at',
   };
 
   constructor(
@@ -50,6 +52,8 @@ export class PermissionsService {
     private readonly permissionRepository: Repository<PermissionEntity>,
     @InjectRepository(PermissionDescriptionEntity)
     private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
+    @InjectRepository(RolePermissionEntity)
+    private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
     private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
@@ -80,7 +84,7 @@ export class PermissionsService {
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
+      filtersDto.limit = Math.min(filtersDto.limit, PERMISSIONS_MAX_PAGE_SIZE);
     }
     if (!filtersDto.page || filtersDto.page < 1) {
       filtersDto.page = 1;
@@ -98,7 +102,7 @@ export class PermissionsService {
       searchCorePropertyNames: [],
       fallbackCoreFields: PermissionsService.FALLBACK_FIELDS,
       fallbackCoreColumnExpressions: PermissionsService.FALLBACK_EXPR,
-      defaultSortCoreField: 'permission_id',
+      defaultSortCoreField: 'permissionId',
       tieBreakOrderBySql: 'p.permission_id',
       catalogTenantResolver: (f) => {
         const row = f as FiltersDto;
@@ -113,7 +117,8 @@ export class PermissionsService {
       ],
       schemaMissingForRelatedFiltersMessage:
         'Permission configuration schema is required for related list filters.',
-      maxPageSize: 10,
+      maxPageSize: PERMISSIONS_MAX_PAGE_SIZE,
+      hydrateRoots: (roots) => this.hydratePermissionsForList(roots),
     };
 
     const { rows: permissions, total } =
@@ -141,6 +146,23 @@ export class PermissionsService {
     };
   }
 
+  private async hydratePermissionsForList(
+    roots: PermissionEntity[],
+  ): Promise<PermissionEntity[]> {
+    const ids = roots.map((r) => r.permissionId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.permissionRepository.find({
+      where: { permissionId: In(ids) },
+      relations: ['descriptions'],
+    });
+    const byId = new Map(loaded.map((p) => [p.permissionId, p]));
+    return ids
+      .map((id) => byId.get(id)!)
+      .filter(Boolean) as PermissionEntity[];
+  }
+
   private buildPagination(
     filtersDto: FiltersDto,
     total: number,
@@ -160,10 +182,13 @@ export class PermissionsService {
    * @returns The PermissionEntity matching the ID.
    * @throws RpcException if no record is found.
    */
-  async findOne(userId: number, id: number): Promise<PermissionEntity> {
+  async findOne(
+    userId: number,
+    id: number,
+  ): Promise<PermissionEntity & { roles?: RolePermissionEntity[] }> {
     const permission = await this.permissionRepository.findOne({
-      where: { permission_id: id },
-      relations: ['descriptions'],
+      where: { permissionId: id },
+      relations: ['descriptions', 'rolePermissions'],
     });
 
     if (!permission) {
@@ -175,7 +200,10 @@ export class PermissionsService {
       );
     }
 
-    return permission;
+    return {
+      ...permission,
+      roles: permission.rolePermissions ?? [],
+    };
   }
 
   /**
@@ -192,10 +220,10 @@ export class PermissionsService {
     updatePermissionDto: UpdatePermissionDto,
   ): Promise<UpdateResult> {
     const permission = await this.permissionRepository.findOneByOrFail({
-      permission_id: id,
+      permissionId: id,
     });
 
-    updatePermissionDto.updated_by = userId;
+    updatePermissionDto.updatedBy = userId;
 
     if (!permission) {
       throw new RpcException(
@@ -206,22 +234,61 @@ export class PermissionsService {
       );
     }
 
-    const { descriptions, ...updatePermissionDtoCopy } = updatePermissionDto;
+    const { descriptions, roles, permissionId: _permissionId, ...updatePermissionDtoCopy } =
+      updatePermissionDto;
 
     if (descriptions) {
       for (const description of descriptions) {
-        if (description.permission_description_id) {
+        if (description.permissionDescriptionId) {
           await this.permissionDescriptionRepository.update(
-            description.permission_description_id,
+            description.permissionDescriptionId,
             description,
           );
         } else {
-          description.permission_id = id;
+          description.permissionId = id;
           await this.permissionDescriptionRepository.save(
             this.permissionDescriptionRepository.create(description),
           );
         }
       }
+    }
+
+    if (roles) {
+      for (const role of roles) {
+        if (role.rolePermissionId) {
+          await this.rolePermissionRepository.delete({
+            rolePermissionId: role.rolePermissionId,
+          });
+          continue;
+        }
+
+        const permissionRoleId = role.permissionId ?? id;
+        const roleId = role.roleId;
+        if (roleId == null) {
+          continue;
+        }
+
+        const existing = await this.rolePermissionRepository.findOne({
+          where: {
+            roleId,
+            permissionId: permissionRoleId,
+          },
+        });
+
+        if (!existing) {
+          await this.rolePermissionRepository.save(
+            this.rolePermissionRepository.create({
+              ...role,
+              roleId,
+              permissionId: permissionRoleId,
+            }),
+          );
+        }
+      }
+    }
+
+    if (Object.keys(updatePermissionDtoCopy).length === 0) {
+      return { affected: 1, raw: [], generatedMaps: [] };
     }
 
     return await this.permissionRepository.update(id, updatePermissionDtoCopy);
@@ -234,6 +301,6 @@ export class PermissionsService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.permissionRepository.delete({ permission_id: id });
+    return await this.permissionRepository.delete({ permissionId: id });
   }
 }

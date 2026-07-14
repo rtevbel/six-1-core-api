@@ -21,6 +21,12 @@ export const AuthoringErrorCode = {
   DerivedRuntimeInvalid: 'SIX1_AUTHORING_DERIVED_RUNTIME_INVALID',
   FieldRulesInvalid: 'SIX1_AUTHORING_FIELD_RULES_INVALID',
   FieldValidationInvalid: 'SIX1_AUTHORING_FIELD_VALIDATION_INVALID',
+  RuntimeFieldMetadataBindingModeInvalid:
+    'SIX1_AUTHORING_RUNTIME_FIELD_METADATA_BINDING_MODE_INVALID',
+  RuntimeFieldMetadataUnknownFieldKey:
+    'SIX1_AUTHORING_RUNTIME_FIELD_METADATA_UNKNOWN_FIELD_KEY',
+  RuntimeFieldMetadataLookupDerivedExclusive:
+    'SIX1_AUTHORING_RUNTIME_FIELD_METADATA_LOOKUP_DERIVED_EXCLUSIVE',
 } as const;
 
 export type AuthoringErrorCodeValue =

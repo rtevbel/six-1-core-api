@@ -45,6 +45,9 @@ import {
   MICROSERVICE_UPDATE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_DELETE_CONFIG_FIELD_PATTERN,
   MICROSERVICE_DELETE_CONFIG_FIELD_RULE_PATTERN,
+  MICROSERVICE_LIST_RUNTIME_FIELD_METADATA_PATTERN,
+  MICROSERVICE_UPSERT_RUNTIME_FIELD_METADATA_PATTERN,
+  MICROSERVICE_DELETE_RUNTIME_FIELD_METADATA_PATTERN,
   MICROSERVICE_DELETE_CONFIG_VIEW_PATTERN,
   MICROSERVICE_LIST_CONFIG_VIEW_PANELS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_VIEW_PANEL_PATTERN,
@@ -97,7 +100,10 @@ import {
 } from './interfaces/config-object-resolved-instance.interface';
 import type { VerifyConfigObjectEmailResult } from './interfaces/verify-config-object-email-result.interface';
 import type { ObjectListFieldCatalogView } from './list-field-catalog/object-list-field-catalog.interface';
-import type { ReferenceListCatalogView } from './reference-list/reference-list.types';
+import type {
+  ReferenceListCatalogLookupView,
+  ReferenceListCatalogView,
+} from './reference-list/reference-list.types';
 import { ApplySorBoundInstancePatchDto } from './dto/apply-sor-bound-instance-patch.dto';
 import { ConfigObjectEntity } from './entities/config_object.entity';
 import { ConfigCustomObjectInstanceEntity } from './entities/config_custom_object_instance.entity';
@@ -105,6 +111,7 @@ import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.
 import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
 import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
+import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
 import { ConfigObjectViewEntity } from './entities/config_object_view.entity';
 import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel.entity';
@@ -133,6 +140,11 @@ import {
   UpdateConfigFieldRuleDto,
   DeleteConfigFieldRuleDto,
 } from './dto/config-field-rule.dto';
+import {
+  ListRuntimeFieldMetadataDto,
+  UpsertRuntimeFieldMetadataDto,
+  DeleteRuntimeFieldMetadataDto,
+} from './dto/runtime-field-metadata.dto';
 import {
   CreateConfigViewDto,
   DeleteConfigViewDto,
@@ -249,9 +261,12 @@ export class ConfigObjectsController {
   @MessagePattern(MICROSERVICE_GET_REFERENCE_LIST_CATALOG_PATTERN)
   @UsePipes(AppRpcValidationPipe)
   async getReferenceListCatalog(
-    @Payload('data') _dto: GetReferenceListCatalogDto,
-  ): Promise<ReferenceListCatalogView> {
-    return this.configObjectsService.getReferenceListCatalog();
+    @Payload('data') dto: GetReferenceListCatalogDto,
+  ): Promise<ReferenceListCatalogView | ReferenceListCatalogLookupView | null> {
+    return this.configObjectsService.getReferenceListCatalog({
+      dataRef: dto.dataRef,
+      entityKey: dto.entityKey,
+    });
   }
 
   /**
@@ -939,6 +954,74 @@ export class ConfigObjectsController {
     await this.configObjectsService.deleteConfigField({
       tenantId: dto.tenantId,
       configObjectFieldId: dto.configObjectFieldId,
+      deletedBy: dto.deletedBy,
+    });
+  }
+
+  /**
+   * Lists runtime field metadata overlays for a `system_table` config object.
+   */
+  @MessagePattern(MICROSERVICE_LIST_RUNTIME_FIELD_METADATA_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async listRuntimeFieldMetadata(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ListRuntimeFieldMetadataDto,
+  ): Promise<{
+    runtimeFieldMetadata: ConfigObjectRuntimeFieldMetadataEntity[];
+    pagination: { total: number; page: number; limit: number };
+  }> {
+    const runtimeFieldMetadata =
+      await this.configObjectsService.listRuntimeFieldMetadata({
+        tenantId: dto.tenantId ?? null,
+        objectType: dto.objectType,
+      });
+
+    return {
+      runtimeFieldMetadata,
+      pagination: {
+        total: runtimeFieldMetadata.length,
+        page: 1,
+        limit: runtimeFieldMetadata.length || 1,
+      },
+    };
+  }
+
+  /**
+   * Creates or updates runtime field metadata for one `system_table` column key.
+   */
+  @MessagePattern(MICROSERVICE_UPSERT_RUNTIME_FIELD_METADATA_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async upsertRuntimeFieldMetadata(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: UpsertRuntimeFieldMetadataDto,
+  ): Promise<ConfigObjectRuntimeFieldMetadataEntity> {
+    return this.configObjectsService.upsertRuntimeFieldMetadata({
+      tenantId: dto.tenantId ?? null,
+      objectType: dto.objectType,
+      fieldKey: dto.fieldKey,
+      validationJson: dto.validationJson,
+      rulesJson:
+        typeof dto.rulesJson === 'undefined' ? undefined : dto.rulesJson,
+      updatedBy: dto.updatedBy,
+    });
+  }
+
+  /**
+   * Deletes runtime field metadata for one `system_table` column key.
+   */
+  @MessagePattern(MICROSERVICE_DELETE_RUNTIME_FIELD_METADATA_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async deleteRuntimeFieldMetadata(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: DeleteRuntimeFieldMetadataDto,
+  ): Promise<void> {
+    await this.configObjectsService.deleteRuntimeFieldMetadata({
+      tenantId: dto.tenantId ?? null,
+      objectType: dto.objectType,
+      fieldKey: dto.fieldKey,
       deletedBy: dto.deletedBy,
     });
   }

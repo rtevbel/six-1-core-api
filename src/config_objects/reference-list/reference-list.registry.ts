@@ -12,6 +12,7 @@ import {
 } from './reference-list.constants';
 import type {
   ReferenceListCatalogEntry,
+  ReferenceListCatalogLookupView,
   ReferenceListCatalogView,
 } from './reference-list.types';
 
@@ -29,7 +30,7 @@ type CoreReferenceSeed = Omit<ReferenceListCatalogEntry, 'token' | 'kind'> & {
 /** v1 shared platform lists — extend by configuration, not per-entity code forks. */
 const CORE_REFERENCE_LIST_SEEDS: CoreReferenceSeed[] = [
   {
-    token: 'core.system_statuses.list',
+    token: 'core.system_status.list',
     objectType: 'system_status',
     listPattern: MANIFEST_API_LIST_PATTERN,
     valueKey: 'statusId',
@@ -37,7 +38,7 @@ const CORE_REFERENCE_LIST_SEEDS: CoreReferenceSeed[] = [
     description: 'Platform system statuses',
   },
   {
-    token: 'core.system_languages.list',
+    token: 'core.system_language.list',
     objectType: 'system_language',
     listPattern: MANIFEST_API_LIST_PATTERN,
     valueKey: 'languageId',
@@ -106,7 +107,9 @@ const CORE_REFERENCE_LIST_SEEDS: CoreReferenceSeed[] = [
 
 /** Legacy token aliases kept for backward compatibility with saved field metadata. */
 const DATA_REF_ALIASES: Record<string, string> = {
-  'core.languages.list': 'core.system_languages.list',
+  'core.languages.list': 'core.system_language.list',
+  'core.system_statuses.list': 'core.system_status.list',
+  'core.system_languages.list': 'core.system_language.list',
 };
 
 const CORE_REFERENCE_BY_TOKEN = new Map<string, ReferenceListCatalogEntry>();
@@ -228,6 +231,38 @@ export function buildSchemaLookupCatalog(params: {
   }
 
   return out;
+}
+
+/**
+ * Resolves one catalog row for gateway lookup-options / mobile pickers.
+ * Normalizes legacy plural `dataRef` tokens before lookup.
+ */
+export function resolveReferenceListCatalogLookup(params: {
+  dataRef?: string;
+  entityKey?: string;
+}): ReferenceListCatalogLookupView | null {
+  const dataRef =
+    typeof params.dataRef === 'string' ? params.dataRef.trim() : '';
+  const entityKey =
+    typeof params.entityKey === 'string' ? params.entityKey.trim() : '';
+
+  let entry: ReferenceListCatalogEntry | null = null;
+
+  if (dataRef.length > 0) {
+    entry = resolveReferenceListToken(dataRef);
+  } else if (entityKey.length > 0) {
+    entry = buildEntityKeyCatalogEntry(entityKey);
+  }
+
+  if (!entry) {
+    return null;
+  }
+
+  return {
+    catalogVersion: REFERENCE_LIST_CATALOG_VERSION,
+    entityKey: entry.objectType,
+    entry,
+  };
 }
 
 /**

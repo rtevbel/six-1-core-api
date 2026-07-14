@@ -19,10 +19,15 @@ import { CategoryEntity } from '../../../categories/entities/category.entity';
  */
 @Entity('system_statuses')
 export class SystemStatusEntity {
-  @PrimaryGeneratedColumn({ type: 'tinyint', unsigned: true })
-  status_id!: number;
+  @PrimaryGeneratedColumn({
+    name: 'status_id',
+    type: 'tinyint',
+    unsigned: true,
+  })
+  statusId!: number;
 
   @Column({
+    name: 'name',
     type: 'varchar',
     length: 20,
     nullable: false,
@@ -33,18 +38,20 @@ export class SystemStatusEntity {
   name!: string;
 
   @Column({
+    name: 'module_name',
     type: 'varchar',
     length: 255,
     nullable: false,
   })
-  module_name!: string;
+  moduleName!: string;
 
   @Column({
+    name: 'module_identifier',
     type: 'varchar',
     length: 255,
     nullable: false,
   })
-  module_identifier!: string;
+  moduleIdentifier!: string;
 
   /**
    * Relationship to TenantEntity.

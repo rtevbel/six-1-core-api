@@ -26,7 +26,7 @@ export class CreatePermissionDescriptionDto {
   @IsOptional()
   @IsInt()
   @IsNumber()
-  permission_description_id?: number;
+  permissionDescriptionId?: number;
 
   /**
    * The ID of the permission linked to this description.
@@ -38,7 +38,7 @@ export class CreatePermissionDescriptionDto {
    */
   @IsOptional()
   @IsNumber()
-  permission_id!: number;
+  permissionId!: number;
 
   /**
    * The ID of the language for this description.
@@ -50,7 +50,7 @@ export class CreatePermissionDescriptionDto {
    */
   @IsInt()
   @IsNumber()
-  language_id!: number;
+  languageId!: number;
 
   /**
    * The name of the permission.
@@ -85,7 +85,7 @@ export class CreatePermissionDescriptionDto {
    * @type {string}
    */
   @IsOptional()
-  permission_group?: string;
+  permissionGroup?: string;
 
   /**
    * The creation timestamp of the permission description.
@@ -97,7 +97,7 @@ export class CreatePermissionDescriptionDto {
    */
   @IsOptional()
   @IsDate()
-  created_at?: Date;
+  createdAt?: Date;
 
   /**
    * The update timestamp of the permission description.
@@ -109,5 +109,5 @@ export class CreatePermissionDescriptionDto {
    */
   @IsOptional()
   @IsDate()
-  updated_at?: Date;
+  updatedAt?: Date;
 }

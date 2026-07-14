@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult } from 'typeorm';
+import { In, Repository, UpdateResult, DeleteResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RoleEntity } from './entities/role.entity';
 import { RoleDescriptionEntity } from './entities/role-description.entity';
@@ -23,6 +23,7 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { ROLES_MAX_PAGE_SIZE } from './constants';
 
 @Injectable()
 export class RolesService {
@@ -85,7 +86,7 @@ export class RolesService {
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
     if (typeof filtersDto.limit === 'number' && filtersDto.limit > 0) {
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
+      filtersDto.limit = Math.min(filtersDto.limit, ROLES_MAX_PAGE_SIZE);
     }
     if (!filtersDto.page || filtersDto.page < 1) {
       filtersDto.page = 1;
@@ -115,7 +116,8 @@ export class RolesService {
       applyMandatoryScope: () => undefined,
       schemaMissingForRelatedFiltersMessage:
         'Role configuration schema is required for related list filters.',
-      maxPageSize: 10,
+      maxPageSize: ROLES_MAX_PAGE_SIZE,
+      hydrateRoots: (roots) => this.hydrateRolesForList(roots),
     };
 
     const { rows: roles, total } = await executeCatalogBackedDynamicListQuery(
@@ -142,6 +144,21 @@ export class RolesService {
       totalPages: pagination.totalPages,
       pagination,
     };
+  }
+
+  private async hydrateRolesForList(
+    roots: RoleEntity[],
+  ): Promise<RoleEntity[]> {
+    const ids = roots.map((r) => r.roleId);
+    if (!ids.length) {
+      return roots;
+    }
+    const loaded = await this.roleRepository.find({
+      where: { roleId: In(ids) },
+      relations: ['descriptions'],
+    });
+    const byId = new Map(loaded.map((r) => [r.roleId, r]));
+    return ids.map((id) => byId.get(id)!).filter(Boolean) as RoleEntity[];
   }
 
   private buildPagination(
@@ -191,8 +208,8 @@ export class RolesService {
     id: number,
     updateRoleDto: UpdateRoleDto,
   ): Promise<UpdateResult> {
-    const role = await this.roleRepository.findOneByOrFail({
-      roleId: id,
+    const role = await this.roleRepository.findOne({
+      where: { roleId: id },
     });
 
     if (!role) {
@@ -201,7 +218,12 @@ export class RolesService {
       );
     }
 
-    const { descriptions, permissions, ...roleUpdateData } = updateRoleDto;
+    const {
+      descriptions,
+      permissions,
+      roleId: _roleId,
+      ...roleUpdateData
+    } = updateRoleDto;
 
     if (descriptions) {
       for (const description of descriptions) {
@@ -222,20 +244,36 @@ export class RolesService {
     if (permissions) {
       for (const permission of permissions) {
         if (permission.rolePermissionId) {
-          await this.rolePermissionRepository.update(
-            permission.rolePermissionId,
-            permission,
-          );
-        } else {
-          permission.roleId = id;
+          await this.rolePermissionRepository.delete({
+            rolePermissionId: permission.rolePermissionId,
+          });
+          continue;
+        }
+
+        const permissionRoleId = permission.roleId ?? id;
+        const existing = await this.rolePermissionRepository.findOne({
+          where: {
+            roleId: permissionRoleId,
+            permissionId: permission.permissionId,
+          },
+        });
+
+        if (!existing) {
           await this.rolePermissionRepository.save(
-            this.rolePermissionRepository.create(permission),
+            this.rolePermissionRepository.create({
+              ...permission,
+              roleId: permissionRoleId,
+            }),
           );
         }
       }
     }
 
-    return await this.roleRepository.update(id, roleUpdateData);
+    if (Object.keys(roleUpdateData).length === 0) {
+      return { affected: 1, raw: [], generatedMaps: [] };
+    }
+
+    return await this.roleRepository.update({ roleId: id }, roleUpdateData);
   }
 
   /**

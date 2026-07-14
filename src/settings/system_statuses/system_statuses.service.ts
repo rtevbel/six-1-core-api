@@ -25,17 +25,17 @@ import {
 @Injectable()
 export class SystemStatusesService {
   private static readonly FALLBACK_FIELDS = new Set([
-    'status_id',
+    'statusId',
     'name',
-    'module_name',
-    'module_identifier',
+    'moduleName',
+    'moduleIdentifier',
   ]);
 
   private static readonly FALLBACK_EXPR: Record<string, string> = {
-    status_id: 's.status_id',
+    statusId: 's.status_id',
     name: 's.name',
-    module_name: 's.module_name',
-    module_identifier: 's.module_identifier',
+    moduleName: 's.module_name',
+    moduleIdentifier: 's.module_identifier',
   };
 
   constructor(
@@ -86,10 +86,10 @@ export class SystemStatusesService {
       rootAlias: 's',
       rootEntityClass: SystemStatusEntity,
       denyCatalogCanonicalType: canonical,
-      searchCorePropertyNames: ['name', 'module_name', 'module_identifier'],
+      searchCorePropertyNames: ['name', 'moduleName', 'moduleIdentifier'],
       fallbackCoreFields: SystemStatusesService.FALLBACK_FIELDS,
       fallbackCoreColumnExpressions: SystemStatusesService.FALLBACK_EXPR,
-      defaultSortCoreField: 'status_id',
+      defaultSortCoreField: 'statusId',
       tieBreakOrderBySql: 's.status_id',
       catalogTenantResolver: (f) => {
         const row = f as FiltersDto;
@@ -137,7 +137,7 @@ export class SystemStatusesService {
    */
   async findOne(userId: number, id: number): Promise<SystemStatusEntity> {
     const status = await this.systemStatusesRepository.findOneByOrFail({
-      status_id: id,
+      statusId: id,
     });
 
     if (!status) {
@@ -166,7 +166,7 @@ export class SystemStatusesService {
     updateSystemStatusDto: UpdateSystemStatusDto,
   ): Promise<UpdateResult> {
     const status = await this.systemStatusesRepository.findOneByOrFail({
-      status_id: id,
+      statusId: id,
     });
 
     if (!status) {
@@ -191,7 +191,7 @@ export class SystemStatusesService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.systemStatusesRepository.delete({ status_id: id });
+    return await this.systemStatusesRepository.delete({ statusId: id });
   }
 
   private buildPagination(

@@ -21,42 +21,49 @@ import { RolePermissionEntity } from '../../roles/entities/role-permission.entit
  */
 @Entity('permissions')
 export class PermissionEntity {
-  @PrimaryGeneratedColumn({ type: 'int', unsigned: true })
-  permission_id!: number;
+  @PrimaryGeneratedColumn({
+    name: 'permission_id',
+    type: 'int',
+    unsigned: true,
+  })
+  permissionId!: number;
 
   @Column({
+    name: 'status_id',
     type: 'tinyint',
     unsigned: true,
     nullable: false,
     default: 1,
   })
   @Index('permissions_status_id')
-  status_id!: number;
+  statusId!: number;
 
   @Column({
+    name: 'created_by',
     type: 'bigint',
     unsigned: true,
     nullable: false,
     default: 0,
   })
   @Index('permissions_created_by')
-  created_by!: number;
+  createdBy!: number;
 
   @Column({
+    name: 'updated_by',
     type: 'bigint',
     unsigned: true,
     nullable: true,
     default: 0,
   })
   @Index('permissions_updated_by')
-  updated_by!: number;
+  updatedBy!: number;
 
   @CreateDateColumn({
     name: 'created_at',
     type: 'datetime',
     default: () => 'CURRENT_TIMESTAMP(6)',
   })
-  created_at!: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn({
     name: 'updated_at',
@@ -65,7 +72,7 @@ export class PermissionEntity {
     default: () => 'CURRENT_TIMESTAMP(6)',
     onUpdate: 'CURRENT_TIMESTAMP(6)',
   })
-  updated_at!: Date;
+  updatedAt!: Date;
 
   /**
    * One-to-many relationship with `PermissionDescriptionEntity`.
@@ -82,7 +89,7 @@ export class PermissionEntity {
       eager: true,
     },
   )
-  @JoinColumn({ name: 'permission_id' }) // Join column for descriptions
+  @JoinColumn({ name: 'permission_id' })
   descriptions!: PermissionDescriptionEntity[];
 
   /**
@@ -97,6 +104,6 @@ export class PermissionEntity {
     () => RolePermissionEntity,
     (rolePermission) => rolePermission.permission,
   )
-  @JoinColumn({ name: 'permission_id' }) // Join column for role permissions
+  @JoinColumn({ name: 'permission_id' })
   rolePermissions!: RolePermissionEntity[];
 }

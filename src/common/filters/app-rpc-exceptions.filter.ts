@@ -3,6 +3,7 @@ import {
   ArgumentsHost,
   RpcExceptionFilter,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { RpcException } from '@nestjs/microservices';
 import { Observable, throwError } from 'rxjs';
@@ -35,7 +36,8 @@ export class AppRpcExceptionsFilter
       | RpcException
       | QueryFailedError
       | EntityNotFoundError
-      | UnauthorizedException,
+      | UnauthorizedException
+      | ForbiddenException,
     host: ArgumentsHost,
   ): Observable<any> {
     let errorResponse: any;
@@ -71,6 +73,14 @@ export class AppRpcExceptionsFilter
         message: exception.message
           ? `Unauthorized: ${exception.message}`
           : 'Access is denied due to invalid credentials',
+        details: exception.message,
+      };
+    } else if (exception instanceof ForbiddenException) {
+      errorResponse = {
+        statusCode: 403,
+        message: exception.message
+          ? exception.message
+          : 'Insufficient permissions',
         details: exception.message,
       };
     } else {

@@ -90,7 +90,7 @@ export class PermissionsController {
   ): Promise<UpdateResult> {
     return this.permissionsService.update(
       userId,
-      updatePermissionDto.permission_id,
+      updatePermissionDto.permissionId,
       updatePermissionDto,
     );
   }

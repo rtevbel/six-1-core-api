@@ -1,3 +1,6 @@
+/** Max `limit` for roles list queries (catalog-backed dynamic list). */
+export const ROLES_MAX_PAGE_SIZE = 500;
+
 // ROLES CONTROLLER MESSAGE PATTERNS
 export const MICROSERVICE_CREATE_ROLE_PATTERN = 'v0.1_create_role';
 export const MICROSERVICE_FIND_ALL_ROLE_PATTERN = 'v0.1_find_all_role';

@@ -11,7 +11,7 @@ import { Type } from 'class-transformer';
  * Data transfer object for updating a permission description.
  */
 export class UpdatePermissionDescriptionDto extends PartialType(
-  OmitType(CreatePermissionDescriptionDto, ['permission_id'] as const),
+  OmitType(CreatePermissionDescriptionDto, ['permissionId'] as const),
 ) {
   /**
    * The ID of the permission description.
@@ -24,7 +24,7 @@ export class UpdatePermissionDescriptionDto extends PartialType(
   @IsNotEmpty()
   @Type(() => Number)
   @IsNumber()
-  permission_description_id!: number;
+  permissionDescriptionId!: number;
 
   /**
    * The ID of the permission linked to this description.
@@ -36,5 +36,5 @@ export class UpdatePermissionDescriptionDto extends PartialType(
    */
   @IsOptional()
   @IsNumber()
-  permission_id!: number;
+  permissionId!: number;
 }

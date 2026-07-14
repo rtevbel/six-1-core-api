@@ -31,7 +31,7 @@ export class CreateSystemStatusDto {
    */
   @IsNotEmpty()
   @IsString()
-  module_name!: string;
+  moduleName!: string;
 
   /**
    * Module identifier associated with the status.
@@ -43,5 +43,5 @@ export class CreateSystemStatusDto {
    */
   @IsNotEmpty()
   @IsString()
-  module_identifier!: string;
+  moduleIdentifier!: string;
 }

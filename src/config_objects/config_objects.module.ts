@@ -4,6 +4,7 @@ import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
 import { ConfigObjectEntity } from './entities/config_object.entity';
 import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
+import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
@@ -58,6 +59,7 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
       ConfigObjectEntity,
       ConfigObjectFieldEntity,
       ConfigObjectFieldRuleEntity,
+      ConfigObjectRuntimeFieldMetadataEntity,
       ConfigAuditLogEntity,
       ConfigObjectLifecycleEntity,
       ConfigObjectLifecycleTransitionEntity,

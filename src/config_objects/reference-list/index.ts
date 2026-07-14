@@ -11,10 +11,12 @@ export {
   assertReferenceListDataRefKnown,
   buildReferenceListCatalog,
   buildSchemaLookupCatalog,
+  resolveReferenceListCatalogLookup,
   resolveReferenceListToken,
 } from './reference-list.registry';
 export type {
   ReferenceListCatalogEntry,
+  ReferenceListCatalogLookupView,
   ReferenceListCatalogView,
   ReferenceListKind,
 } from './reference-list.types';
