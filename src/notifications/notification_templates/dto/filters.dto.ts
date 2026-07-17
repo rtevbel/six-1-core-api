@@ -1,28 +1,13 @@
 import { Type } from 'class-transformer';
-import {
-  IsIn,
-  IsNumber,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
+import { CatalogDynamicListFiltersMixin } from '../../../common/dto/catalog-dynamic-list-filter.dto';
 
 /**
- * FiltersDto class for handling query parameters.
- * @version 1.0.1
- * This class validates and transforms query parameters
- * used for filtering, sorting, and pagination.
+ * Filters for notification template list queries.
+ * Accepts shared list query params from the gateway (`sortSource`, `includeMeta`, …).
+ * Structured filters / meta sort are not supported (core columns only).
  */
-export class FiltersDto {
-  /**
-   * Search keyword for filtering results.
-   * Optional field with a maximum length of 100 characters.
-   */
-  @IsOptional()
-  @IsString()
-  @MaxLength(100)
-  search?: string;
-
+export class FiltersDto extends CatalogDynamicListFiltersMixin {
   /**
    * Filter templates by notification channel ID.
    */
@@ -32,27 +17,7 @@ export class FiltersDto {
   channelId?: number;
 
   /**
-   * Page number for pagination.
-   * Optional field, defaults to 1.
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  page: number = 1;
-
-  /**
-   * Limit for the number of results per page.
-   * Optional field, defaults to 10.
-   */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  limit: number = 10;
-
-  /**
-   * Field to sort the results by.
-   * Optional field, defaults to 'templateId'.
-   * Must be one of 'templateId', 'channelId' , 'name' .
+   * Field to sort by. Core columns on notification_templates only.
    */
   @IsOptional()
   @IsIn(['templateId', 'channelId', 'name'], {
@@ -60,16 +25,4 @@ export class FiltersDto {
   })
   @IsString()
   sortBy: string = 'templateId';
-
-  /**
-   * Sort order for the results.
-   * Optional field, defaults to 'DESC'.
-   * Must be one of 'ASC' or 'DESC'.
-   */
-  @IsOptional()
-  @IsIn(['ASC', 'DESC'], {
-    message: "sortOrder key must be from this list ('ASC', 'DESC')",
-  })
-  @IsString()
-  sortOrder: string = 'DESC';
 }

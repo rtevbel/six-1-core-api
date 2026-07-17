@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { RpcException } from '@nestjs/microservices';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { NotificationTemplateValidationService } from '../catalog/notification-template-validation.service';
 import { NotificationTemplateEntity } from './entities/notification_template.entity';
@@ -6,8 +7,10 @@ import { NotificationTemplatesService } from './notification_templates.service';
 
 describe('NotificationTemplatesService', () => {
   let service: NotificationTemplatesService;
+  let findAndCount: jest.Mock;
 
   beforeEach(async () => {
+    findAndCount = jest.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationTemplatesService,
@@ -16,6 +19,7 @@ describe('NotificationTemplatesService', () => {
           useValue: {
             save: jest.fn(),
             create: jest.fn((value) => value),
+            findAndCount,
           },
         },
         {
@@ -37,5 +41,38 @@ describe('NotificationTemplatesService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('findAll', () => {
+    it('accepts shared gateway list params including sortSource=core', async () => {
+      const template = { templateId: 1, name: 'Welcome' };
+      findAndCount.mockResolvedValue([[template], 1]);
+
+      const result = await service.findAll(1, {
+        page: 2,
+        limit: 10,
+        sortBy: 'templateId',
+        sortOrder: 'ASC',
+        sortSource: 'core',
+      });
+
+      expect(findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          order: { templateId: 'ASC' },
+          take: 10,
+          skip: 10,
+        }),
+      );
+      expect(result.items).toEqual([template]);
+    });
+
+    it('throws RpcException when sortSource is meta', async () => {
+      await expect(
+        service.findAll(1, {
+          sortSource: 'meta',
+        }),
+      ).rejects.toBeInstanceOf(RpcException);
+      expect(findAndCount).not.toHaveBeenCalled();
+    });
   });
 });

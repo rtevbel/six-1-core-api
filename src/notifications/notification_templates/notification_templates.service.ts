@@ -72,6 +72,24 @@ export class NotificationTemplatesService {
     userId: number,
     filtersDto: FiltersDto,
   ): Promise<FindAllResultInterface> {
+    if (filtersDto.sortSource === 'meta') {
+      throw new RpcException(
+        'Notification template list does not support sortSource "meta"; use "core".',
+      );
+    }
+    if (filtersDto.includeMeta) {
+      throw new RpcException(
+        'Notification template list does not support includeMeta; templates have no meta JSON row.',
+      );
+    }
+    for (const clause of filtersDto.filters ?? []) {
+      if (clause.source !== 'core') {
+        throw new RpcException(
+          `Notification template list filters support source "core" only (received "${clause.source}").`,
+        );
+      }
+    }
+
     const findQuery = this.buildFindQuery(filtersDto);
 
     const [templates, total] =
