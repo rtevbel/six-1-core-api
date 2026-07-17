@@ -13,7 +13,8 @@ export type SorFieldPrimitiveType =
   | 'boolean'
   | 'date'
   | 'select'
-  | 'json';
+  | 'json'
+  | 'attachment';
 
 export interface SorFieldDescriptor {
   /** Entity property name; also the key in `corePatch` payloads */

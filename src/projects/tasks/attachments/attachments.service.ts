@@ -7,10 +7,11 @@ import { UpdateTaskAttachmentDto } from './dto/update-attachment.dto';
 import { FiltersDto } from './dto/filters.dto';
 import { RpcException } from '@nestjs/microservices';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
-import {  NO_RECORD_FOUND_MESSAGE,
+import {
+  NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
-
+import { MediaService } from '../../../storage/media.service';
 import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
@@ -21,14 +22,9 @@ export class TaskAttachmentsService {
   constructor(
     @InjectRepository(TaskAttachmentsEntity)
     private readonly attachmentRepository: Repository<TaskAttachmentsEntity>,
+    private readonly mediaService: MediaService,
   ) {}
 
-  /**
-   * Creates a new attachment record.
-   * @param userId - ID of the user creating the attachment.
-   * @param createAttachmentDto - Data Transfer Object containing attachment details.
-   * @returns The created TaskAttachmentsEntity.
-   */
   async create(
     userId: number,
     createAttachmentDto: CreateTaskAttachmentDto,
@@ -41,13 +37,6 @@ export class TaskAttachmentsService {
     );
   }
 
-  /**
-   * Retrieves all attachments with optional filters, pagination, and sorting.
-   * @param userId - ID of the user making the request.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns An array of attachments and pagination details.
-   * @throws RpcException if no records match the filters.
-   */
   async findAll(
     userId: number,
     filtersDto: FiltersDto,
@@ -78,13 +67,6 @@ export class TaskAttachmentsService {
     };
   }
 
-  /**
-   * Retrieves a single attachment by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the attachment to retrieve.
-   * @returns The TaskAttachmentsEntity matching the ID.
-   * @throws RpcException if no record is found.
-   */
   async findOne(userId: number, id: number): Promise<TaskAttachmentsEntity> {
     const attachment = await this.attachmentRepository.findOneBy({
       attachmentId: id,
@@ -102,14 +84,6 @@ export class TaskAttachmentsService {
     return attachment;
   }
 
-  /**
-   * Updates an existing attachment record.
-   * @param userId - ID of the user updating the attachment.
-   * @param id - ID of the attachment to update.
-   * @param updateAttachmentDto - Data Transfer Object containing updated details.
-   * @returns The result of the update operation.
-   * @throws RpcException if no record is found.
-   */
   async update(
     userId: number,
     id: number,
@@ -128,24 +102,49 @@ export class TaskAttachmentsService {
       );
     }
 
-    return await this.attachmentRepository.update(id, updateAttachmentDto);
+    const result = await this.attachmentRepository.update(
+      id,
+      updateAttachmentDto,
+    );
+
+    if (
+      typeof updateAttachmentDto.filePath === 'string' &&
+      updateAttachmentDto.filePath !== attachment.filePath
+    ) {
+      await this.mediaService.deleteRemovedPaths(
+        [attachment.filePath],
+        [updateAttachmentDto.filePath],
+      );
+    }
+
+    return result;
   }
 
-  /**
-   * Deletes an attachment record by ID.
-   * @param userId - ID of the user making the request.
-   * @param id - ID of the attachment to delete.
-   * @returns The result of the delete operation.
-   */
   async remove(userId: number, id: number): Promise<DeleteResult> {
-    return await this.attachmentRepository.delete({ attachmentId: id });
+    const attachment = await this.attachmentRepository.findOneBy({
+      attachmentId: id,
+    });
+
+    if (!attachment) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          TaskAttachmentsEntity.name,
+        ),
+      );
+    }
+
+    const result = await this.attachmentRepository.delete({
+      attachmentId: id,
+    });
+
+    if (attachment.filePath) {
+      await this.mediaService.deleteRemovedPaths([attachment.filePath], []);
+    }
+
+    return result;
   }
 
-  /**
-   * Builds a TypeORM find query based on provided filters.
-   * @param filtersDto - Filters for search, sorting, and pagination.
-   * @returns A query object for TypeORM.
-   */
   private buildFindQuery(filtersDto: FiltersDto): Record<string, any> {
     const query: Record<string, any> = {};
 
@@ -177,12 +176,6 @@ export class TaskAttachmentsService {
     return query;
   }
 
-  /**
-   * Builds pagination details based on filters and total count.
-   * @param filtersDto - Filters for pagination.
-   * @param total - Total number of records matching the filters.
-   * @returns An object containing pagination details.
-   */
   private buildPagination(
     filtersDto: any,
     total: number,

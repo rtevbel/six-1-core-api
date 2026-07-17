@@ -42,6 +42,10 @@ export class R2Provider implements IStorageProvider {
         accessKeyId: opts.accessKeyId,
         secretAccessKey: opts.secretAccessKey,
       },
+      // SDK v3.729+ auto-adds CRC32 to PutObject; that breaks browser presigned PUTs
+      // because clients cannot satisfy x-amz-checksum-crc32 in the signature.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 

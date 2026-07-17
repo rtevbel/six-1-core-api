@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import type { Type } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { MediaService } from '../storage/media.service';
+import {
+  collectMediaPathsFromValue,
+  normalizeAttachmentFieldsInPayload,
+} from '../storage/media-payload.util';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
@@ -86,8 +91,10 @@ import {
 } from './field-rules';
 import {
   FieldValidationJsonValidationError,
-  isValidFileFieldValue,
+  isValidMediaFieldValue,
+  normalizeMediaRef,
   validateFieldValidationJson,
+  type MediaRef,
 } from './field-validation';
 import {
   mapRelationAuthoringErrorToRpc,
@@ -336,6 +343,7 @@ export class ConfigObjectsService {
     private readonly eventsService: EventsService,
     private readonly stepLocks: ProcessStepLocksService,
     private readonly configService: ConfigService,
+    private readonly mediaService: MediaService,
   ) {}
 
   /**
@@ -655,6 +663,36 @@ export class ConfigObjectsService {
       return { ...(payload as Record<string, unknown>) };
     }
     return {};
+  }
+
+  /**
+   * Validate/normalize attachment fields on standalone instance payloads using schema registry.
+   */
+  private async normalizeStandaloneInstanceAttachmentPayload(params: {
+    tenantId: number | null;
+    objectType: string;
+    payload: Record<string, unknown>;
+  }): Promise<Record<string, unknown>> {
+    const schema = await this.getObjectSchema(
+      params.tenantId,
+      params.objectType,
+    );
+    if (!schema?.fieldRegistry?.length) {
+      return params.payload;
+    }
+
+    const result = normalizeAttachmentFieldsInPayload(
+      params.payload,
+      schema.fieldRegistry,
+      normalizeAttachmentFieldValue,
+    );
+    if (!result.ok) {
+      throw new RpcException({
+        code: RuntimeErrorCode.SubmitFieldInvalid,
+        message: `Invalid attachment value for field "${result.fieldKey}": ${result.message}`,
+      });
+    }
+    return result.payload;
   }
 
   private extractConfiguredFieldKeysFromViewConfig(
@@ -3359,7 +3397,13 @@ export class ConfigObjectsService {
       configScopeTenantId(storedTenantId),
     );
 
-    const nextPayload = this.normalizeCustomInstancePayload(payload);
+    let nextPayload = this.normalizeCustomInstancePayload(payload);
+    nextPayload = await this.normalizeStandaloneInstanceAttachmentPayload({
+      tenantId: configScopeTenantId(storedTenantId),
+      objectType: configObject.objectType,
+      payload: nextPayload,
+    });
+
     const nextStatus: ConfigCustomObjectInstanceStatus =
       typeof status === 'string' ? status : 'DRAFT';
 
@@ -3458,8 +3502,19 @@ export class ConfigObjectsService {
       payload: row.payload,
     };
 
+    const previousMediaPaths =
+      typeof payload !== 'undefined'
+        ? collectMediaPathsFromValue(oldValue.payload)
+        : [];
+
     if (typeof payload !== 'undefined') {
-      row.payload = this.normalizeCustomInstancePayload(payload);
+      let nextPayload = this.normalizeCustomInstancePayload(payload);
+      nextPayload = await this.normalizeStandaloneInstanceAttachmentPayload({
+        tenantId: configScopeTenantId(storedTenantId),
+        objectType: configObject.objectType,
+        payload: nextPayload,
+      });
+      row.payload = nextPayload;
     }
     if (typeof status === 'string') {
       row.status = status;
@@ -3476,6 +3531,13 @@ export class ConfigObjectsService {
     }
 
     const saved = await this.customObjectInstanceRepository.save(row);
+
+    if (typeof payload !== 'undefined') {
+      await this.mediaService.deleteRemovedPaths(
+        previousMediaPaths,
+        collectMediaPathsFromValue(saved.payload),
+      );
+    }
 
     await this.logConfigChange(
       storedTenantId,
@@ -3552,7 +3614,11 @@ export class ConfigObjectsService {
       }),
     );
 
+    const mediaPaths = collectMediaPathsFromValue(row.payload);
     await this.customObjectInstanceRepository.remove(row);
+    if (mediaPaths.length > 0) {
+      await this.mediaService.deleteRemovedPaths(mediaPaths, []);
+    }
 
     await this.logConfigChange(
       storedTenantId,
@@ -6714,7 +6780,7 @@ export class ConfigObjectsService {
       schema.fieldRegistry.map((field) => [field.fieldKey, field] as const),
     );
 
-    for (const [fieldKey, value] of Object.entries(fieldValues ?? {})) {
+    for (const [fieldKey, rawValue] of Object.entries(fieldValues ?? {})) {
       const descriptor = byFieldKey.get(fieldKey);
       if (!descriptor) {
         continue;
@@ -6728,15 +6794,22 @@ export class ConfigObjectsService {
         continue;
       }
 
+      let value: unknown = rawValue;
       if (
         typeof descriptor.fieldType === 'string' &&
-        descriptor.fieldType.trim().toLowerCase() === 'attachment' &&
-        !isValidAttachmentFieldValue(value)
+        descriptor.fieldType.trim().toLowerCase() === 'attachment'
       ) {
-        throw new RpcException({
-          code: RuntimeErrorCode.SubmitFieldInvalid,
-          message: `Invalid attachment value for field "${fieldKey}" (expected { key: string, ... }).`,
-        });
+        const normalized = normalizeAttachmentFieldValue(
+          value,
+          descriptor.mediaConstraints?.maxFiles,
+        );
+        if (!normalized.ok) {
+          throw new RpcException({
+            code: RuntimeErrorCode.SubmitFieldInvalid,
+            message: `Invalid attachment value for field "${fieldKey}": ${normalized.message}`,
+          });
+        }
+        value = normalized.value;
       }
 
       if (descriptor.path && descriptor.path.trim().length > 0) {
@@ -6768,7 +6841,11 @@ export class ConfigObjectsService {
         descriptor.fieldType.trim().toLowerCase() === 'attachment'
       ) {
         const value = (fieldValues ?? {})[descriptor.fieldKey];
-        if (!isValidAttachmentFieldValue(value)) {
+        const normalized = normalizeAttachmentFieldValue(
+          value,
+          descriptor.mediaConstraints?.maxFiles,
+        );
+        if (!normalized.ok) {
           missingRequiredFields.push(descriptor.fieldKey);
         }
       }
@@ -8380,6 +8457,40 @@ export class ConfigObjectsService {
   }
 }
 
-function isValidAttachmentFieldValue(value: unknown): boolean {
-  return isValidFileFieldValue(value);
+function normalizeAttachmentFieldValue(
+  value: unknown,
+  maxFiles?: number,
+):
+  | { ok: true; value: MediaRef | MediaRef[] }
+  | { ok: false; message: string } {
+  if (!isValidMediaFieldValue(value)) {
+    return {
+      ok: false,
+      message:
+        'expected { path: string, ... }, legacy { key: string, ... }, or an array of those',
+    };
+  }
+
+  const items = Array.isArray(value) ? value : [value];
+  const effectiveMax = maxFiles ?? 1;
+  if (items.length > effectiveMax) {
+    return {
+      ok: false,
+      message: `exceeds maxFiles (${effectiveMax})`,
+    };
+  }
+
+  const normalized: MediaRef[] = [];
+  for (const item of items) {
+    const ref = normalizeMediaRef(item);
+    if (!ref) {
+      return { ok: false, message: 'invalid media ref entry' };
+    }
+    normalized.push(ref);
+  }
+
+  return {
+    ok: true,
+    value: Array.isArray(value) ? normalized : normalized[0],
+  };
 }

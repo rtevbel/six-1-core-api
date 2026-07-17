@@ -1,7 +1,9 @@
 import {
   FIELD_VALIDATION_SCHEMA_VERSION,
+  MEDIA_PATH_MAX_LENGTH,
   type FieldValidationFileConstraints,
   type FieldValidationJson,
+  type MediaRef,
 } from './field-validation.types';
 
 export class FieldValidationJsonValidationError extends Error {
@@ -19,6 +21,9 @@ const STANDARD_VALIDATION_KEYS = new Set([
   'max',
   'pattern',
   'file',
+  'accept',
+  'maxSizeBytes',
+  'maxFiles',
 ]);
 
 function assertPlainObject(
@@ -46,6 +51,14 @@ function assertNonNegativeInteger(
   return value;
 }
 
+function assertPositiveInteger(value: unknown, label: string): number {
+  const n = assertNonNegativeInteger(value, label);
+  if (n === 0) {
+    throw new FieldValidationJsonValidationError(`${label} must be greater than 0`);
+  }
+  return n;
+}
+
 function assertFiniteNumber(value: unknown, label: string): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) {
     throw new FieldValidationJsonValidationError(`${label} must be a finite number`);
@@ -68,16 +81,7 @@ function validateFileConstraints(
   const out: FieldValidationFileConstraints = {};
 
   if (Object.prototype.hasOwnProperty.call(o, 'maxSizeBytes')) {
-    const maxSizeBytes = assertNonNegativeInteger(
-      o.maxSizeBytes,
-      `${label}.maxSizeBytes`,
-    );
-    if (maxSizeBytes === 0) {
-      throw new FieldValidationJsonValidationError(
-        `${label}.maxSizeBytes must be greater than 0`,
-      );
-    }
-    out.maxSizeBytes = maxSizeBytes;
+    out.maxSizeBytes = assertPositiveInteger(o.maxSizeBytes, `${label}.maxSizeBytes`);
   }
 
   if (Object.prototype.hasOwnProperty.call(o, 'allowedMimeTypes')) {
@@ -184,6 +188,24 @@ export function validateFieldValidationJson(
         out.file = validateFileConstraints(raw, 'validationJson.file');
         hasStandardConstraints = true;
         break;
+      case 'accept': {
+        if (typeof raw !== 'string' || !raw.trim()) {
+          throw new FieldValidationJsonValidationError(
+            'validationJson.accept must be a non-empty string',
+          );
+        }
+        out.accept = raw.trim();
+        hasStandardConstraints = true;
+        break;
+      }
+      case 'maxSizeBytes':
+        out.maxSizeBytes = assertPositiveInteger(raw, 'validationJson.maxSizeBytes');
+        hasStandardConstraints = true;
+        break;
+      case 'maxFiles':
+        out.maxFiles = assertPositiveInteger(raw, 'validationJson.maxFiles');
+        hasStandardConstraints = true;
+        break;
       default:
         break;
     }
@@ -217,36 +239,63 @@ export function validateFieldValidationJson(
 }
 
 /**
- * Type guard aligned with runtime submit validation for file/attachment fields.
+ * Normalize a single media ref: prefer `path`, accept legacy `key`.
  */
-export function isValidFileFieldValue(value: unknown): value is {
-  key: string;
-  filename?: string;
-  mimeType?: string;
-  sizeBytes?: number;
-} {
+export function normalizeMediaRef(value: unknown): MediaRef | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    return false;
+    return null;
   }
   const v = value as Record<string, unknown>;
-  if (typeof v.key !== 'string' || !v.key.trim()) {
-    return false;
+  const pathRaw =
+    typeof v.path === 'string' && v.path.trim()
+      ? v.path.trim()
+      : typeof v.key === 'string' && v.key.trim()
+        ? v.key.trim()
+        : null;
+  if (!pathRaw || pathRaw.length > MEDIA_PATH_MAX_LENGTH) {
+    return null;
   }
-  if (v.filename !== undefined && typeof v.filename !== 'string') {
-    return false;
+
+  const contentType =
+    typeof v.contentType === 'string'
+      ? v.contentType
+      : typeof v.mimeType === 'string'
+        ? v.mimeType
+        : undefined;
+
+  const out: MediaRef = { path: pathRaw };
+  if (typeof v.filename === 'string') {
+    out.filename = v.filename;
   }
-  if (v.mimeType !== undefined && typeof v.mimeType !== 'string') {
-    return false;
+  if (contentType !== undefined) {
+    out.contentType = contentType;
   }
   if (
-    v.sizeBytes !== undefined &&
-    (typeof v.sizeBytes !== 'number' ||
-      !Number.isInteger(v.sizeBytes) ||
-      v.sizeBytes < 0)
+    typeof v.sizeBytes === 'number' &&
+    Number.isInteger(v.sizeBytes) &&
+    v.sizeBytes >= 0
   ) {
-    return false;
+    out.sizeBytes = v.sizeBytes;
   }
-  return true;
+  return out;
+}
+
+/**
+ * Type guard for file/attachment field values (single MediaRef).
+ * Accepts legacy `{ key }` and canonical `{ path }`.
+ */
+export function isValidFileFieldValue(value: unknown): value is MediaRef {
+  return normalizeMediaRef(value) !== null;
+}
+
+/**
+ * True when value is a single MediaRef or a non-empty array of MediaRefs.
+ */
+export function isValidMediaFieldValue(value: unknown): boolean {
+  if (Array.isArray(value)) {
+    return value.length > 0 && value.every((item) => isValidFileFieldValue(item));
+  }
+  return isValidFileFieldValue(value);
 }
 
 export type { FieldValidationJson };

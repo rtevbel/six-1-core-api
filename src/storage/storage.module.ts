@@ -3,6 +3,8 @@ import { Module, Provider } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { STORAGE_PROVIDER } from './constants';
 import { StorageService } from './storage.service';
+import { MediaService } from './media.service';
+import { StorageController } from './storage.controller';
 import { R2Provider } from './providers/r2.provider';
 import { S3Provider } from './providers/s3.provider';
 import { LocalProvider } from './providers/local.provider';
@@ -28,7 +30,7 @@ const providerFactory: Provider = {
   provide: STORAGE_PROVIDER,
   inject: [ConfigService],
   useFactory: (cfg: ConfigService) => {
-    const driver = cfg.get<string>(STORAGE_DRIVER, 'local'); // Default to "local" if not specified.
+    const driver = cfg.get<string>(STORAGE_DRIVER, 'r2'); // Default to "r2" if not specified.
 
     // R2 storage provider
     if (driver === 'r2') {
@@ -50,7 +52,7 @@ const providerFactory: Provider = {
       });
     }
 
-    // Default to local storage provider
+    // Default to local storage provider when the driver is not r2 or s3.
     return new LocalProvider({
       baseDir: cfg.get<string>(LOCAL_STORAGE_DIR, 'storage'), // Base directory for local storage.
       publicBaseUrl: cfg.get<string>(
@@ -65,11 +67,9 @@ const providerFactory: Provider = {
  * Storage module to manage storage providers and services.
  */
 @Module({
-  imports: [ConfigModule], // Import ConfigModule to access environment variables.
-  providers: [providerFactory, StorageService], // Register the storage provider factory and service.
-  exports: [StorageService, providerFactory], // Export the storage service and provider for use in other modules.
-  controllers: [
-    /* optional */
-  ], // Add controllers if needed.
+  imports: [ConfigModule],
+  providers: [providerFactory, StorageService, MediaService],
+  exports: [StorageService, MediaService, providerFactory],
+  controllers: [StorageController],
 })
 export class StorageModule {}

@@ -32,6 +32,8 @@ export function normalizeCustomFieldType(raw: string): SorFieldPrimitiveType {
     bool: 'boolean',
     datetime: 'date',
     timestamp: 'date',
+    file: 'attachment',
+    media: 'attachment',
   };
   return aliases[trimmed] ?? 'text';
 }
@@ -122,12 +124,17 @@ function descriptorFromCustomFieldView(
 
 function extractRuntimeMetadataFromValidationJson(
   validationJson: Record<string, unknown> | null,
-): Pick<CoreFieldDescriptor, 'lookupSelectConfig' | 'derivedRuntimeConfig'> {
+): Pick<
+  CoreFieldDescriptor,
+  'lookupSelectConfig' | 'derivedRuntimeConfig' | 'mediaConstraints'
+> {
   if (!validationJson) {
     return {};
   }
-  const out: Pick<CoreFieldDescriptor, 'lookupSelectConfig' | 'derivedRuntimeConfig'> =
-    {};
+  const out: Pick<
+    CoreFieldDescriptor,
+    'lookupSelectConfig' | 'derivedRuntimeConfig' | 'mediaConstraints'
+  > = {};
   try {
     if (
       Object.prototype.hasOwnProperty.call(validationJson, '_six1LookupSelectAuthoring')
@@ -153,7 +160,62 @@ function extractRuntimeMetadataFromValidationJson(
   } catch {
     // Intentionally ignore invalid legacy metadata during read.
   }
+
+  const mediaConstraints = extractMediaConstraintsFromValidationJson(validationJson);
+  if (mediaConstraints) {
+    out.mediaConstraints = mediaConstraints;
+  }
   return out;
+}
+
+function extractMediaConstraintsFromValidationJson(
+  validationJson: Record<string, unknown>,
+): CoreFieldDescriptor['mediaConstraints'] | undefined {
+  const nested =
+    validationJson.file &&
+    typeof validationJson.file === 'object' &&
+    !Array.isArray(validationJson.file)
+      ? (validationJson.file as Record<string, unknown>)
+      : null;
+
+  const accept =
+    typeof validationJson.accept === 'string' && validationJson.accept.trim()
+      ? validationJson.accept.trim()
+      : undefined;
+
+  let maxSizeBytes: number | undefined;
+  if (
+    typeof validationJson.maxSizeBytes === 'number' &&
+    Number.isInteger(validationJson.maxSizeBytes) &&
+    validationJson.maxSizeBytes > 0
+  ) {
+    maxSizeBytes = validationJson.maxSizeBytes;
+  } else if (
+    nested &&
+    typeof nested.maxSizeBytes === 'number' &&
+    Number.isInteger(nested.maxSizeBytes) &&
+    nested.maxSizeBytes > 0
+  ) {
+    maxSizeBytes = nested.maxSizeBytes;
+  }
+
+  let maxFiles: number | undefined;
+  if (
+    typeof validationJson.maxFiles === 'number' &&
+    Number.isInteger(validationJson.maxFiles) &&
+    validationJson.maxFiles > 0
+  ) {
+    maxFiles = validationJson.maxFiles;
+  }
+
+  if (!accept && maxSizeBytes == null && maxFiles == null) {
+    return undefined;
+  }
+  return {
+    ...(accept ? { accept } : {}),
+    ...(maxSizeBytes != null ? { maxSizeBytes } : {}),
+    ...(maxFiles != null ? { maxFiles } : {}),
+  };
 }
 
 function sortFieldViewsForAppend(

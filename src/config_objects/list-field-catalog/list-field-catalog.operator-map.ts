@@ -5,7 +5,7 @@ export function resolveFilterOperatorsForListFieldType(
   fieldType: string,
 ): ObjectListFieldCatalogFilterOperator[] {
   const t = fieldType.trim().toLowerCase();
-  if (t === 'attachment') {
+  if (t === 'attachment' || t === 'file' || t === 'media') {
     return ['eq', 'in'];
   }
   if (

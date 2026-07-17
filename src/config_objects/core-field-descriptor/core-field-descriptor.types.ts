@@ -44,4 +44,13 @@ export interface CoreFieldDescriptor {
   lookupSelectConfig?: CoreFieldLookupSelectConfig;
   /** Optional derived-value runtime metadata (e.g. concat/coalesce). */
   derivedRuntimeConfig?: CoreFieldDerivedRuntimeConfig;
+  /**
+   * Attachment/media constraints from `validationJson`
+   * (`accept`, `maxSizeBytes`, `maxFiles`, and legacy `file.*`).
+   */
+  mediaConstraints?: {
+    accept?: string;
+    maxSizeBytes?: number;
+    maxFiles?: number;
+  };
 }

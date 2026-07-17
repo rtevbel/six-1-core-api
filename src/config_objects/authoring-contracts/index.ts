@@ -16,9 +16,9 @@ export type { DetailFormViewConfig } from '../detail-form-view-config';
 export type { ListViewConfig } from '../list-view-config';
 export type { PanelLayoutConfig } from '../panel-layout';
 export {
+  FIELD_VALIDATION_SCHEMA_VERSION,
   FIELD_RULES_SCHEMA_VERSION,
   FIELD_RULE_OPERATORS,
-  FIELD_VALIDATION_SCHEMA_VERSION,
   FILE_FIELD_VALUE_CONTRACT_DESCRIPTION,
   type FieldRuleCondition,
   type FieldRuleOperator,
@@ -28,4 +28,6 @@ export {
   type FieldValidationFileConstraints,
   type FieldValidationJson,
   type FileFieldValueContract,
+  type MediaFieldValue,
+  type MediaRef,
 } from './field-authoring-contracts';

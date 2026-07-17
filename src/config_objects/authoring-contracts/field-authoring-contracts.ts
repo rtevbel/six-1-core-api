@@ -14,9 +14,12 @@ export {
 
 export {
   FIELD_VALIDATION_SCHEMA_VERSION,
+  MEDIA_PATH_MAX_LENGTH,
   type FieldValidationFileConstraints,
   type FieldValidationJson,
   type FileFieldValueContract,
+  type MediaFieldValue,
+  type MediaRef,
 } from '../field-validation';
 
 /**
@@ -24,7 +27,7 @@ export {
  * Gateway proxies upload; core stores the storage ref on submit.
  *
  * @example
- * { "key": "tenants/1/uploads/abc.pdf", "filename": "report.pdf", "mimeType": "application/pdf", "sizeBytes": 1024 }
+ * { "path": "tenant/42/invoice/attachments/abc.pdf", "filename": "report.pdf", "contentType": "application/pdf", "sizeBytes": 1024 }
  */
 export const FILE_FIELD_VALUE_CONTRACT_DESCRIPTION =
-  'File field values are objects with required `key` (storage ref) and optional `filename`, `mimeType`, `sizeBytes`.';
+  'File field values are objects with required `path` (storage ref; legacy `key` accepted) and optional `filename`, `contentType`/`mimeType`, `sizeBytes`. Multi fields use an array of the same shape.';

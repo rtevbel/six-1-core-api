@@ -12,4 +12,5 @@ export const CORE_FIELD_PRIMITIVE_TYPES = [
   'date',
   'select',
   'json',
+  'attachment',
 ] as const satisfies readonly SorFieldPrimitiveType[];

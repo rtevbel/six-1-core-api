@@ -66,6 +66,12 @@ describe('normalizeCustomFieldType', () => {
     expect(normalizeCustomFieldType('number')).toBe('number');
     expect(normalizeCustomFieldType('unknown_xyz')).toBe('text');
   });
+
+  it('maps file/media aliases to attachment', () => {
+    expect(normalizeCustomFieldType('attachment')).toBe('attachment');
+    expect(normalizeCustomFieldType('file')).toBe('attachment');
+    expect(normalizeCustomFieldType('media')).toBe('attachment');
+  });
 });
 
 describe('mergeCoreFieldDescriptorsWithFieldViews', () => {

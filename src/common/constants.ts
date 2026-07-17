@@ -69,6 +69,11 @@ export const S3_BUCKET = 'SIX1_S3_BUCKET';
 export const LOCAL_STORAGE_DIR = 'SIX1_LOCAL_STORAGE_DIR';
 export const LOCAL_PUBLIC_BASE_URL = 'SIX1_LOCAL_PUBLIC_BASE_URL';
 
+/** System default max upload size when field registry omits maxSizeBytes (bytes). */
+export const STORAGE_DEFAULT_MAX_BYTES = 'SIX1_STORAGE_DEFAULT_MAX_BYTES';
+/** Default TTL for presigned upload URLs (seconds). */
+export const STORAGE_PRESIGN_TTL_SECONDS = 'SIX1_STORAGE_PRESIGN_TTL_SECONDS';
+
 // Notification public base URL for template links
 export const NOTIFICATION_PUBLIC_BASE_URL_KEY = 'NOTIFICATION_PUBLIC_BASE_URL';
 

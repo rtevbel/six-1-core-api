@@ -31,6 +31,7 @@ import { EventsService } from '../events/events.service';
 import { ConfigService } from '@nestjs/config';
 import { ProcessStepLocksService } from '../process_instances/process_step_locks/process-step-locks.service';
 import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import { MediaService } from '../storage/media.service';
 
 describe('ConfigObjectsService', () => {
   let service: ConfigObjectsService;
@@ -169,6 +170,13 @@ describe('ConfigObjectsService', () => {
           provide: ConfigService,
           useValue: {
             get: jest.fn().mockReturnValue(undefined),
+          },
+        },
+        {
+          provide: MediaService,
+          useValue: {
+            deleteRemovedPaths: jest.fn().mockResolvedValue(undefined),
+            deletePaths: jest.fn().mockResolvedValue({ deleted: [] }),
           },
         },
       ],

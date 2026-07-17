@@ -28,6 +28,8 @@ export class S3Provider extends R2Provider {
         accessKeyId: opts.accessKeyId,
         secretAccessKey: opts.secretAccessKey,
       },
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
 
     // Update the driver identifier to "s3"

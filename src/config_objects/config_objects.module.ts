@@ -39,6 +39,7 @@ import { ConfigObjectVerificationAuditLogEntity } from './entities/config_object
 import { ConfigObjectsController } from './config_objects.controller';
 import { EventsModule } from '../events/events.module';
 import { ProcessInstancesModule } from '../process_instances/process_Instances.module';
+import { StorageModule } from '../storage/storage.module';
 
 /**
  * ConfigObjectsModule wires together the configurable object metadata layer.
@@ -54,6 +55,7 @@ import { ProcessInstancesModule } from '../process_instances/process_Instances.m
   imports: [
     forwardRef(() => EventsModule),
     forwardRef(() => ProcessInstancesModule),
+    StorageModule,
     TypeOrmModule.forFeature([
       ConfigTemplateSetEntity,
       ConfigObjectEntity,
