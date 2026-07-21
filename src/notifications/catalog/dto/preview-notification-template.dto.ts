@@ -1,4 +1,3 @@
-import { Type } from 'class-transformer';
 import {
   IsInt,
   IsNotEmpty,
@@ -6,7 +5,6 @@ import {
   IsOptional,
   IsString,
   Min,
-  ValidateNested,
 } from 'class-validator';
 import type { EventEnvelope } from '../../../events/types';
 
@@ -33,9 +31,8 @@ export class PreviewNotificationTemplateDto {
   @Min(1)
   tenantId?: number;
 
+  /** Sample EventEnvelope; validated as a plain object (not nested DTO). */
   @IsOptional()
   @IsObject()
-  @ValidateNested()
-  @Type(() => Object)
   envelope?: EventEnvelope;
 }

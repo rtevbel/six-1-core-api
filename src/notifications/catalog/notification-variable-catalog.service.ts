@@ -21,7 +21,7 @@ import {
 import type { NotificationVariableCatalogResult } from './interfaces/notification-variable-catalog-result.interface';
 
 export interface CatalogBuildOptions {
-  tenantId: number;
+  tenantId?: number | null;
   eventName?: string | null;
   objectType?: string | null;
   processTemplateId?: number | null;
@@ -150,7 +150,7 @@ export class NotificationVariableCatalogService {
   }
 
   private async buildEntityFieldEntries(
-    tenantId: number,
+    tenantId?: number | null,
     objectType?: string | null,
   ): Promise<NotificationVariableCatalogEntry[]> {
     if (!objectType?.trim()) {

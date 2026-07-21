@@ -31,6 +31,7 @@ import {
   buildRuntimeV2ListPagination,
   type RuntimeV2ListPagination,
 } from '../common/runtime-v2-list-pagination';
+import { EVENTS_LIST_LIMIT_MAX } from './constants';
 
 
 import {
@@ -136,7 +137,7 @@ export class EventsService {
 
     if (filtersDto.limit) {
       filtersDto.page = filtersDto.page || 1;
-      filtersDto.limit = Math.min(filtersDto.limit, 10);
+      filtersDto.limit = Math.min(filtersDto.limit, EVENTS_LIST_LIMIT_MAX);
 
       query.take = filtersDto.limit;
       query.skip = (filtersDto.page - 1) * filtersDto.limit;
@@ -153,7 +154,7 @@ export class EventsService {
       filtersDto.page,
       filtersDto.limit,
       total,
-      10,
+      EVENTS_LIST_LIMIT_MAX,
     );
   }
 

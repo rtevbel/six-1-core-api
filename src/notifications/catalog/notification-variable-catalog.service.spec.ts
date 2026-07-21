@@ -132,4 +132,35 @@ describe('NotificationVariableCatalogService', () => {
       service.isKnownEventName(PLATFORM_EVENT_NAMES.SYSTEM_ENTITY_UPDATED),
     ).resolves.toBe(true);
   });
+
+  it('builds catalog without tenantId for super-admin global scope', async () => {
+    configObjectsService.getObjectSchema.mockResolvedValue(null);
+    eventsService.findOptionalByName.mockResolvedValue(null);
+
+    const catalog = await service.getCatalog({});
+
+    expect(catalog.entries.length).toBe(NOTIFICATION_NAMESPACE_MANIFEST.length);
+    expect(configObjectsService.getObjectSchema).not.toHaveBeenCalled();
+  });
+
+  it('resolves entity fields using global schema when tenantId is omitted', async () => {
+    configObjectsService.getObjectSchema.mockResolvedValue({
+      fieldRegistry: [
+        {
+          fieldKey: 'companyName',
+          label: 'Company name',
+          fieldType: 'text',
+          orderIndex: 1,
+        },
+      ],
+    } as any);
+    eventsService.findOptionalByName.mockResolvedValue(null);
+
+    await service.getCatalog({ objectType: 'customer' });
+
+    expect(configObjectsService.getObjectSchema).toHaveBeenCalledWith(
+      undefined,
+      'customer',
+    );
+  });
 });

@@ -6,3 +6,4 @@ export const MICROSERVICE_UPDATE_EVENT_PATTERN = 'v0.1_update_event';
 export const MICROSERVICE_REMOVE_EVENT_PATTERN = 'v0.1_remove_event';
 // EVENTS CONTROLLER MESSAGE PATTERNS
 export const MESSAGE_BROKER_EVENT_SERVICE_CLIENT_TOKEN = 'event_service_token';
+export const EVENTS_LIST_LIMIT_MAX = 500;
