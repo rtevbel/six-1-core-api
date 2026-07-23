@@ -17,10 +17,14 @@ export class FiltersDto {
   @Min(0)
   tenantId?: number;
 
+  /**
+   * Optional exact event-name filter. Omit to list rules across all events.
+   */
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  eventName!: string;
+  eventName?: string;
 
   @IsBoolean()
   @IsOptional()

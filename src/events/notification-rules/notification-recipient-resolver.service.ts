@@ -117,15 +117,36 @@ export class NotificationRecipientResolverService {
       return [];
     }
 
-    if (spec.permission) {
-      return this.tenantLookup.findUserIdsByPermission(
-        tenantId,
-        spec.permission,
+    const permissions = [
+      ...(Array.isArray(spec.permissions) ? spec.permissions : []),
+      ...(spec.permission ? [spec.permission] : []),
+    ]
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (permissions.length > 0) {
+      const nested = await Promise.all(
+        [...new Set(permissions)].map((permission) =>
+          this.tenantLookup.findUserIdsByPermission(tenantId, permission),
+        ),
       );
+      return [...new Set(nested.flat())];
     }
 
-    if (spec.roleName) {
-      return this.tenantLookup.findUserIdsByRoleName(tenantId, spec.roleName);
+    const roleNames = [
+      ...(Array.isArray(spec.roleNames) ? spec.roleNames : []),
+      ...(spec.roleName ? [spec.roleName] : []),
+    ]
+      .map((name) => name.trim())
+      .filter(Boolean);
+
+    if (roleNames.length > 0) {
+      const nested = await Promise.all(
+        [...new Set(roleNames)].map((roleName) =>
+          this.tenantLookup.findUserIdsByRoleName(tenantId, roleName),
+        ),
+      );
+      return [...new Set(nested.flat())];
     }
 
     return [];

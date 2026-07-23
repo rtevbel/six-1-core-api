@@ -1,3 +1,4 @@
+import { Transform } from 'class-transformer';
 import {
   IsBoolean,
   IsNotEmpty,
@@ -7,6 +8,7 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import type { RecipientSpec } from '../../notification-rules/recipient-spec.types';
 
@@ -24,8 +26,13 @@ export class CreateEventNotificationRuleDto {
   @MaxLength(255)
   eventName!: string;
 
-  @IsObject()
+  /**
+   * Optional JSON Logic filter. Empty string from clients is treated as no filter.
+   */
+  @Transform(({ value }) => (value === '' ? null : value))
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsObject()
   filterJson?: Record<string, unknown> | null;
 
   @IsNumber()

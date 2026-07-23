@@ -5911,19 +5911,21 @@ export class ConfigObjectsService {
   async getViewsForObjectType(
     objectType: string,
   ): Promise<ConfigObjectViewEntity[]> {
-    const configObject = await this.configObjectRepository.findOne({
+    // Multiple template sets may define the same objectType (e.g. system_setting_group).
+    // findOne() would arbitrarily pick one row and hide views authored on the others.
+    const configObjects = await this.configObjectRepository.find({
       where: {
         objectType,
       },
     });
 
-    if (!configObject) {
+    if (configObjects.length === 0) {
       return [];
     }
 
     return this.viewRepository.find({
       where: {
-        configObjectId: configObject.configObjectId,
+        configObjectId: In(configObjects.map(o => o.configObjectId)),
       },
       order: {
         viewType: 'ASC',
@@ -5942,24 +5944,30 @@ export class ConfigObjectsService {
   ): Promise<ConfigObjectViewEntity[]> {
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
-    const configObject = await this.configObjectRepository.findOne({
+    const configObjects = await this.configObjectRepository.find({
       where: {
         objectType,
       },
     });
 
-    if (!configObject) {
+    if (configObjects.length === 0) {
       return [];
     }
 
-    const templateSet = await this.templateSetRepository.findOne({
-      where: this.templateSetWhereForTenantScope(
-        configObject.configTemplateSetId,
-        effectiveTenantId,
-      ),
-    });
+    const scopedIds: number[] = [];
+    for (const configObject of configObjects) {
+      const templateSet = await this.templateSetRepository.findOne({
+        where: this.templateSetWhereForTenantScope(
+          configObject.configTemplateSetId,
+          effectiveTenantId,
+        ),
+      });
+      if (templateSet) {
+        scopedIds.push(configObject.configObjectId);
+      }
+    }
 
-    if (!templateSet) {
+    if (scopedIds.length === 0) {
       throw new RpcException(
         'Config object does not belong to the specified tenant.',
       );
@@ -5967,7 +5975,7 @@ export class ConfigObjectsService {
 
     return this.viewRepository.find({
       where: {
-        configObjectId: configObject.configObjectId,
+        configObjectId: In(scopedIds),
       },
       order: {
         viewType: 'ASC',

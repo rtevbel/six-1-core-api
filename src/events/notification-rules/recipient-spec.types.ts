@@ -29,8 +29,12 @@ export interface TenantRoleRecipientSpec {
   type: 'tenant_role';
   /** Role display name (e.g. `Manager`, `Admin`). */
   roleName?: string;
+  /** Multiple role display names (UI multi-select). */
+  roleNames?: string[];
   /** Permission name (e.g. `finance.approve`). */
   permission?: string;
+  /** Multiple permission names (UI multi-select). */
+  permissions?: string[];
 }
 
 export interface TenantAdminsRecipientSpec {
@@ -68,6 +72,24 @@ export const ASSIGNEE_PAYLOAD_PATHS = [
   'data.primary_assignee_id',
 ] as const;
 
+function normalizeStringList(
+  listValue: unknown,
+  singularValue: unknown,
+): string[] {
+  const fromList = Array.isArray(listValue)
+    ? listValue
+        .filter((item): item is string => typeof item === 'string')
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : [];
+  const fromSingular =
+    typeof singularValue === 'string' && singularValue.trim()
+      ? [singularValue.trim()]
+      : [];
+
+  return [...new Set([...fromList, ...fromSingular])];
+}
+
 export function parseRecipientSpec(raw: unknown): RecipientSpec {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     return DEFAULT_RECIPIENT_SPEC;
@@ -91,17 +113,25 @@ export function parseRecipientSpec(raw: unknown): RecipientSpec {
   }
 
   if (type === 'tenant_role') {
-    const roleName =
-      typeof spec.roleName === 'string' ? spec.roleName.trim() : undefined;
-    const permission =
-      typeof spec.permission === 'string' ? spec.permission.trim() : undefined;
-    if (roleName || permission) {
-      return {
-        type: 'tenant_role',
-        ...(roleName ? { roleName } : {}),
-        ...(permission ? { permission } : {}),
-      };
+    const roleNames = normalizeStringList(spec.roleNames, spec.roleName);
+    const permissions = normalizeStringList(spec.permissions, spec.permission);
+
+    if (permissions.length > 0 && roleNames.length === 0) {
+      if (permissions.length === 1) {
+        return { type: 'tenant_role', permission: permissions[0] };
+      }
+      return { type: 'tenant_role', permissions };
     }
+
+    if (roleNames.length === 1) {
+      return { type: 'tenant_role', roleName: roleNames[0] };
+    }
+    if (roleNames.length > 1) {
+      return { type: 'tenant_role', roleNames };
+    }
+
+    // Preserve type even when selectors are empty (draft / incomplete UI state).
+    return { type: 'tenant_role' };
   }
 
   if (type === 'tenant_admins') {

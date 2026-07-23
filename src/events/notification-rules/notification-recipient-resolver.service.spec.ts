@@ -65,6 +65,22 @@ describe('NotificationRecipientResolverService', () => {
     );
   });
 
+  it('resolves tenant_role by multiple roleNames', async () => {
+    tenantLookup.findUserIdsByRoleName
+      .mockResolvedValueOnce([1, 2])
+      .mockResolvedValueOnce([2, 3]);
+
+    await expect(
+      service.resolve(
+        { type: 'tenant_role', roleNames: ['Manager', 'Admin'] },
+        envelope,
+      ),
+    ).resolves.toEqual([1, 2, 3]);
+
+    expect(tenantLookup.findUserIdsByRoleName).toHaveBeenCalledWith(5, 'Manager');
+    expect(tenantLookup.findUserIdsByRoleName).toHaveBeenCalledWith(5, 'Admin');
+  });
+
   it('resolves tenant_admins', async () => {
     tenantLookup.findTenantAdminUserIds.mockResolvedValue([3]);
 

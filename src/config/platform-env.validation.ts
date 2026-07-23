@@ -16,6 +16,7 @@ import {
   PLATFORM_NOTIFICATION_RETRY_BASE_SECONDS_KEY,
 } from '../notifications/config/notification-platform.constants';
 import { REFERENCE_LIST_STRICT_VALIDATION_KEY } from '../config_objects/reference-list/reference-list.constants';
+import { SYSTEM_SETTINGS_ENCRYPTION_KEY } from '../settings/system_configurations/constants';
 
 /** Matches {@link parseNotificationPlatformFlag} truthy/falsy strings; empty = unset. */
 const OPTIONAL_BOOLEAN_ENV = Joi.string()
@@ -53,4 +54,6 @@ export const platformEnvValidationSchema = Joi.object({
   [PLATFORM_ACTION_EXECUTOR_ENABLED_KEY]: OPTIONAL_BOOLEAN_ENV,
   [PLATFORM_EVENT_RECORD_RETENTION_DAYS_KEY]: OPTIONAL_POSITIVE_INT_ENV,
   [REFERENCE_LIST_STRICT_VALIDATION_KEY]: OPTIONAL_BOOLEAN_ENV,
+  /** Optional until secret settings are used; 32-byte key as base64 or 64-char hex. */
+  [SYSTEM_SETTINGS_ENCRYPTION_KEY]: Joi.string().trim().empty('').optional(),
 });

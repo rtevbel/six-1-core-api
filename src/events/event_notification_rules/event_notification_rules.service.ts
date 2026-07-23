@@ -128,7 +128,11 @@ export class EventNotificationRulesService {
       patch.eventName = dto.eventName.trim();
     }
     if (dto.filterJson !== undefined) {
-      patch.filterJson = dto.filterJson;
+      // Empty string / null clears the filter (optional field).
+      patch.filterJson =
+        dto.filterJson && typeof dto.filterJson === 'object'
+          ? dto.filterJson
+          : null;
     }
     if (dto.channelId !== undefined) {
       patch.channelId = dto.channelId;
@@ -242,9 +246,11 @@ export class EventNotificationRulesService {
 
   private buildFindQuery(filtersDto: FiltersDto): Record<string, unknown> {
     const effectiveTenantId = getEffectiveTenantId(filtersDto.tenantId);
-    const where: Record<string, unknown> = {
-      eventName: filtersDto.eventName.trim(),
-    };
+    const where: Record<string, unknown> = {};
+
+    if (filtersDto.eventName?.trim()) {
+      where.eventName = filtersDto.eventName.trim();
+    }
 
     if (effectiveTenantId !== null) {
       where.tenantId = effectiveTenantId;
