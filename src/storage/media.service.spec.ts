@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { MediaService } from './media.service';
 import { StorageService } from './storage.service';
 import { MediaErrorCode } from './media-error-codes';
+import { SystemConfigurationsService } from '../settings/system_configurations/system_configurations.service';
 
 describe('MediaService', () => {
   let service: MediaService;
@@ -44,6 +45,22 @@ describe('MediaService', () => {
           provide: ConfigService,
           useValue: {
             get: (_key: string, fallback?: number) => fallback,
+          },
+        },
+        {
+          provide: SystemConfigurationsService,
+          useValue: {
+            resolve: jest.fn().mockResolvedValue({
+              tenantId: 0,
+              groups: {
+                storage: {
+                  'storage.max_upload_bytes': {
+                    settingKey: 'storage.max_upload_bytes',
+                    value: 25 * 1024 * 1024,
+                  },
+                },
+              },
+            }),
           },
         },
       ],

@@ -17,6 +17,8 @@ import {
   STORAGE_DEFAULT_MAX_BYTES,
   STORAGE_PRESIGN_TTL_SECONDS,
 } from '../common/constants';
+import { SystemConfigurationsService } from '../settings/system_configurations/system_configurations.service';
+import { GLOBAL_SYSTEM_TENANT_ID } from '../common/utils/tenant-scope.util';
 
 export interface StartMediaUploadInput {
   filename: string;
@@ -63,14 +65,45 @@ export class MediaService {
   constructor(
     private readonly storage: StorageService,
     private readonly config: ConfigService,
+    private readonly systemConfigurations: SystemConfigurationsService,
   ) {}
 
   get driver(): string {
     return this.storage.driver;
   }
 
+  /** Env bootstrap ceiling; prefer {@link resolveMaxUploadBytes} at request time. */
   defaultMaxBytes(): number {
     return this.config.get<number>(STORAGE_DEFAULT_MAX_BYTES, 25 * 1024 * 1024);
+  }
+
+  /**
+   * Platform max upload size: system setting `storage.max_upload_bytes`, else env.
+   */
+  async resolveMaxUploadBytes(): Promise<number> {
+    const envFallback = this.defaultMaxBytes();
+    try {
+      const resolved = await this.systemConfigurations.resolve(0, {
+        tenantId: GLOBAL_SYSTEM_TENANT_ID,
+        groupKeys: ['storage'],
+        settingKeys: ['storage.max_upload_bytes'],
+      });
+      const entry = resolved.groups?.storage?.['storage.max_upload_bytes'];
+      const raw = entry?.value;
+      const n =
+        typeof raw === 'number'
+          ? raw
+          : typeof raw === 'string'
+            ? Number(raw)
+            : NaN;
+      if (Number.isFinite(n) && n > 0) return Math.floor(n);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to resolve storage.max_upload_bytes; using env default (${envFallback})`,
+      );
+      this.logger.debug(err instanceof Error ? err.message : String(err));
+    }
+    return envFallback;
   }
 
   defaultPresignTtlSeconds(): number {
@@ -88,6 +121,19 @@ export class MediaService {
   }> {
     assertCallerMayWriteOwnership(input.ownership, input.caller);
     this.assertContentTypeAllowed(input.contentType, input.accept);
+
+    const platformMax = await this.resolveMaxUploadBytes();
+    if (
+      input.maxSizeBytes != null &&
+      Number.isFinite(input.maxSizeBytes) &&
+      input.maxSizeBytes > 0 &&
+      input.maxSizeBytes > platformMax
+    ) {
+      throw new RpcException({
+        code: MediaErrorCode.TooLarge,
+        message: `Requested maxSizeBytes exceeds platform limit of ${platformMax} bytes`,
+      });
+    }
 
     let path: string;
     try {
@@ -151,7 +197,7 @@ export class MediaService {
     }
 
     const sizeBytes = meta.contentLength ?? undefined;
-    const maxBytes = this.defaultMaxBytes();
+    const maxBytes = await this.resolveMaxUploadBytes();
     if (sizeBytes != null && sizeBytes > maxBytes) {
       try {
         await this.storage.remove({ key: input.path, bucket: input.bucket });

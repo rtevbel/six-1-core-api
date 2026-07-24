@@ -8,6 +8,7 @@ import { StorageController } from './storage.controller';
 import { R2Provider } from './providers/r2.provider';
 import { S3Provider } from './providers/s3.provider';
 import { LocalProvider } from './providers/local.provider';
+import { SystemConfigurationsModule } from '../settings/system_configurations/system_configurations.module';
 import {
   R2_ACCOUNT_ID,
   R2_ACCESS_KEY_ID,
@@ -67,7 +68,7 @@ const providerFactory: Provider = {
  * Storage module to manage storage providers and services.
  */
 @Module({
-  imports: [ConfigModule],
+  imports: [ConfigModule, SystemConfigurationsModule],
   providers: [providerFactory, StorageService, MediaService],
   exports: [StorageService, MediaService, providerFactory],
   controllers: [StorageController],

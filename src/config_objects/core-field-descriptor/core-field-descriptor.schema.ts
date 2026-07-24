@@ -77,4 +77,17 @@ export class CoreFieldDescriptorValidationClass {
   @IsOptional()
   @IsObject()
   derivedRuntimeConfig?: Record<string, unknown>;
+
+  /**
+   * Attachment/media constraints from field `validationJson`
+   * (`accept`, `maxSizeBytes`, `maxFiles`). Must stay on the whitelist —
+   * otherwise multi-file fields silently fall back to maxFiles=1.
+   */
+  @IsOptional()
+  @IsObject()
+  mediaConstraints?: {
+    accept?: string;
+    maxSizeBytes?: number;
+    maxFiles?: number;
+  };
 }
