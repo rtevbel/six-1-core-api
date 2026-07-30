@@ -27,6 +27,13 @@ export const MICROSERVICE_LIST_CONFIG_OBJECTS_PATTERN =
   'v0.1_list_config_objects';
 
 /**
+ * Message pattern used to list config audit logs for a config object
+ * (object + related child entity history).
+ */
+export const MICROSERVICE_LIST_CONFIG_AUDIT_LOGS_PATTERN =
+  'v0.1_list_config_audit_logs';
+
+/**
  * Message pattern used to create a new configuration object within a
  * template set.
  */

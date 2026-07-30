@@ -14,6 +14,7 @@ import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule
 import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
 import { ConfigObjectLifecycleEntity } from './entities/config_object_lifecycle.entity';
+import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
 import { ConfigObjectRelationshipEntity } from './entities/config_object_relationship.entity';
 import { ConfigObjectViewEntity } from './entities/config_object_view.entity';
 import { ConfigObjectViewPanelEntity } from './entities/config_object_view_panel.entity';
@@ -44,10 +45,12 @@ describe('ConfigObjectsService', () => {
   let fieldRuleRepo: Repository<ConfigObjectFieldRuleEntity>;
   let runtimeFieldMetadataRepo: Repository<ConfigObjectRuntimeFieldMetadataEntity>;
   let lifecycleRepo: Repository<ConfigObjectLifecycleEntity>;
+  let lifecycleTransitionRepo: Repository<ConfigObjectLifecycleTransitionEntity>;
   let relationshipRepo: Repository<ConfigObjectRelationshipEntity>;
   let viewRepo: Repository<ConfigObjectViewEntity>;
   let panelRepo: Repository<ConfigObjectViewPanelEntity>;
   let auditLogRepo: Repository<ConfigAuditLogEntity>;
+  let statusMappingRepo: Repository<ConfigObjectStatusMappingEntity>;
   let customerMetaRepo: Repository<CustomerMetaEntity>;
   let customObjectInstanceRepo: Repository<ConfigCustomObjectInstanceEntity>;
   let stepLocksService: {
@@ -81,6 +84,10 @@ describe('ConfigObjectsService', () => {
         },
         {
           provide: getRepositoryToken(ConfigObjectLifecycleEntity),
+          useClass: Repository,
+        },
+        {
+          provide: getRepositoryToken(ConfigObjectLifecycleTransitionEntity),
           useClass: Repository,
         },
         {
@@ -194,12 +201,18 @@ describe('ConfigObjectsService', () => {
       getRepositoryToken(ConfigObjectRuntimeFieldMetadataEntity),
     );
     lifecycleRepo = module.get(getRepositoryToken(ConfigObjectLifecycleEntity));
+    lifecycleTransitionRepo = module.get(
+      getRepositoryToken(ConfigObjectLifecycleTransitionEntity),
+    );
     relationshipRepo = module.get(
       getRepositoryToken(ConfigObjectRelationshipEntity),
     );
     viewRepo = module.get(getRepositoryToken(ConfigObjectViewEntity));
     panelRepo = module.get(getRepositoryToken(ConfigObjectViewPanelEntity));
     auditLogRepo = module.get(getRepositoryToken(ConfigAuditLogEntity));
+    statusMappingRepo = module.get(
+      getRepositoryToken(ConfigObjectStatusMappingEntity),
+    );
     customerMetaRepo = module.get(getRepositoryToken(CustomerMetaEntity));
     customObjectInstanceRepo = module.get(
       getRepositoryToken(ConfigCustomObjectInstanceEntity),
@@ -274,7 +287,7 @@ describe('ConfigObjectsService', () => {
         configObjectId: 6,
         payload: { site_name: 'North lot' },
         status: 'DRAFT',
-      } as ConfigCustomObjectInstanceEntity);
+      } as any);
 
       const resolved = await service.resolveObjectInstance(
         0,
@@ -3533,6 +3546,140 @@ describe('ConfigObjectsService', () => {
       });
 
       expect(removeSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('listConfigAuditLogs', () => {
+    const mockAuditQueryBuilder = (rows: any[], total: number) => {
+      const qb: any = {
+        leftJoinAndSelect: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        orWhere: jest.fn().mockReturnThis(),
+        skip: jest.fn().mockReturnThis(),
+        take: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(total),
+        getMany: jest.fn().mockResolvedValue(rows),
+      };
+      jest
+        .spyOn(auditLogRepo, 'createQueryBuilder')
+        .mockReturnValue(qb);
+      return qb;
+    };
+
+    beforeEach(() => {
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue({
+        configObjectId: 42,
+        configTemplateSetId: 7,
+        objectType: 'project',
+      } as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+        configTemplateSetId: 7,
+        tenantId: 1,
+      } as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValue([
+        { configObjectFieldId: 100 },
+      ] as any);
+      jest.spyOn(viewRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(lifecycleRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(lifecycleTransitionRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(statusMappingRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([
+        { configObjectFieldRuleId: 200 },
+      ] as any);
+      jest.spyOn(panelRepo, 'find').mockResolvedValue([]);
+    });
+
+    it('throws when config object is missing', async () => {
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValue(null as any);
+
+      await expect(
+        service.listConfigAuditLogs({
+          tenantId: 1,
+          configObjectId: 999,
+        }),
+      ).rejects.toThrow(RpcException);
+    });
+
+    it('throws when config object is outside tenant scope', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue(null as any);
+
+      await expect(
+        service.listConfigAuditLogs({
+          tenantId: 1,
+          configObjectId: 42,
+        }),
+      ).rejects.toThrow(/does not belong to the specified tenant/);
+    });
+
+    it('returns mapped items including related field and field_rule history', async () => {
+      const qb = mockAuditQueryBuilder(
+        [
+          {
+            configAuditLogId: 1,
+            tenantId: 1,
+            entityType: 'field',
+            entityId: 100,
+            action: 'update',
+            oldValue: { label: 'Old' },
+            newValue: { label: 'New' },
+            changedBy: 9,
+            changedAt: new Date('2026-07-01T12:00:00.000Z'),
+            changedByUser: {
+              user: {
+                displayName: 'Ada Lovelace',
+                firstName: 'Ada',
+                lastName: 'Lovelace',
+                email: 'ada@example.com',
+              },
+            },
+          },
+        ],
+        1,
+      );
+
+      const result = await service.listConfigAuditLogs({
+        tenantId: 1,
+        configObjectId: 42,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(10);
+      expect(result.items).toEqual([
+        expect.objectContaining({
+          configAuditLogId: 1,
+          entityType: 'field',
+          entityId: 100,
+          action: 'update',
+          changedBy: 9,
+          changedByDisplayName: 'Ada Lovelace',
+          changedAt: '2026-07-01T12:00:00.000Z',
+        }),
+      ]);
+      expect(fieldRepo.find).toHaveBeenCalled();
+      expect(fieldRuleRepo.find).toHaveBeenCalled();
+      expect(qb.andWhere).toHaveBeenCalled();
+      expect(qb.orderBy).toHaveBeenCalledWith('audit.changedAt', 'DESC');
+    });
+
+    it('returns empty items when object exists but has no matching audit rows', async () => {
+      mockAuditQueryBuilder([], 0);
+
+      const result = await service.listConfigAuditLogs({
+        tenantId: 1,
+        configObjectId: 42,
+      });
+
+      expect(result.items).toEqual([]);
+      expect(result.total).toBe(0);
+      expect(result.limit).toBe(25);
     });
   });
 });

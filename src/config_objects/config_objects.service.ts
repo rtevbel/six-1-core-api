@@ -7,7 +7,14 @@ import {
   normalizeAttachmentFieldsInPayload,
 } from '../storage/media-payload.util';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, In, IsNull, Repository } from 'typeorm';
+import {
+  Brackets,
+  DataSource,
+  EntityManager,
+  In,
+  IsNull,
+  Repository,
+} from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { ConfigTemplateSetEntity } from './entities/config_template_set.entity';
 import type { ConfigTemplateSetStatus } from './entities/config_template_set.entity';
@@ -20,6 +27,17 @@ import { ConfigObjectFieldEntity } from './entities/config_object_field.entity';
 import { ConfigObjectFieldRuleEntity } from './entities/config_object_field_rule.entity';
 import { ConfigObjectRuntimeFieldMetadataEntity } from './entities/config_object_runtime_field_metadata.entity';
 import { ConfigAuditLogEntity } from './entities/config_audit_log.entity';
+import { ConfigObjectLifecycleTransitionEntity } from './entities/config_object_lifecycle_transition.entity';
+import {
+  CONFIG_AUDIT_LIST_DEFAULT_LIMIT,
+  CONFIG_AUDIT_LIST_MAX_LIMIT,
+  type ConfigAuditEntityType,
+} from './constants/config-audit.constants';
+import type {
+  ConfigAuditLogListItem,
+  ConfigAuditLogListResult,
+} from './interfaces/config-audit-log-list.interface';
+import { buildRuntimeV2ListPagination } from '../common/runtime-v2-list-pagination';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
@@ -307,6 +325,8 @@ export class ConfigObjectsService {
     private readonly runtimeFieldMetadataRepository: Repository<ConfigObjectRuntimeFieldMetadataEntity>,
     @InjectRepository(ConfigObjectLifecycleEntity)
     private readonly lifecycleRepository: Repository<ConfigObjectLifecycleEntity>,
+    @InjectRepository(ConfigObjectLifecycleTransitionEntity)
+    private readonly lifecycleTransitionRepository: Repository<ConfigObjectLifecycleTransitionEntity>,
     @InjectRepository(ConfigObjectRelationshipEntity)
     private readonly relationshipRepository: Repository<ConfigObjectRelationshipEntity>,
     @InjectRepository(ConfigObjectViewEntity)
@@ -2960,6 +2980,259 @@ export class ConfigObjectsService {
     });
 
     await this.configAuditLogRepository.save(audit);
+  }
+
+  /**
+   * Lists config audit history for a config object and its related child entities.
+   *
+   * Includes rows for the object itself plus fields, field rules, views, panels,
+   * relationships, lifecycles/transitions, runtime field metadata, and status
+   * mappings. Sorted by `changedAt` descending.
+   */
+  async listConfigAuditLogs(params: {
+    tenantId: number | null | undefined;
+    configObjectId: number;
+    entityType?: ConfigAuditEntityType;
+    action?: 'create' | 'update' | 'delete';
+    page?: number;
+    limit?: number;
+  }): Promise<ConfigAuditLogListResult> {
+    const {
+      tenantId,
+      configObjectId,
+      entityType,
+      action,
+      page: pageInput,
+      limit: limitInput,
+    } = params;
+
+    const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const page =
+      typeof pageInput === 'number' && pageInput >= 1 ? pageInput : 1;
+    const rawLimit =
+      typeof limitInput === 'number' && limitInput > 0
+        ? limitInput
+        : CONFIG_AUDIT_LIST_DEFAULT_LIMIT;
+    const limit = Math.min(rawLimit, CONFIG_AUDIT_LIST_MAX_LIMIT);
+
+    const configObject = await this.configObjectRepository.findOne({
+      where: { configObjectId },
+    });
+
+    if (!configObject) {
+      throw new RpcException('Config object not found.');
+    }
+
+    const templateSet = await this.templateSetRepository.findOne({
+      where: this.templateSetWhereForTenantScope(
+        configObject.configTemplateSetId,
+        effectiveTenantId,
+      ),
+    });
+
+    if (!templateSet) {
+      throw new RpcException(
+        'Config object does not belong to the specified tenant.',
+      );
+    }
+
+    const relatedIdsByType = await this.resolveConfigAuditRelatedEntityIds(
+      configObjectId,
+      configObject.objectType,
+    );
+
+    const qb = this.configAuditLogRepository
+      .createQueryBuilder('audit')
+      .leftJoinAndSelect('audit.changedByUser', 'changedByUser')
+      .leftJoinAndSelect('changedByUser.user', 'changedByUserUser')
+      .orderBy('audit.changedAt', 'DESC')
+      .addOrderBy('audit.configAuditLogId', 'DESC');
+
+    if (effectiveTenantId !== null) {
+      qb.andWhere(
+        new Brackets((tenantScope) => {
+          tenantScope
+            .where('audit.tenantId = :effectiveTenantId', {
+              effectiveTenantId,
+            })
+            .orWhere('audit.tenantId IS NULL');
+        }),
+      );
+    }
+
+    qb.andWhere(
+      new Brackets((entityScope) => {
+        const typesToQuery: ConfigAuditEntityType[] = entityType
+          ? [entityType]
+          : (Object.keys(relatedIdsByType) as ConfigAuditEntityType[]);
+
+        let clauseIndex = 0;
+        for (const type of typesToQuery) {
+          const ids = relatedIdsByType[type] ?? [];
+          if (!ids.length) {
+            continue;
+          }
+          const typeParam = `entityType_${clauseIndex}`;
+          const idsParam = `entityIds_${clauseIndex}`;
+          const clause = `(audit.entityType = :${typeParam} AND audit.entityId IN (:...${idsParam}))`;
+          if (clauseIndex === 0) {
+            entityScope.where(clause, {
+              [typeParam]: type,
+              [idsParam]: ids,
+            });
+          } else {
+            entityScope.orWhere(clause, {
+              [typeParam]: type,
+              [idsParam]: ids,
+            });
+          }
+          clauseIndex += 1;
+        }
+
+        // No related IDs for the requested filter → force empty result set.
+        if (clauseIndex === 0) {
+          entityScope.where('1 = 0');
+        }
+      }),
+    );
+
+    if (action) {
+      qb.andWhere('audit.action = :action', { action });
+    }
+
+    const total = await qb.getCount();
+    const rows = await qb
+      .skip((page - 1) * limit)
+      .take(limit)
+      .getMany();
+
+    const items = rows.map((row) => this.mapConfigAuditLogListItem(row));
+    const pagination = buildRuntimeV2ListPagination(page, limit, total, limit);
+
+    return {
+      items,
+      total: pagination.total,
+      page: pagination.page,
+      limit: pagination.limit,
+      totalPages: pagination.totalPages,
+      pagination,
+    };
+  }
+
+  /**
+   * Collects entity IDs for all config child types owned by `configObjectId`.
+   */
+  private async resolveConfigAuditRelatedEntityIds(
+    configObjectId: number,
+    objectType: string,
+  ): Promise<Record<ConfigAuditEntityType, number[]>> {
+    const [
+      fields,
+      views,
+      relationships,
+      lifecycles,
+      lifecycleTransitions,
+      runtimeFieldMetadata,
+      statusMappings,
+    ] = await Promise.all([
+      this.configObjectFieldRepository.find({
+        where: { configObjectId },
+        select: ['configObjectFieldId'],
+      }),
+      this.viewRepository.find({
+        where: { configObjectId },
+        select: ['configObjectViewId'],
+      }),
+      this.relationshipRepository.find({
+        where: { fromObjectType: objectType },
+        select: ['configObjectRelationshipId'],
+      }),
+      this.lifecycleRepository.find({
+        where: { configObjectId },
+        select: ['configObjectLifecycleId'],
+      }),
+      this.lifecycleTransitionRepository.find({
+        where: { configObjectId },
+        select: ['configObjectLifecycleTransitionId'],
+      }),
+      this.runtimeFieldMetadataRepository.find({
+        where: { configObjectId },
+        select: ['configObjectRuntimeFieldMetadataId'],
+      }),
+      this.configObjectStatusMappingRepository.find({
+        where: { configObjectId },
+        select: ['configObjectStatusMappingId'],
+      }),
+    ]);
+
+    const fieldIds = fields.map((row) => Number(row.configObjectFieldId));
+    const viewIds = views.map((row) => Number(row.configObjectViewId));
+
+    const [fieldRules, panels] = await Promise.all([
+      fieldIds.length
+        ? this.configObjectFieldRuleRepository.find({
+            where: { configObjectFieldId: In(fieldIds) },
+            select: ['configObjectFieldRuleId'],
+          })
+        : Promise.resolve([] as ConfigObjectFieldRuleEntity[]),
+      viewIds.length
+        ? this.panelRepository.find({
+            where: { configObjectViewId: In(viewIds) },
+            select: ['configObjectViewPanelId'],
+          })
+        : Promise.resolve([] as ConfigObjectViewPanelEntity[]),
+    ]);
+
+    return {
+      object: [configObjectId],
+      field: fieldIds,
+      field_rule: fieldRules.map((row) => Number(row.configObjectFieldRuleId)),
+      view: viewIds,
+      panel: panels.map((row) => Number(row.configObjectViewPanelId)),
+      relationship: relationships.map((row) =>
+        Number(row.configObjectRelationshipId),
+      ),
+      lifecycle: lifecycles.map((row) => Number(row.configObjectLifecycleId)),
+      lifecycle_transition: lifecycleTransitions.map((row) =>
+        Number(row.configObjectLifecycleTransitionId),
+      ),
+      runtime_field_metadata: runtimeFieldMetadata.map((row) =>
+        Number(row.configObjectRuntimeFieldMetadataId),
+      ),
+      status_mapping: statusMappings.map((row) =>
+        Number(row.configObjectStatusMappingId),
+      ),
+    };
+  }
+
+  private mapConfigAuditLogListItem(
+    row: ConfigAuditLogEntity,
+  ): ConfigAuditLogListItem {
+    const user = row.changedByUser?.user;
+    const changedByDisplayName =
+      user?.displayName?.trim() ||
+      [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim() ||
+      user?.email?.trim() ||
+      null;
+
+    return {
+      configAuditLogId: Number(row.configAuditLogId),
+      tenantId:
+        typeof row.tenantId === 'number' && row.tenantId > 0
+          ? Number(row.tenantId)
+          : null,
+      entityType: row.entityType,
+      entityId: Number(row.entityId),
+      action: row.action,
+      oldValue: row.oldValue ?? null,
+      newValue: row.newValue ?? null,
+      changedBy: Number(row.changedBy),
+      changedByDisplayName: changedByDisplayName || null,
+      changedAt:
+        row.changedAt instanceof Date
+          ? row.changedAt.toISOString()
+          : String(row.changedAt),
+    };
   }
 
   /**

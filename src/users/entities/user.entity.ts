@@ -303,8 +303,12 @@ export class UserEntity {
   @BeforeInsert()
   @BeforeUpdate()
   async hashPassword(): Promise<void> {
-    if (this.password){
+    if (this.password && !this.isBcryptHash(this.password)) {
       this.password = await hash_content(this.password);
     }
+  }
+
+  private isBcryptHash(password: string): boolean {
+    return /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(password);
   }
 }

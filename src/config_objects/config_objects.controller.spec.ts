@@ -26,6 +26,7 @@ describe('ConfigObjectsController', () => {
             invalidateRuntimeCaches: jest.fn(),
             composeRuntimeSubmitPayload: jest.fn(),
             validateRuntimeRelationAction: jest.fn(),
+            listConfigAuditLogs: jest.fn(),
           },
         },
         {
@@ -358,6 +359,37 @@ describe('ConfigObjectsController', () => {
       objectType: 'customer',
       token: 'tok-valid',
       clientKey: '203.0.113.1',
+    });
+  });
+
+  it('listConfigAuditLogs should delegate to service with filters', async () => {
+    const listResult = {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 25,
+      totalPages: 1,
+      pagination: { total: 0, page: 1, limit: 25, totalPages: 1 },
+    };
+    configObjectsService.listConfigAuditLogs.mockResolvedValueOnce(listResult);
+
+    const result = await controller.listConfigAuditLogs(1, {
+      tenantId: 10,
+      configObjectId: 42,
+      entityType: 'field',
+      action: 'update',
+      page: 2,
+      limit: 10,
+    } as any);
+
+    expect(result).toEqual(listResult);
+    expect(configObjectsService.listConfigAuditLogs).toHaveBeenCalledWith({
+      tenantId: 10,
+      configObjectId: 42,
+      entityType: 'field',
+      action: 'update',
+      page: 2,
+      limit: 10,
     });
   });
 });

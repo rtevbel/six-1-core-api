@@ -11,6 +11,7 @@ import {
   MICROSERVICE_LIST_CONFIG_FIELDS_PATTERN,
   MICROSERVICE_LIST_CONFIG_FIELD_RULES_PATTERN,
   MICROSERVICE_LIST_CONFIG_OBJECTS_PATTERN,
+  MICROSERVICE_LIST_CONFIG_AUDIT_LOGS_PATTERN,
   MICROSERVICE_CREATE_CONFIG_OBJECT_PATTERN,
   MICROSERVICE_UPDATE_CONFIG_OBJECT_PATTERN,
   MICROSERVICE_DELETE_CONFIG_OBJECT_PATTERN,
@@ -128,6 +129,8 @@ import {
   UpdateConfigObjectDto,
   DeleteConfigObjectDto,
 } from './dto/config-object.dto';
+import { ListConfigAuditLogsDto } from './dto/list-config-audit-logs.dto';
+import type { ConfigAuditLogListResult } from './interfaces/config-audit-log-list.interface';
 import {
   ListConfigFieldsDto,
   CreateConfigFieldDto,
@@ -679,6 +682,26 @@ export class ConfigObjectsController {
         limit: configObjects.length || 1,
       },
     };
+  }
+
+  /**
+   * Lists Object Designer audit history for a config object and related children.
+   */
+  @MessagePattern(MICROSERVICE_LIST_CONFIG_AUDIT_LOGS_PATTERN)
+  @RequirePermissions('config.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async listConfigAuditLogs(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ListConfigAuditLogsDto,
+  ): Promise<ConfigAuditLogListResult> {
+    return this.configObjectsService.listConfigAuditLogs({
+      tenantId: dto.tenantId ?? null,
+      configObjectId: dto.configObjectId,
+      entityType: dto.entityType,
+      action: dto.action,
+      page: dto.page,
+      limit: dto.limit,
+    });
   }
 
   /**

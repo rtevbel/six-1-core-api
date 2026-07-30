@@ -23,9 +23,13 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { hash_content } from '../common/functions';
 
 @Injectable()
 export class UserService {
+  private static readonly BCRYPT_HASH_REGEX =
+    /^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+
   private static readonly FALLBACK_FIELDS = new Set([
     'userId',
     'email',
@@ -181,6 +185,13 @@ export class UserService {
       throw new RpcException(
         NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name),
       );
+    }
+
+    if (
+      updateUserDto.password &&
+      !UserService.BCRYPT_HASH_REGEX.test(updateUserDto.password)
+    ) {
+      updateUserDto.password = await hash_content(updateUserDto.password);
     }
 
     return await this.userRepository.update(id, updateUserDto);

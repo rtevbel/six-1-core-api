@@ -6,6 +6,7 @@ import Redis from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Brackets } from 'typeorm';
+import { RpcException } from '@nestjs/microservices';
 import {
   hash_content,
   compare_hashed_content,
@@ -29,6 +30,7 @@ import { RoleDescriptionEntity } from '../roles/entities/role-description.entity
 import { PermissionDescriptionEntity } from '../permissions/entities/permission_description.entity';
 import { AuthorizationService } from '../authorization/authorization.service';
 import { UserEntity } from '../users/entities/user.entity';
+import { NO_RECORD_FOUND_MESSAGE } from '../common/constants';
 /**
  * Auth service class.
  *
@@ -116,25 +118,43 @@ export class AuthService {
     }
 
     const userId = 0;
-    const userObject = await this.UserService.findOneBy(userId, params);
+    let userObject: UserEntity;
 
-    //TODO: Uncomment this when we have the password hashing working
-    /*if (
-      userObject &&
-      (await compare_hashed_content(userObject.password, password))
-    ) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password: _password, ...user } = userObject;
-      return user;
-    }*/
-
-    if (userObject) {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { password: _password, ...user } = userObject;
-      return user;
+    try {
+      userObject = await this.UserService.findOneBy(userId, params);
+    } catch (error) {
+      if (this.isUserNotFoundError(error)) {
+        return null;
+      }
+      throw error;
     }
 
-    return null;
+    if (!(await compare_hashed_content(userObject.password, password))) {
+      return null;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _password, ...user } = userObject;
+    return user;
+  }
+
+  private isUserNotFoundError(error: unknown): boolean {
+    if (!(error instanceof RpcException)) {
+      return false;
+    }
+
+    const rpcError = error.getError();
+    const errorMessage =
+      typeof rpcError === 'string'
+        ? rpcError
+        : rpcError instanceof Error
+          ? rpcError.message
+          : undefined;
+
+    return (
+      errorMessage ===
+      NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', UserEntity.name)
+    );
   }
 
   /**

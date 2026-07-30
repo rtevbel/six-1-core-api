@@ -6,6 +6,8 @@ import { ProcessTemplateEntity } from './entities/process_template.entity';
 import { ProcessTemplateDescriptionEntity } from './entities/process_template_description.entity';
 import { ProcessTemplateCategoryEntity } from './entities/process_template_category.entity';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { AJV } from '../automation/ajv.module';
+import * as catalogExecutor from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 
 describe('ProcessTemplatesService', () => {
   let service: ProcessTemplatesService;
@@ -42,6 +44,10 @@ describe('ProcessTemplatesService', () => {
         {
           provide: ConfigObjectsService,
           useValue: {},
+        },
+        {
+          provide: AJV,
+          useValue: { compile: jest.fn() },
         },
       ],
     }).compile();
@@ -147,5 +153,36 @@ describe('ProcessTemplatesService', () => {
     await expect(
       service.deactivate(1, { processTemplateId: 999 }),
     ).rejects.toThrow(RpcException);
+  });
+
+  it('findAll applies configObjectId binding EXISTS scope', async () => {
+    const andWhere = jest.fn().mockReturnThis();
+    jest
+      .spyOn(catalogExecutor, 'executeCatalogBackedDynamicListQuery')
+      .mockImplementation(async (ctx, filters) => {
+        ctx.applyMandatoryScope({ andWhere } as any, filters);
+        return {
+          rows: [{ processTemplateId: 11, status: 'PUBLISHED' }] as any,
+          total: 1,
+        };
+      });
+
+    const result = await service.findAll(1, {
+      tenantId: 10,
+      status: 'PUBLISHED',
+      configObjectId: 20,
+      page: 1,
+      limit: 10,
+    } as any);
+
+    expect(andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('process_template_step_object_bindings'),
+      expect.objectContaining({ bindingConfigObjectId: 20 }),
+    );
+    expect(andWhere).toHaveBeenCalledWith('pt.status = :ptStatus', {
+      ptStatus: 'PUBLISHED',
+    });
+    expect(result.items).toHaveLength(1);
+    expect(result.total).toBe(1);
   });
 });

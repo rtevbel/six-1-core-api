@@ -40,6 +40,16 @@ export class FiltersDto extends CatalogDynamicListFiltersMixin {
   @IsIn(['DRAFT', 'PUBLISHED', 'ARCHIVED', 'CONFLICT'], { each: true })
   statuses?: ProcessTemplateStatus[];
 
+  /**
+   * When set, only templates that have at least one step object binding
+   * referencing this config object are returned (Create Process applicability).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  configObjectId?: number;
+
   @IsOptional()
   @IsString()
   @MaxLength(64)

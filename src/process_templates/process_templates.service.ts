@@ -170,6 +170,22 @@ export class ProcessTemplatesService {
             ptStatuses: row.statuses,
           });
         }
+        if (
+          typeof row.configObjectId === 'number' &&
+          row.configObjectId > 0
+        ) {
+          qb.andWhere(
+            `EXISTS (
+              SELECT 1
+                FROM process_template_step_object_bindings ptsob_cfg
+               INNER JOIN process_template_steps pts_cfg
+                  ON pts_cfg.process_template_step_id = ptsob_cfg.process_template_step_id
+               WHERE pts_cfg.process_template_id = pt.processTemplateId
+                 AND ptsob_cfg.config_object_id = :bindingConfigObjectId
+            )`,
+            { bindingConfigObjectId: row.configObjectId },
+          );
+        }
       },
       schemaMissingForRelatedFiltersMessage:
         'Process template configuration schema is required for related list filters.',
