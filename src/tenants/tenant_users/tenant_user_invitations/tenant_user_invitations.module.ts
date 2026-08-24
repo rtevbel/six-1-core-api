@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantUserInvitationsService } from './tenant_user_invitations.service';
 import { TenantUserInvitationsController } from './tenant_user_invitations.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +15,7 @@ import { NotificationsModule } from '../../../notifications/notifications.module
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserInvitationsEntity]),
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
   ],
   controllers: [TenantUserInvitationsController],
   providers: [TenantUserInvitationsService],

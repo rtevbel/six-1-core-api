@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantContactInfoService } from './tenant_contact_info.service';
 import { TenantContactInfoController } from './tenant_contact_info.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -11,7 +11,7 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantContactInfoEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [TenantContactInfoController],
   providers: [TenantContactInfoService],

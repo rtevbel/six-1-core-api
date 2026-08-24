@@ -25,6 +25,20 @@ class ScopedConfigViewBaseDto {
   @IsString()
   @IsNotEmpty()
   entityKey!: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  configObjectId?: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  configTemplateSetId?: number;
+
+  @IsString()
+  @IsOptional()
+  templateSetKey?: string;
 }
 
 export class GetActiveScopedConfigViewDto extends ScopedConfigViewBaseDto {

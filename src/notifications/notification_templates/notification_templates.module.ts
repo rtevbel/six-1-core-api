@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { NotificationTemplatesService } from './notification_templates.service';
 import { NotificationTemplatesController } from './notification_templates.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -14,7 +14,7 @@ import { NotificationCatalogModule } from '../catalog/notification-catalog.modul
 @Module({
   imports: [
     TypeOrmModule.forFeature([NotificationTemplateEntity]),
-    NotificationCatalogModule,
+    forwardRef(() => NotificationCatalogModule),
   ],
   controllers: [NotificationTemplatesController],
   providers: [NotificationTemplatesService],

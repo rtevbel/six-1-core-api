@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { Repository, DeleteResult, UpdateResult } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { UserMetaEntity } from './entities/user-meta.entity';
@@ -51,6 +51,7 @@ export class UserMetaService {
   constructor(
     @InjectRepository(UserMetaEntity)
     private readonly userMetaRepository: Repository<UserMetaEntity>,
+    @Inject(forwardRef(() => ConfigObjectsService))
     private readonly configObjectsService: ConfigObjectsService,
   ) {}
 

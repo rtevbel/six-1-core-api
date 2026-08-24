@@ -15,6 +15,8 @@ import {
   MICROSERVICE_FIND_ONE_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_UPDATE_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_REMOVE_TENANT_USER_INVITATION_PATTERN,
+  MICROSERVICE_RESEND_TENANT_USER_INVITATION_PATTERN,
+  MICROSERVICE_ACCEPT_TENANT_USER_INVITATION_PATTERN,
 } from './constants';
 
 /**
@@ -116,5 +118,21 @@ export class TenantUserInvitationsController {
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantUserInvitationsService.remove(userId, tenantId, id);
+  }
+
+  @MessagePattern(MICROSERVICE_RESEND_TENANT_USER_INVITATION_PATTERN)
+  async resendTenantUserInvitation(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId', ParseIntPipe) tenantId: number,
+    @Payload('data', ParseIntPipe) id: number,
+  ): Promise<TenantUserInvitationsEntity> {
+    return this.tenantUserInvitationsService.resend(userId, tenantId, id);
+  }
+
+  @MessagePattern(MICROSERVICE_ACCEPT_TENANT_USER_INVITATION_PATTERN)
+  async acceptTenantUserInvitation(
+    @Payload('data') data: { token?: string },
+  ): Promise<TenantUserInvitationsEntity> {
+    return this.tenantUserInvitationsService.acceptByToken(String(data?.token ?? ''));
   }
 }

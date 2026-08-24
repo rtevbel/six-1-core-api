@@ -10,6 +10,7 @@ import {
   PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK,
   PROCESS_STEP_ACTION_TYPE_EMIT_EVENT,
   PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+  PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   type ProcessStepActionType,
@@ -46,12 +47,19 @@ export interface GenerateVerificationTokenActionConfig {
   clearVerifiedBeforeIssue?: boolean;
 }
 
+/** Creates user + Admin role + tenant + verification from a registration form. */
+export interface OnboardTenantActionConfig {
+  /** Standalone object_type holding OnboardTenantDto-shaped payload. */
+  registrationObjectType?: string;
+}
+
 export type ProcessStepActionConfig =
   | EmitEventActionConfig
   | SendNotificationActionConfig
   | UpdateSorFieldActionConfig
   | CallWebhookActionConfig
-  | GenerateVerificationTokenActionConfig;
+  | GenerateVerificationTokenActionConfig
+  | OnboardTenantActionConfig;
 
 export function parseUpdateSorFieldActionConfig(
   raw: unknown,
@@ -167,9 +175,29 @@ export function parseGenerateVerificationTokenActionConfig(
   };
 }
 
-/**
- * Validates `config` JSON for a template/instance step action row.
- */
+export function parseOnboardTenantActionConfig(
+  raw: unknown,
+): OnboardTenantActionConfig | null {
+  if (raw == null) {
+    return {};
+  }
+  if (typeof raw !== 'object' || Array.isArray(raw)) {
+    return null;
+  }
+
+  const config = raw as Record<string, unknown>;
+  const registrationObjectType =
+    typeof config.registrationObjectType === 'string'
+      ? config.registrationObjectType.trim()
+      : '';
+
+  return {
+    ...(registrationObjectType
+      ? { registrationObjectType }
+      : {}),
+  };
+}
+
 export function parseProcessStepActionConfig(
   actionType: ProcessStepActionType,
   raw: unknown,
@@ -185,6 +213,8 @@ export function parseProcessStepActionConfig(
       return parseCallWebhookActionConfig(raw);
     case PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN:
       return parseGenerateVerificationTokenActionConfig(raw);
+    case PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT:
+      return parseOnboardTenantActionConfig(raw);
     default:
       return null;
   }

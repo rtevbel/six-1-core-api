@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { UserMetaService } from './user-meta.service';
 import { UserMetaController } from './user-meta.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -17,7 +17,7 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
   imports: [
     // Registers the UserMetaEntity for TypeORM.
     TypeOrmModule.forFeature([UserMetaEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
 
   // Specifies the controllers that handle incoming requests.

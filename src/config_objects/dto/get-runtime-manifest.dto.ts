@@ -16,4 +16,18 @@ export class GetRuntimeManifestDto {
   @IsBoolean()
   @IsOptional()
   includeDiagnostics?: boolean;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  configObjectId?: number;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
+  configTemplateSetId?: number;
+
+  @IsString()
+  @IsOptional()
+  templateSetKey?: string;
 }

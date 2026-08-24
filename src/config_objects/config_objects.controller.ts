@@ -241,6 +241,11 @@ export class ConfigObjectsController {
     return this.configObjectsService.getObjectSchema(
       dto.tenantId ?? null,
       dto.objectType,
+      {
+        configObjectId: dto.configObjectId,
+        configTemplateSetId: dto.configTemplateSetId,
+        templateSetKey: dto.templateSetKey,
+      },
     );
   }
 
@@ -1280,6 +1285,9 @@ export class ConfigObjectsController {
       tenantId: dto.tenantId ?? null,
       entityKey: dto.entityKey,
       viewType: dto.viewType,
+      configObjectId: dto.configObjectId,
+      configTemplateSetId: dto.configTemplateSetId,
+      templateSetKey: dto.templateSetKey,
     });
   }
 
@@ -1295,6 +1303,9 @@ export class ConfigObjectsController {
     return this.configObjectsService.listActiveScopedConfigViews({
       tenantId: dto.tenantId ?? null,
       entityKey: dto.entityKey,
+      configObjectId: dto.configObjectId,
+      configTemplateSetId: dto.configTemplateSetId,
+      templateSetKey: dto.templateSetKey,
     });
   }
 
@@ -1375,6 +1386,9 @@ export class ConfigObjectsController {
       tenantId: dto.tenantId ?? null,
       entityKey: dto.entityKey,
       includeDiagnostics: dto.includeDiagnostics ?? true,
+      configObjectId: dto.configObjectId,
+      configTemplateSetId: dto.configTemplateSetId,
+      templateSetKey: dto.templateSetKey,
     });
   }
 

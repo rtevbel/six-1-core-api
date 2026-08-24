@@ -123,7 +123,15 @@ export class TasksService {
         typeof f.tenantId === 'number' && f.tenantId > 0 ? f.tenantId : null,
       applyMandatoryScope: (qb, filters) => {
         const f = filters as FiltersDto;
-        qb.andWhere('t.projectId = :projectId', { projectId: f.projectId });
+        if (typeof f.projectId === 'number' && f.projectId > 0) {
+          qb.andWhere('t.projectId = :projectId', { projectId: f.projectId });
+          return;
+        }
+        if (typeof f.tenantId === 'number' && f.tenantId > 0) {
+          qb.andWhere('t.tenantId = :taskListTenantId', {
+            taskListTenantId: f.tenantId,
+          });
+        }
       },
       schemaMissingForRelatedFiltersMessage:
         'Task configuration schema is required for related list filters.',

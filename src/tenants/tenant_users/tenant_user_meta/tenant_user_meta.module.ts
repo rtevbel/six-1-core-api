@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantUserMetaService } from './tenant_user_meta.service';
 import { TenantUserMetaController } from './tenant_user_meta.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +15,7 @@ import { ConfigObjectsModule } from '../../../config_objects/config_objects.modu
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserMetaEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [TenantUserMetaController],
   providers: [TenantUserMetaService],

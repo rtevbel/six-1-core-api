@@ -33,6 +33,15 @@ export class GetConfigSchemaDto {
   @IsInt()
   @Min(1)
   @IsOptional()
+  configTemplateSetId?: number;
+
+  @IsString()
+  @IsOptional()
+  templateSetKey?: string;
+
+  @IsInt()
+  @Min(1)
+  @IsOptional()
   updatedBy?: number;
 
   @IsString()

@@ -19,6 +19,7 @@ import {
   NO_RECORD_FOUND_MESSAGE,
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
+import { applyTenantUserInvitationCreateDefaults } from './invitation-create.defaults';
 
 @Injectable()
 export class TenantUserInvitationsService {
@@ -39,19 +40,20 @@ export class TenantUserInvitationsService {
     userId: number,
     createTenantUserInvitationDto: CreateTenantUserInvitationDto,
   ): Promise<TenantUserInvitationsEntity> {
-    // Optionally validate userId permissions here
-    if (!createTenantUserInvitationDto.userId) {
-      createTenantUserInvitationDto.userId = 0;
-    }
-
-    if (createTenantUserInvitationDto.userId === 0) {
-      createTenantUserInvitationDto.userId = null;
-    }
+    const prepared = applyTenantUserInvitationCreateDefaults({
+      tenantId: createTenantUserInvitationDto.tenantId,
+      actorUserId: userId,
+      email: createTenantUserInvitationDto.email,
+      roleId: createTenantUserInvitationDto.roleId,
+      token: createTenantUserInvitationDto.token,
+      status: createTenantUserInvitationDto.status,
+      invitedBy: createTenantUserInvitationDto.invitedBy,
+      userId: createTenantUserInvitationDto.userId,
+      expiresAt: createTenantUserInvitationDto.expiresAt,
+    });
 
     const invitation = await this.tenantUserInvitationsRepository.save(
-      this.tenantUserInvitationsRepository.create(
-        createTenantUserInvitationDto,
-      ),
+      this.tenantUserInvitationsRepository.create(prepared),
     );
 
     // Fire tenant_user_invited event to drive notifications (email/SMS/push)
@@ -246,6 +248,71 @@ export class TenantUserInvitationsService {
       invitationId: id,
       tenantId,
     });
+  }
+
+  /**
+   * Re-sends a pending invitation (rotates token and re-emits tenant_user_invited).
+   */
+  async resend(
+    userId: number,
+    tenantId: number,
+    id: number,
+  ): Promise<TenantUserInvitationsEntity> {
+    const invitation = await this.tenantUserInvitationsRepository.findOne({
+      where: { invitationId: id, tenantId },
+    });
+    if (!invitation) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replace(
+          '{entity_name}',
+          TenantUserInvitationsEntity.name,
+        ),
+      );
+    }
+    if (invitation.status !== 'pending') {
+      throw new RpcException('Only pending invitations can be resent.');
+    }
+
+    invitation.token = applyTenantUserInvitationCreateDefaults({
+      tenantId,
+      actorUserId: userId,
+      email: invitation.email,
+      roleId: invitation.roleId,
+    }).token;
+    invitation.invitedBy = userId;
+    const saved = await this.tenantUserInvitationsRepository.save(invitation);
+    await this.emitTenantUserInvitedEvent(saved);
+    return saved;
+  }
+
+  /**
+   * Accepts an invitation from the public token link.
+   */
+  async acceptByToken(token: string): Promise<TenantUserInvitationsEntity> {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      throw new RpcException('Invitation token is required.');
+    }
+    const invitation = await this.tenantUserInvitationsRepository.findOne({
+      where: { token: trimmed },
+    });
+    if (!invitation) {
+      throw new RpcException('Invalid invitation token.');
+    }
+    if (invitation.status === 'accepted') {
+      return invitation;
+    }
+    if (invitation.status !== 'pending') {
+      throw new RpcException('This invitation is no longer pending.');
+    }
+    if (invitation.expiresAt && invitation.expiresAt.getTime() < Date.now()) {
+      throw new RpcException('This invitation has expired.');
+    }
+
+    invitation.status = 'accepted';
+    const saved = await this.tenantUserInvitationsRepository.save(invitation);
+    await this.emitTenantUserInvitationAcceptedEvent(saved);
+    return saved;
   }
 
   /**

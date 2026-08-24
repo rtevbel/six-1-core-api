@@ -1,5 +1,5 @@
 // Importing necessary modules and decorators from NestJS
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 // Importing the service and controller for tenant metadata
 import { TenantMetaService } from './tenant_meta.service';
@@ -24,7 +24,7 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
   imports: [
     // Registers the TenantMetaEntity for TypeORM.
     TypeOrmModule.forFeature([TenantMetaEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantMetaController],

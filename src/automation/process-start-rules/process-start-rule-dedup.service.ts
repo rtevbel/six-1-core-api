@@ -9,6 +9,8 @@ export interface ActiveProcessLookupParams {
   subjectId: number;
   templateId: number;
   correlationId?: string | null;
+  /** Skip when an active instance of this template already has context.tenantId. */
+  contextTenantId?: number | null;
 }
 
 /**
@@ -37,6 +39,26 @@ export class ProcessStartRuleDedupService {
 
     if (active) {
       return active;
+    }
+
+    const contextTenantId = Number(params.contextTenantId);
+    if (Number.isFinite(contextTenantId) && contextTenantId > 0) {
+      const byContext = await this.processRepository
+        .createQueryBuilder('p')
+        .where('p.processTemplateId = :templateId', {
+          templateId: params.templateId,
+        })
+        .andWhere('p.status = :status', { status: 'active' })
+        .andWhere(
+          `CAST(JSON_UNQUOTE(JSON_EXTRACT(p.context, '$.tenantId')) AS UNSIGNED) = :contextTenantId`,
+          { contextTenantId },
+        )
+        .orderBy('p.processInstanceId', 'DESC')
+        .getOne();
+
+      if (byContext) {
+        return byContext;
+      }
     }
 
     if (!params.correlationId?.trim()) {

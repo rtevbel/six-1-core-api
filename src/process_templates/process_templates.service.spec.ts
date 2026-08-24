@@ -176,6 +176,10 @@ describe('ProcessTemplatesService', () => {
     } as any);
 
     expect(andWhere).toHaveBeenCalledWith(
+      '(pt.tenantId = :ptTenantId OR pt.tenantId = 0)',
+      { ptTenantId: 10 },
+    );
+    expect(andWhere).toHaveBeenCalledWith(
       expect.stringContaining('process_template_step_object_bindings'),
       expect.objectContaining({ bindingConfigObjectId: 20 }),
     );

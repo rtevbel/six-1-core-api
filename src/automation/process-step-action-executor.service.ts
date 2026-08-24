@@ -16,6 +16,7 @@ import {
   PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK,
   PROCESS_STEP_ACTION_TYPE_EMIT_EVENT,
   PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+  PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   type ProcessStepActionRunOn,
@@ -32,12 +33,14 @@ import {
   parseProcessStepActionConfig,
   type CallWebhookActionConfig,
   type GenerateVerificationTokenActionConfig,
+  type OnboardTenantActionConfig,
   type UpdateSorFieldActionConfig,
 } from './process-step-action.types';
 import { ProcessStepWebhookClient } from './process-step-webhook.client';
 import { ProcessStepActionExecutionLogService } from './process-step-action-execution-log.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
 import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
+import { ProcessStepOnboardTenantService } from './process-step-onboard-tenant.service';
 
 export interface ProcessStepActionExecutionOptions {
   correlationId?: string | null;
@@ -85,6 +88,7 @@ export class ProcessStepActionExecutorService {
     private readonly executionLog: ProcessStepActionExecutionLogService,
     private readonly stepFailure: ProcessStepFailureService,
     private readonly generateVerificationToken: ProcessStepGenerateVerificationTokenService,
+    private readonly onboardTenant: ProcessStepOnboardTenantService,
   ) {}
 
   /**
@@ -359,6 +363,11 @@ export class ProcessStepActionExecutorService {
       case PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN:
         return this.generateVerificationToken.execute(
           config as GenerateVerificationTokenActionConfig,
+          envelopeParams,
+        );
+      case PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT:
+        return this.onboardTenant.execute(
+          config as OnboardTenantActionConfig,
           envelopeParams,
         );
       default:

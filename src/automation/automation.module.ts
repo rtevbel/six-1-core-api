@@ -50,6 +50,12 @@ import { ProcessStepAssigneeResolverService } from './process-step-assignee-reso
 import { ProcessStepExtensionEvaluatorService } from './process-step-extension-evaluator.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
 import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
+import { ProcessStepOnboardTenantService } from './process-step-onboard-tenant.service';
+import { ProcessInstanceStepObjectInstanceEntity } from '../process_instances/process_instance_steps/process_instance_step_object_instances/entities/process_instance_step_object_instance.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
+import { UsersModule } from '../users/users.module';
+import { UserRolesModule } from '../users/user-roles/user-roles.module';
+import { TenantsModule } from '../tenants/tenants.module';
 
 @Module({
   imports: [
@@ -59,6 +65,9 @@ import { ProcessStepGenerateVerificationTokenService } from './process-step-gene
     forwardRef(() => PlatformActionsModule),
     NotificationRulesModule,
     ProcessStartRulesModule,
+    forwardRef(() => UsersModule),
+    UserRolesModule,
+    forwardRef(() => TenantsModule),
     TypeOrmModule.forFeature([
       ConfigCustomObjectInstanceEntity,
       ProcessInstanceEntity,
@@ -67,6 +76,8 @@ import { ProcessStepGenerateVerificationTokenService } from './process-step-gene
       ProcessActionExecutionLogEntity,
       ProcessStepExecutionLogEntity,
       ProcessInstanceStepAssigneeEntity,
+      ProcessInstanceStepObjectInstanceEntity,
+      TenantUsersEntity,
     ]),
   ],
   providers: [
@@ -99,6 +110,7 @@ import { ProcessStepGenerateVerificationTokenService } from './process-step-gene
     ProcessStepExtensionEvaluatorService,
     ProcessStepFailureService,
     ProcessStepGenerateVerificationTokenService,
+    ProcessStepOnboardTenantService,
     ProcessStepWebhookClient,
     ProcessStartRuleEngineService,
     ProcessStartRuleDedupService,

@@ -1,5 +1,5 @@
 // Importing necessary modules and decorators from NestJS
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 // Importing the service and controller for tenants
 import { TenantsService } from './tenants.service';
@@ -33,7 +33,7 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
   imports: [
     // Registers the TenantEntity for TypeORM.
     TypeOrmModule.forFeature([TenantEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
     TenantTypesModule, // Module for managing tenant types
     TenantMetaModule, // Module for managing tenant metadata
     TenantWorkingHoursModule, // Module for managing tenant working hours
@@ -42,7 +42,7 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
     TenantBillingInfoModule, // Module for managing tenant billing information
     TenantSubscriptionsModule, // Module for managing tenant subscriptions
     TenantConfigurationsModule, // Module for managing tenant configurations
-    TenantUsersModule, // Module for managing tenant users
+    forwardRef(() => TenantUsersModule),
     TenantTeamsModule, // Module for managing tenant teams
   ],
   // Specifies the controllers that handle incoming requests.
@@ -50,5 +50,6 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 
   // Specifies the providers that contain the business logic.
   providers: [TenantsService, SystemTenantBootstrapService],
+  exports: [TenantsService],
 })
 export class TenantsModule {}

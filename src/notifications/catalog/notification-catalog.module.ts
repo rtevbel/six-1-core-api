@@ -17,9 +17,9 @@ import { NotificationTemplatePreviewService } from './notification-template-prev
 @Module({
   imports: [
     ConfigModule,
-    ConfigObjectsModule,
-    NotificationContextModule,
-    UsersModule,
+    forwardRef(() => ConfigObjectsModule),
+    forwardRef(() => NotificationContextModule),
+    forwardRef(() => UsersModule),
     forwardRef(() => EventLogsModule),
   ],
   providers: [

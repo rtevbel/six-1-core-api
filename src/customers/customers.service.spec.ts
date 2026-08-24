@@ -131,6 +131,22 @@ describe('CustomersService', () => {
     appendRelatedExistsSpy.mockRestore();
   });
 
+  it('scopes customer list to projects of the requested tenant', async () => {
+    await service.findAll(1, {
+      tenantId: 20,
+      page: 1,
+      limit: 10,
+      sortBy: 'customerId',
+      sortOrder: 'DESC',
+      sortSource: 'core',
+    });
+
+    expect(qb.andWhere).toHaveBeenCalledWith(
+      expect.stringContaining('customer_project_members'),
+      { customerListTenantId: 20 },
+    );
+  });
+
   it('applies core filter safely via parameterized clauses', async () => {
     await service.findAll(1, {
       filters: [

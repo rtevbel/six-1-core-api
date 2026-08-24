@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantUsersService } from './tenant_users.service';
 import { TenantUsersController } from './tenant_users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -22,8 +22,8 @@ import { TenantUserRolesModule } from './tenant_user_roles/tenant_user_roles.mod
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUsersEntity]),
-    ConfigObjectsModule,
-    TenantUserInvitationsModule,
+    forwardRef(() => ConfigObjectsModule),
+    forwardRef(() => TenantUserInvitationsModule),
     TenantUserConfigurationsModule,
     TenantUserWorkingHoursModule,
     TenantUserOffDaysModule,

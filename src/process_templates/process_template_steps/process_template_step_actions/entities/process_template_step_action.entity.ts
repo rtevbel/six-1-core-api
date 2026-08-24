@@ -43,6 +43,7 @@ export class ProcessTemplateStepActionEntity {
       'update_sor_field',
       'call_webhook',
       'generate_verification_token',
+      'onboard_tenant',
     ],
   })
   actionType!: ProcessStepActionType;

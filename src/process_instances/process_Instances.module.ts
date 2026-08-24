@@ -14,8 +14,7 @@ import { PlatformEventRecordEntity } from '../events/platform-bus/entities/platf
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
 import { AutomationModule } from '../automation/automation.module';
 import { AuthorizationModule } from '../authorization/authorization.module';
-import { ProcessStepLockEntity } from './process_step_locks/entities/process_step_lock.entity';
-import { ProcessStepLocksService } from './process_step_locks/process-step-locks.service';
+import { ProcessStepLocksModule } from './process_step_locks/process-step-locks.module';
 
 /**
  * ProcessInstancesModule is responsible for managing process instances.
@@ -32,9 +31,9 @@ import { ProcessStepLocksService } from './process_step_locks/process-step-locks
       ProcessActionExecutionLogEntity,
       ProcessStepExecutionLogEntity,
       PlatformEventRecordEntity,
-      ProcessStepLockEntity,
     ]),
     ProcessInstanceStepsModule,
+    ProcessStepLocksModule,
     forwardRef(() => ConfigObjectsModule),
     forwardRef(() => AutomationModule),
     AuthorizationModule,
@@ -45,14 +44,13 @@ import { ProcessStepLocksService } from './process_step_locks/process-step-locks
     ProcessRunnerService,
     ProcessStepPermissionService,
     ProcessInstanceTimelineService,
-    ProcessStepLocksService,
   ],
   exports: [
     ProcessInstancesService,
     ProcessRunnerService,
     ProcessStepPermissionService,
     ProcessInstanceTimelineService,
-    ProcessStepLocksService,
+    ProcessStepLocksModule,
   ],
 })
 export class ProcessInstancesModule {}

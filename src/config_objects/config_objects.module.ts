@@ -38,7 +38,7 @@ import { ConfigObjectVerificationRuleEntity } from './entities/config_object_ver
 import { ConfigObjectVerificationAuditLogEntity } from './entities/config_object_verification_audit_log.entity';
 import { ConfigObjectsController } from './config_objects.controller';
 import { EventsModule } from '../events/events.module';
-import { ProcessInstancesModule } from '../process_instances/process_Instances.module';
+import { ProcessStepLocksModule } from '../process_instances/process_step_locks/process-step-locks.module';
 import { StorageModule } from '../storage/storage.module';
 
 /**
@@ -54,7 +54,7 @@ import { StorageModule } from '../storage/storage.module';
 @Module({
   imports: [
     forwardRef(() => EventsModule),
-    forwardRef(() => ProcessInstancesModule),
+    ProcessStepLocksModule,
     StorageModule,
     TypeOrmModule.forFeature([
       ConfigTemplateSetEntity,

@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { NotificationPlatformFlagsService } from '../config/notification-platform-flags.service';
@@ -23,8 +23,8 @@ import { ProcessInstanceStepEntity } from '../../process_instances/process_insta
 @Module({
   imports: [
     ConfigModule,
-    UsersModule,
-    ConfigObjectsModule,
+    forwardRef(() => UsersModule),
+    forwardRef(() => ConfigObjectsModule),
     TypeOrmModule.forFeature([
       TenantEntity,
       ProcessInstanceEntity,

@@ -116,12 +116,15 @@ export class ProcessStartRuleEngineService {
         envelope,
       });
 
+      const contextTenantId = this.resolveContextTenantId(resolved.context, envelope);
+
       const blocking = await this.dedup.findBlockingActiveProcess({
         tenantId,
         subjectType: resolved.subjectType,
         subjectId: resolved.subjectId,
         templateId: rule.templateId,
         correlationId,
+        contextTenantId,
       });
 
       if (blocking) {
@@ -208,5 +211,27 @@ export class ProcessStartRuleEngineService {
     }
 
     return null;
+  }
+
+  private resolveContextTenantId(
+    context: Record<string, unknown>,
+    envelope: EventEnvelope,
+  ): number | undefined {
+    const fromContext = Number(context.tenantId);
+    if (Number.isFinite(fromContext) && fromContext > 0) {
+      return fromContext;
+    }
+
+    const entity = envelope.entity as
+      | { entityType?: string; entityId?: number | string }
+      | undefined;
+    if (entity?.entityType === 'tenant' || entity?.entityType === 'tenants') {
+      const tenantId = Number(entity.entityId);
+      if (Number.isFinite(tenantId) && tenantId > 0) {
+        return tenantId;
+      }
+    }
+
+    return undefined;
   }
 }

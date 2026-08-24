@@ -3,7 +3,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { AuthoringErrorCode } from './constants/authoring-error-codes';
 import { RuntimeErrorCode } from './constants/runtime-error-codes';
-import { DataSource, Repository } from 'typeorm';
+import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
 import { ConfigObjectsService } from './config_objects.service';
@@ -158,7 +158,14 @@ describe('ConfigObjectsService', () => {
           provide: DataSource,
           useValue: {
             transaction: jest.fn(),
-            getMetadata: jest.fn(),
+            getMetadata: jest.fn().mockReturnValue({
+              primaryColumns: [{ propertyName: 'id' }],
+              relations: [],
+              columns: [],
+              oneToManyRelations: [],
+              manyToOneRelations: [],
+              tableName: 'mock_table',
+            }),
             getRepository: jest.fn(),
           },
         },
@@ -225,6 +232,53 @@ describe('ConfigObjectsService', () => {
     jest.spyOn(relationshipRepo, 'find').mockResolvedValue([]);
   });
 
+  /**
+   * Mocks unscoped entity resolution (published template-set walk + object lookup).
+   * Used by getObjectSchema / getActiveScopedConfigView / listActiveScopedConfigViews.
+   */
+  function mockUnscopedConfigObjectResolve(opts: {
+    tenantSets?: Array<{
+      configTemplateSetId: number;
+      tenantId?: number | null;
+      status?: string;
+      key?: string;
+    }>;
+    globalSets?: Array<{
+      configTemplateSetId: number;
+      tenantId?: number | null;
+      status?: string;
+      key?: string;
+    }>;
+    objectsBySetId: Record<number, Record<string, unknown> | null>;
+    /** When effectiveTenantId is null (e.g. tenantId 0 / omitted), only global find runs. */
+    skipTenantWalk?: boolean;
+  }): void {
+    const findSpy = jest.spyOn(templateSetRepo, 'find');
+    if (!opts.skipTenantWalk) {
+      findSpy.mockResolvedValueOnce((opts.tenantSets ?? []) as any);
+    }
+    findSpy.mockResolvedValueOnce((opts.globalSets ?? []) as any);
+
+    jest
+      .spyOn(configObjectRepo, 'findOne')
+      .mockImplementation(async (options: any) => {
+        const where = options?.where ?? {};
+        if (typeof where.configObjectId === 'number') {
+          for (const obj of Object.values(opts.objectsBySetId)) {
+            if (obj && obj.configObjectId === where.configObjectId) {
+              return obj as any;
+            }
+          }
+          return null as any;
+        }
+        const setId = where.configTemplateSetId;
+        if (typeof setId === 'number') {
+          return (opts.objectsBySetId[setId] ?? null) as any;
+        }
+        return null as any;
+      });
+  }
+
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
@@ -260,15 +314,28 @@ describe('ConfigObjectsService', () => {
     } as ConfigObjectEntity;
 
     function mockStandaloneSchemaLookup(): void {
-      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-        configTemplateSetId: 20,
-        tenantId: null,
-        status: 'PUBLISHED',
-      } as any);
-      jest
-        .spyOn(configObjectRepo, 'findOne')
-        .mockResolvedValueOnce(standaloneConfigObject as any);
-      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      mockUnscopedConfigObjectResolve({
+        skipTenantWalk: true,
+        globalSets: [
+          {
+            configTemplateSetId: 20,
+            tenantId: null,
+            status: 'PUBLISHED',
+          },
+        ],
+        objectsBySetId: { 20: standaloneConfigObject as any },
+      });
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
+        {
+          configObjectFieldId: 1,
+          fieldKey: 'site_name',
+          label: 'Site name',
+          fieldType: 'text',
+          orderIndex: 0,
+          sectionKey: null,
+          defaultValue: null,
+        } as any,
+      ]);
       jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
       jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
     }
@@ -375,12 +442,22 @@ describe('ConfigObjectsService', () => {
       jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce(row);
       jest
         .spyOn(configObjectRepo, 'findOne')
-        .mockResolvedValueOnce(standaloneConfigObject as any);
-      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        .mockResolvedValue(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
         configTemplateSetId: 20,
         tenantId: null,
         status: 'PUBLISHED',
       } as any);
+      jest.spyOn(templateSetRepo, 'find').mockResolvedValue([
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ] as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValue([]);
       jest.spyOn(customObjectInstanceRepo, 'save').mockImplementation(async (entity) => ({
         ...entity,
         payload: { site_name: 'Updated lot' },
@@ -417,16 +494,23 @@ describe('ConfigObjectsService', () => {
       jest.spyOn(customObjectInstanceRepo, 'findOne').mockResolvedValueOnce(row);
       jest
         .spyOn(configObjectRepo, 'findOne')
-        .mockResolvedValueOnce(standaloneConfigObject as any);
-      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        .mockResolvedValue(standaloneConfigObject as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
         configTemplateSetId: 20,
         tenantId: null,
         status: 'PUBLISHED',
       } as any);
-      jest.spyOn(customObjectInstanceRepo, 'save').mockImplementation(async (entity) => ({
-        ...entity,
-        payload: { full_name: 'Ali shoaib' },
-      }) as ConfigCustomObjectInstanceEntity);
+      jest.spyOn(templateSetRepo, 'find').mockResolvedValue([
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ] as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValue([]);
+      jest.spyOn(customObjectInstanceRepo, 'save').mockImplementation(async (entity) => entity as any);
       jest.spyOn(auditLogRepo, 'create').mockReturnValue({} as any);
       jest.spyOn(auditLogRepo, 'save').mockResolvedValue({} as any);
 
@@ -434,7 +518,7 @@ describe('ConfigObjectsService', () => {
         tenantId: 0,
         configCustomObjectInstanceId: 44,
         updatedBy: 1,
-        payload: { full_name: 'Ali shoaib' },
+        payload: { site_name: 'x' },
       });
 
       expect(stepLocksService.assertCanMutateStep).toHaveBeenCalledWith({
@@ -471,20 +555,81 @@ describe('ConfigObjectsService', () => {
       );
     });
 
-    it('resolveObjectInstance still resolves SoR objects when tenantId is null', async () => {
+    it('listCustomObjectInstances allows tenant users to list instances for global published packs', async () => {
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        configObjectId: 36,
+        configTemplateSetId: 4,
+        objectType: 'hvac_site_survey',
+        bindingMode: 'standalone',
+        status: 'PUBLISHED',
+      } as any);
       jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-        configTemplateSetId: 20,
+        configTemplateSetId: 4,
+        key: 'industry_hvac_install',
         tenantId: null,
         status: 'PUBLISHED',
       } as any);
+      const find = jest
+        .spyOn(customObjectInstanceRepo, 'find')
+        .mockResolvedValueOnce([]);
 
+      await service.listCustomObjectInstances({
+        tenantId: 20,
+        configObjectId: 36,
+      });
+
+      expect(find).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            tenantId: 20,
+            configObjectId: 36,
+          }),
+        }),
+      );
+    });
+
+    it('listCustomObjectInstances rejects tenant access when pack is not global and not owned', async () => {
       jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-        configObjectId: 120,
-        configTemplateSetId: 20,
-        objectType: 'customer',
-        bindingMode: 'sor_bound',
+        configObjectId: 99,
+        configTemplateSetId: 9,
+        objectType: 'other_intake',
+        bindingMode: 'standalone',
         status: 'PUBLISHED',
       } as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        configTemplateSetId: 9,
+        tenantId: 3,
+        status: 'PUBLISHED',
+      } as any);
+
+      await expect(
+        service.listCustomObjectInstances({
+          tenantId: 20,
+          configObjectId: 99,
+        }),
+      ).rejects.toThrow('Config object does not belong to the specified tenant.');
+    });
+
+    it('resolveObjectInstance still resolves SoR objects when tenantId is null', async () => {
+      mockUnscopedConfigObjectResolve({
+        skipTenantWalk: true,
+        globalSets: [
+          {
+            configTemplateSetId: 20,
+            tenantId: null,
+            status: 'PUBLISHED',
+          },
+        ],
+        objectsBySetId: {
+          20: {
+            configObjectId: 120,
+            configTemplateSetId: 20,
+            objectType: 'customer',
+            bindingMode: 'sor_bound',
+            status: 'PUBLISHED',
+          },
+        },
+      });
 
       jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
       jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
@@ -495,6 +640,11 @@ describe('ConfigObjectsService', () => {
       } as any);
       jest.spyOn(dataSource, 'getMetadata').mockReturnValue({
         primaryColumns: [{ propertyName: 'customerId' }],
+        oneToManyRelations: [],
+        manyToOneRelations: [],
+        relations: [],
+        columns: [],
+        tableName: 'customers',
       } as any);
       jest.spyOn(dataSource, 'getRepository').mockReturnValue({
         findOne: jest.fn().mockResolvedValue({ customerId: 9, email: 'a@b.c' }),
@@ -510,10 +660,11 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should return null when no active template set exists', async () => {
-    jest
-      .spyOn(templateSetRepo, 'findOne')
-      .mockResolvedValueOnce(null as any)
-      .mockResolvedValueOnce(null as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [],
+      globalSets: [],
+      objectsBySetId: {},
+    });
 
     const schema = await service.getObjectSchema(1, 'project');
 
@@ -521,22 +672,25 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should fallback to global published template set when tenant has none', async () => {
-    jest
-      .spyOn(templateSetRepo, 'findOne')
-      .mockResolvedValueOnce(null as any)
-      .mockResolvedValueOnce({
-        configTemplateSetId: 20,
-        tenantId: null,
-        status: 'PUBLISHED',
-      } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 120,
-      configTemplateSetId: 20,
-      objectType: 'customer',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [],
+      globalSets: [
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        20: {
+          configObjectId: 120,
+          configTemplateSetId: 20,
+          objectType: 'customer',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
@@ -548,19 +702,24 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should return fields and rules when configuration exists', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 100,
-      configTemplateSetId: 10,
-      objectType: 'project',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: 1,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 100,
+          configTemplateSetId: 10,
+          objectType: 'project',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
       {
@@ -737,19 +896,24 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should resolve legacy plural objectType rows for canonical requests', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 101,
-      configTemplateSetId: 10,
-      objectType: 'customers',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: 1,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 101,
+          configTemplateSetId: 10,
+          objectType: 'customers',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
@@ -762,20 +926,25 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should include system_entity runner hints for system_table', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 200,
-      configTemplateSetId: 10,
-      objectType: 'tenant_teams',
-      bindingMode: 'system_table',
-      sorTableName: 'tenant_teams',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: 1,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 200,
+          configTemplateSetId: 10,
+          objectType: 'tenant_teams',
+          bindingMode: 'system_table',
+          sorTableName: 'tenant_teams',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValueOnce([]);
@@ -800,11 +969,13 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getObjectSchema should include merged relation catalogs and related field registries', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-      status: 'PUBLISHED',
-    } as any);
+    jest.spyOn(templateSetRepo, 'find').mockResolvedValueOnce([
+      {
+        configTemplateSetId: 10,
+        tenantId: 1,
+        status: 'PUBLISHED',
+      } as any,
+    ]);
 
     jest.spyOn(configObjectRepo, 'findOne').mockImplementation(async (opts: any) => {
       const w = opts?.where ?? {};
@@ -845,6 +1016,7 @@ describe('ConfigObjectsService', () => {
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValue([]);
     jest.spyOn(fieldRuleRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValue([]);
     jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
       {
         fromObjectType: 'role',
@@ -888,19 +1060,24 @@ describe('ConfigObjectsService', () => {
   });
 
   it('applySorBoundInstancePatch should merge core and meta in one transaction for project', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 100,
-      configTemplateSetId: 10,
-      objectType: 'project',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: 1,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 100,
+          configTemplateSetId: 10,
+          objectType: 'project',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
       {
@@ -913,6 +1090,7 @@ describe('ConfigObjectsService', () => {
       } as any,
     ]);
     jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
 
     const mockManager = {
       findOne: jest
@@ -964,19 +1142,25 @@ describe('ConfigObjectsService', () => {
   });
 
   it('applySorBoundInstancePatch should apply meta under global schema when tenantId is omitted', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 20,
-      tenantId: null,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 120,
-      configTemplateSetId: 20,
-      objectType: 'customer',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      skipTenantWalk: true,
+      globalSets: [
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        20: {
+          configObjectId: 120,
+          configTemplateSetId: 20,
+          objectType: 'customer',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
       {
@@ -1029,25 +1213,31 @@ describe('ConfigObjectsService', () => {
   });
 
   it('applySorBoundInstancePatch should persist customer verification meta fields', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 20,
-      tenantId: null,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 120,
-      configTemplateSetId: 20,
-      objectType: 'customer',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-      verificationFieldMap: {
-        tokenField: 'verification_token',
-        expiresAtField: 'token_expires_at',
-        verifiedField: 'email_verified',
-        defaultTtlHours: 24,
+    mockUnscopedConfigObjectResolve({
+      skipTenantWalk: true,
+      globalSets: [
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        20: {
+          configObjectId: 120,
+          configTemplateSetId: 20,
+          objectType: 'customer',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+          verificationFieldMap: {
+            tokenField: 'verification_token',
+            expiresAtField: 'token_expires_at',
+            verifiedField: 'email_verified',
+            defaultTtlHours: 24,
+          },
+        },
       },
-    } as any);
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
       {
@@ -1116,25 +1306,31 @@ describe('ConfigObjectsService', () => {
   });
 
   it('resolveObjectInstance should expose customer verification meta fields', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 20,
-      tenantId: null,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 120,
-      configTemplateSetId: 20,
-      objectType: 'customer',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-      verificationFieldMap: {
-        tokenField: 'verification_token',
-        expiresAtField: 'token_expires_at',
-        verifiedField: 'email_verified',
-        defaultTtlHours: 24,
+    mockUnscopedConfigObjectResolve({
+      skipTenantWalk: true,
+      globalSets: [
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        20: {
+          configObjectId: 120,
+          configTemplateSetId: 20,
+          objectType: 'customer',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+          verificationFieldMap: {
+            tokenField: 'verification_token',
+            expiresAtField: 'token_expires_at',
+            verifiedField: 'email_verified',
+            defaultTtlHours: 24,
+          },
+        },
       },
-    } as any);
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([
       {
@@ -1177,9 +1373,24 @@ describe('ConfigObjectsService', () => {
 
     jest.spyOn(dataSource, 'getMetadata').mockReturnValue({
       primaryColumns: [{ propertyName: 'customerId' }],
+      oneToManyRelations: [],
+      manyToOneRelations: [],
+      relations: [],
+      columns: [],
+      tableName: 'customers',
     } as any);
     jest.spyOn(dataSource, 'getRepository').mockReturnValue({
-      findOne: jest.fn().mockResolvedValue({ customerId: 9, email: 'a@b.c' }),
+      findOne: jest
+        .fn()
+        .mockResolvedValueOnce({ customerId: 9, email: 'a@b.c' })
+        .mockResolvedValueOnce({
+          customerId: 9,
+          metaJson: {
+            verification_token: 'tok-abc',
+            token_expires_at: '2026-06-26T12:00:00.000Z',
+            email_verified: false,
+          },
+        }),
     } as any);
 
     const resolved = await service.resolveObjectInstance(null, 'customer', 9);
@@ -1200,22 +1411,29 @@ describe('ConfigObjectsService', () => {
   });
 
   it('applySorBoundInstancePatch should reject corePatch without tenant scope', async () => {
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 20,
-      tenantId: null,
-      status: 'PUBLISHED',
-    } as any);
-
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 100,
-      configTemplateSetId: 20,
-      objectType: 'project',
-      bindingMode: 'sor_bound',
-      status: 'PUBLISHED',
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      skipTenantWalk: true,
+      globalSets: [
+        {
+          configTemplateSetId: 20,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        20: {
+          configObjectId: 100,
+          configTemplateSetId: 20,
+          objectType: 'project',
+          bindingMode: 'sor_bound',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
     jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
 
     await expect(
       service.applySorBoundInstancePatch({
@@ -1536,22 +1754,52 @@ describe('ConfigObjectsService', () => {
     expect(out.relationshipSource).toBe('designer');
   });
 
-  it('getRelationshipsForObjectType should reject duplicate orm and designer relation keys', async () => {
+  it('getRelationshipsForObjectType should prefer designer over orm when keys collide', async () => {
     jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
       {
         fromObjectType: 'role',
         toObjectType: 'permission',
         relationshipKey: 'role_permissions',
-        displayName: 'Role permissions',
+        displayName: 'Role permissions (designer)',
         cardinality: 'many_to_many',
+        relationshipSource: 'designer',
+        isActive: true,
+        queryConfig: { join_table: 'role_permissions' },
+      } as any,
+    ]);
+
+    const out = await service.getRelationshipsForObjectType('role');
+    const hit = out.find((r) => r.relationshipKey === 'role_permissions');
+    expect(hit?.relationshipSource).toBe('designer');
+    expect(hit?.displayName).toBe('Role permissions (designer)');
+  });
+
+  it('getRelationshipsForObjectType should reject duplicate designer relation keys', async () => {
+    jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
+      {
+        fromObjectType: 'tenant',
+        toObjectType: 'tenant_billing_info',
+        relationshipKey: 'pack_only_rel',
+        displayName: 'A',
+        cardinality: 'one_to_many',
+        relationshipSource: 'designer',
+        isActive: true,
+        queryConfig: {},
+      } as any,
+      {
+        fromObjectType: 'tenant',
+        toObjectType: 'tenant_billing_info',
+        relationshipKey: 'pack_only_rel',
+        displayName: 'B',
+        cardinality: 'one_to_many',
         relationshipSource: 'designer',
         isActive: true,
         queryConfig: {},
       } as any,
     ]);
 
-    await expect(service.getRelationshipsForObjectType('role')).rejects.toThrow(
-      /Duplicate relationship key/,
+    await expect(service.getRelationshipsForObjectType('tenant')).rejects.toThrow(
+      /Duplicate designer relationship key/,
     );
   });
 
@@ -1759,6 +2007,51 @@ describe('ConfigObjectsService', () => {
 
     expect(templateSetRepo.find).toHaveBeenCalledWith({
       where: {},
+      order: { configTemplateSetId: 'ASC' },
+    });
+  });
+
+  it('listConfigObjects for tenant users includes own and global published template sets', async () => {
+    jest.spyOn(templateSetRepo, 'find').mockResolvedValueOnce([
+      { configTemplateSetId: 20 } as any,
+      { configTemplateSetId: 9 } as any,
+    ]);
+    jest.spyOn(configObjectRepo, 'find').mockResolvedValueOnce([]);
+
+    await service.listConfigObjects(20);
+
+    expect(templateSetRepo.find).toHaveBeenCalledWith({
+      where: [
+        { tenantId: 20 },
+        { tenantId: IsNull(), status: 'PUBLISHED' },
+      ],
+      order: { configTemplateSetId: 'ASC' },
+    });
+  });
+
+  it('listTemplateSets for tenant users includes own and global published sets', async () => {
+    jest.spyOn(templateSetRepo, 'find').mockResolvedValueOnce([]);
+
+    await service.listTemplateSets(20);
+
+    expect(templateSetRepo.find).toHaveBeenCalledWith({
+      where: [
+        { tenantId: 20, status: In(['DRAFT', 'PUBLISHED', 'CONFLICT']) },
+        { tenantId: IsNull(), status: 'PUBLISHED' },
+      ],
+      order: { configTemplateSetId: 'ASC' },
+    });
+  });
+
+  it('listTemplateSets for super admin omits archived packs', async () => {
+    jest.spyOn(templateSetRepo, 'find').mockResolvedValueOnce([]);
+
+    await service.listTemplateSets(null);
+
+    expect(templateSetRepo.find).toHaveBeenCalledWith({
+      where: {
+        status: In(['DRAFT', 'PUBLISHED', 'CONFLICT']),
+      },
       order: { configTemplateSetId: 'ASC' },
     });
   });
@@ -2094,16 +2387,23 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getActiveScopedConfigView should fallback to global active view when tenant-scoped view does not exist', async () => {
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 100,
-      configTemplateSetId: 10,
-      objectType: 'project',
-    } as any);
-
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: 1,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 100,
+          configTemplateSetId: 10,
+          objectType: 'project',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     const findOneSpy = jest
       .spyOn(viewRepo, 'findOne')
@@ -2126,7 +2426,11 @@ describe('ConfigObjectsService', () => {
   });
 
   it('getActiveScopedConfigView should return null when no config object exists for entityKey', async () => {
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [],
+      globalSets: [],
+      objectsBySetId: {},
+    });
 
     const result = await service.getActiveScopedConfigView({
       tenantId: 1,
@@ -2138,7 +2442,11 @@ describe('ConfigObjectsService', () => {
   });
 
   it('listActiveScopedConfigViews should return empty when no config object exists for entityKey', async () => {
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce(null as any);
+    mockUnscopedConfigObjectResolve({
+      tenantSets: [],
+      globalSets: [],
+      objectsBySetId: {},
+    });
 
     const result = await service.listActiveScopedConfigViews({
       tenantId: 1,
@@ -2149,16 +2457,24 @@ describe('ConfigObjectsService', () => {
   });
 
   it('listActiveScopedConfigViews should return global active views when tenant scope is omitted', async () => {
-    jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-      configObjectId: 101,
-      configTemplateSetId: 10,
-      objectType: 'project',
-    } as any);
-
-    jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-      configTemplateSetId: 10,
-      tenantId: 1,
-    } as any);
+    mockUnscopedConfigObjectResolve({
+      skipTenantWalk: true,
+      globalSets: [
+        {
+          configTemplateSetId: 10,
+          tenantId: null,
+          status: 'PUBLISHED',
+        },
+      ],
+      objectsBySetId: {
+        10: {
+          configObjectId: 101,
+          configTemplateSetId: 10,
+          objectType: 'project',
+          status: 'PUBLISHED',
+        },
+      },
+    });
 
     jest.spyOn(viewRepo, 'find').mockResolvedValueOnce([
       {
@@ -2176,6 +2492,178 @@ describe('ConfigObjectsService', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].configObjectViewId).toBe(201);
+  });
+
+  describe('multi-pack objectType collision (customer id 3 vs HVAC 30)', () => {
+    const defaultCustomer = {
+      configObjectId: 3,
+      configTemplateSetId: 1,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+      displayName: 'Customer',
+    };
+    const hvacCustomer = {
+      configObjectId: 30,
+      configTemplateSetId: 4,
+      objectType: 'customer',
+      bindingMode: 'sor_bound',
+      status: 'PUBLISHED',
+      displayName: 'HVAC Customer',
+    };
+    const defaultSet = {
+      configTemplateSetId: 1,
+      key: 'platform_default',
+      tenantId: null,
+      status: 'PUBLISHED',
+    };
+    const hvacSet = {
+      configTemplateSetId: 4,
+      key: 'industry_hvac_install',
+      tenantId: null,
+      status: 'PUBLISHED',
+    };
+
+    it('getObjectSchema prefers configObjectId 30 over unscoped default customer 3', async () => {
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacCustomer,
+      } as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacSet,
+      } as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+      const schema = await service.getObjectSchema(1, 'customer', {
+        configObjectId: 30,
+      });
+
+      expect(schema?.configObject.configObjectId).toBe(30);
+      expect(configObjectRepo.findOne).toHaveBeenCalledWith({
+        where: { configObjectId: 30 },
+      });
+    });
+
+    it('getObjectSchema resolves HVAC customer via templateSetKey', async () => {
+      jest
+        .spyOn(templateSetRepo, 'findOne')
+        .mockResolvedValueOnce(null as any) // tenant-owned key miss
+        .mockResolvedValueOnce({ ...hvacSet } as any) // global key hit
+        .mockResolvedValueOnce({ ...hvacSet } as any); // accessibility check
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacCustomer,
+      } as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+      const schema = await service.getObjectSchema(1, 'customer', {
+        templateSetKey: 'industry_hvac_install',
+      });
+
+      expect(schema?.configObject.configObjectId).toBe(30);
+    });
+
+    it('getObjectSchema resolves HVAC customer via configTemplateSetId 4', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacSet,
+      } as any);
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacCustomer,
+      } as any);
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+      const schema = await service.getObjectSchema(1, 'customer', {
+        configTemplateSetId: 4,
+      });
+
+      expect(schema?.configObject.configObjectId).toBe(30);
+    });
+
+    it('unscoped getObjectSchema walks published sets ASC and returns default customer 3 first', async () => {
+      mockUnscopedConfigObjectResolve({
+        tenantSets: [],
+        globalSets: [defaultSet, hvacSet],
+        objectsBySetId: {
+          1: defaultCustomer,
+          4: hvacCustomer,
+        },
+      });
+      jest.spyOn(fieldRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(fieldRuleRepo, 'find').mockResolvedValueOnce([]);
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([]);
+
+      const schema = await service.getObjectSchema(1, 'customer');
+
+      expect(schema?.configObject.configObjectId).toBe(3);
+    });
+
+    it('getActiveScopedConfigView uses HVAC configObjectId 30 for list view', async () => {
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacCustomer,
+      } as any);
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacSet,
+      } as any);
+      jest.spyOn(viewRepo, 'findOne').mockResolvedValueOnce({
+        configObjectViewId: 900,
+        configObjectId: 30,
+        viewType: 'list',
+        tenantId: null,
+        isActive: true,
+        configJson: { columns: [{ fieldKey: 'service_zone' }] },
+      } as any);
+
+      const result = await service.getActiveScopedConfigView({
+        tenantId: 1,
+        entityKey: 'customer',
+        viewType: 'list',
+        configObjectId: 30,
+      });
+
+      expect(result?.configObjectViewId).toBe(900);
+      expect(viewRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ configObjectId: 30 }),
+        }),
+      );
+    });
+
+    it('getActiveScopedConfigView with templateSetKey does not resolve default customer 3', async () => {
+      jest
+        .spyOn(templateSetRepo, 'findOne')
+        .mockResolvedValueOnce(null as any)
+        .mockResolvedValueOnce({ ...hvacSet } as any)
+        .mockResolvedValueOnce({ ...hvacSet } as any);
+      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
+        ...hvacCustomer,
+      } as any);
+      jest
+        .spyOn(viewRepo, 'findOne')
+        .mockResolvedValueOnce(null as any)
+        .mockResolvedValueOnce({
+          configObjectViewId: 901,
+          configObjectId: 30,
+          viewType: 'detail',
+          tenantId: null,
+          isActive: true,
+        } as any);
+
+      const result = await service.getActiveScopedConfigView({
+        tenantId: 1,
+        entityKey: 'customer',
+        viewType: 'detail',
+        templateSetKey: 'industry_hvac_install',
+      });
+
+      expect(result?.configObjectViewId).toBe(901);
+      expect(configObjectRepo.findOne).not.toHaveBeenCalledWith({
+        where: { configObjectId: 3 },
+      });
+    });
   });
 
   it('upsertScopedConfigView should reject unknown field keys in configJson', async () => {
@@ -3344,14 +3832,20 @@ describe('ConfigObjectsService', () => {
     }
 
     it('getObjectSchema should merge lookupSelectConfig from runtime field metadata', async () => {
-      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValueOnce({
-        configTemplateSetId: 10,
-        tenantId: 1,
-        status: 'PUBLISHED',
-      } as any);
-      jest.spyOn(configObjectRepo, 'findOne').mockResolvedValueOnce({
-        ...systemTableConfigObject,
-      } as any);
+      mockUnscopedConfigObjectResolve({
+        tenantSets: [
+          {
+            configTemplateSetId: 10,
+            tenantId: 1,
+            status: 'PUBLISHED',
+          },
+        ],
+        objectsBySetId: {
+          10: {
+            ...systemTableConfigObject,
+          },
+        },
+      });
       jest.spyOn(runtimeFieldMetadataRepo, 'find').mockResolvedValueOnce([
         {
           configObjectRuntimeFieldMetadataId: 501,
@@ -3385,6 +3879,96 @@ describe('ConfigObjectsService', () => {
       );
       expect(schema?.fields).toHaveLength(1);
       expect(schema?.fields[0].field.fieldKey).toBe('tenantId');
+    });
+
+    it('getObjectSchema should merge related system_table runtime lookupSelectConfig', async () => {
+      const parentObject = {
+        configObjectId: 108,
+        configTemplateSetId: 10,
+        objectType: 'tenant_user',
+        bindingMode: 'system_table',
+        sorTableName: 'tenant_users',
+        status: 'PUBLISHED',
+      };
+      const relatedObject = {
+        configObjectId: 113,
+        configTemplateSetId: 10,
+        objectType: 'tenant_user_role',
+        bindingMode: 'system_table',
+        sorTableName: 'tenant_user_roles',
+        status: 'PUBLISHED',
+      };
+      mockUnscopedConfigObjectResolve({
+        tenantSets: [
+          {
+            configTemplateSetId: 10,
+            tenantId: 1,
+            status: 'PUBLISHED',
+          },
+        ],
+        objectsBySetId: {
+          10: parentObject,
+        },
+      });
+      jest.spyOn(configObjectRepo, 'findOne').mockImplementation(async (opts: any) => {
+        const w = opts?.where ?? {};
+        if (w.objectType === 'tenant_user_role') return relatedObject as any;
+        if (w.objectType === 'tenant_user') return parentObject as any;
+        if (w.configObjectId === 113) return relatedObject as any;
+        if (w.configObjectId === 108) return parentObject as any;
+        if (w.configTemplateSetId === 10) return parentObject as any;
+        return null as any;
+      });
+      jest.spyOn(runtimeFieldMetadataRepo, 'find').mockImplementation(async (opts: any) => {
+        const id = opts?.where?.configObjectId;
+        if (id === 113) {
+          return [
+            {
+              configObjectRuntimeFieldMetadataId: 701,
+              configObjectId: 113,
+              fieldKey: 'roleId',
+              validationJson: {
+                _six1LookupSelectAuthoring: {
+                  schemaVersion: 1,
+                  dataRef: 'entity-key:role',
+                  valueKey: 'roleId',
+                  labelKey: 'name',
+                },
+              },
+              rulesJson: null,
+              createdBy: 1,
+              updatedBy: 1,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            },
+          ] as any;
+        }
+        return [] as any;
+      });
+      jest.spyOn(relationshipRepo, 'find').mockResolvedValueOnce([
+        {
+          fromObjectType: 'tenant_user',
+          toObjectType: 'tenant_user_role',
+          relationshipKey: 'tenant_user_role',
+          displayName: 'User roles',
+          cardinality: 'one_to_many',
+          relationshipSource: 'designer',
+          isActive: true,
+          queryConfig: {},
+          relationManifestJson: {
+            mode: 'related_list',
+            targetEntityKey: 'tenant_user_role',
+          },
+        } as any,
+      ]);
+
+      const schema = await service.getObjectSchema(1, 'tenant_user');
+
+      const roleId = schema?.relatedFieldRegistryByRelationKey?.tenant_user_role?.find(
+        (field) => field.fieldKey === 'roleId',
+      );
+      expect(roleId?.lookupSelectConfig?.dataRef).toBe('entity-key:role');
+      expect(roleId?.lookupSelectConfig?.labelKey).toBe('name');
     });
 
     it('upsertRuntimeFieldMetadata should create overlay and invalidate caches', async () => {
@@ -3578,6 +4162,7 @@ describe('ConfigObjectsService', () => {
       jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
         configTemplateSetId: 7,
         tenantId: 1,
+        status: 'PUBLISHED',
       } as any);
       jest.spyOn(fieldRepo, 'find').mockResolvedValue([
         { configObjectFieldId: 100 },
@@ -3614,6 +4199,24 @@ describe('ConfigObjectsService', () => {
           configObjectId: 42,
         }),
       ).rejects.toThrow(/does not belong to the specified tenant/);
+    });
+
+    it('allows audit logs for global PUBLISHED packs in tenant scope', async () => {
+      jest.spyOn(templateSetRepo, 'findOne').mockResolvedValue({
+        configTemplateSetId: 7,
+        tenantId: null,
+        status: 'PUBLISHED',
+      } as any);
+      const qb = mockAuditQueryBuilder([], 0);
+
+      const result = await service.listConfigAuditLogs({
+        tenantId: 20,
+        configObjectId: 42,
+      });
+
+      expect(result.total).toBe(0);
+      expect(result.items).toEqual([]);
+      expect(qb.getMany).toHaveBeenCalled();
     });
 
     it('returns mapped items including related field and field_rule history', async () => {

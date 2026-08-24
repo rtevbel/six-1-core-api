@@ -21,6 +21,9 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { EventsService } from '../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../events/constants/platform-event-names.constants';
+import { buildSystemTableDomainEventOptions } from '../events/platform-domain-event.util';
 
 @Injectable()
 export class TenantsService {
@@ -50,6 +53,7 @@ export class TenantsService {
     @InjectRepository(TenantEntity)
     private readonly tenantRepository: Repository<TenantEntity>,
     private readonly configObjectsService: ConfigObjectsService,
+    private readonly eventsService: EventsService,
   ) {}
 
   /**
@@ -62,12 +66,34 @@ export class TenantsService {
     userId: number,
     createTenantDto: CreateTenantDto,
   ): Promise<TenantEntity> {
-    const uniqueId = Date.now().toString(36);
-    createTenantDto.tenantIdentifier = `TENANT-${uniqueId}`;
+    const providedIdentifier = createTenantDto.tenantIdentifier?.trim();
+    if (!providedIdentifier) {
+      const uniqueId = Date.now().toString(36);
+      createTenantDto.tenantIdentifier = `TENANT-${uniqueId}`;
+    } else {
+      createTenantDto.tenantIdentifier = providedIdentifier;
+    }
 
-    return await this.tenantRepository.save(
+    const saved = await this.tenantRepository.save(
       this.tenantRepository.create(createTenantDto),
     );
+
+    this.eventsService.emit(
+      PLATFORM_EVENT_NAMES.TENANT_CREATED,
+      buildSystemTableDomainEventOptions({
+        objectType: 'tenant',
+        entityId: saved.tenantId,
+        tenantId: saved.tenantId,
+        actorUserId: userId,
+        data: {
+          tenantId: saved.tenantId,
+          tenantName: saved.name,
+          tenantIdentifier: saved.tenantIdentifier,
+        },
+      }),
+    );
+
+    return saved;
   }
 
   /**
@@ -109,7 +135,14 @@ export class TenantsService {
           ? row.catalogTenantId
           : null;
       },
-      applyMandatoryScope: () => undefined,
+      applyMandatoryScope: (qb, filters) => {
+        const f = filters as FiltersDto;
+        if (typeof f.tenantId === 'number' && f.tenantId > 0) {
+          qb.andWhere('t.tenantId = :scopedTenantId', {
+            scopedTenantId: f.tenantId,
+          });
+        }
+      },
       schemaMissingForRelatedFiltersMessage:
         'Tenant configuration schema is required for related list filters.',
       maxPageSize: 10,

@@ -12,12 +12,14 @@ import {
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
   PROCESS_STEP_ACTION_TYPE_CALL_WEBHOOK,
   PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+  PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT,
 } from './process-step-action.constants';
 import { ProcessStepActionExecutorService } from './process-step-action-executor.service';
 import { ProcessStepWebhookClient } from './process-step-webhook.client';
 import { ProcessStepActionExecutionLogService } from './process-step-action-execution-log.service';
 import { ProcessStepFailureService } from './process-step-failure.service';
 import { ProcessStepGenerateVerificationTokenService } from './process-step-generate-verification-token.service';
+import { ProcessStepOnboardTenantService } from './process-step-onboard-tenant.service';
 
 describe('ProcessStepActionExecutorService', () => {
   let service: ProcessStepActionExecutorService;
@@ -37,6 +39,7 @@ describe('ProcessStepActionExecutorService', () => {
   };
   let stepFailure: { markFailed: jest.Mock };
   let generateVerificationToken: { execute: jest.Mock };
+  let onboardTenant: { execute: jest.Mock };
 
   const processRow = {
     processInstanceId: 100,
@@ -47,7 +50,7 @@ describe('ProcessStepActionExecutorService', () => {
     subjectMetadata: null,
     context: { customerId: 7 },
     correlationId: 'corr-abc',
-  } as ProcessInstanceEntity;
+  } as unknown as ProcessInstanceEntity;
 
   const stepRow = {
     stepInstanceId: 200,
@@ -55,7 +58,7 @@ describe('ProcessStepActionExecutorService', () => {
     name: 'Review',
     stepOrder: 2,
     status: 'completed',
-  } as ProcessInstanceStepEntity;
+  } as unknown as ProcessInstanceStepEntity;
 
   beforeEach(async () => {
     actionExecutor = {
@@ -107,6 +110,9 @@ describe('ProcessStepActionExecutorService', () => {
         verifyUrl: 'https://app.example.com/verify-customer?token=tok-abc',
       }),
     };
+    onboardTenant = {
+      execute: jest.fn().mockResolvedValue({ tenantId: 9, ownerUserId: 4 }),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -137,6 +143,10 @@ describe('ProcessStepActionExecutorService', () => {
         {
           provide: ProcessStepGenerateVerificationTokenService,
           useValue: generateVerificationToken,
+        },
+        {
+          provide: ProcessStepOnboardTenantService,
+          useValue: onboardTenant,
         },
       ],
     }).compile();
@@ -179,7 +189,7 @@ describe('ProcessStepActionExecutorService', () => {
     );
     expect(executionLog.markSucceeded).toHaveBeenCalledWith(
       900,
-      expect.objectContaining({ eventName: 'six1-event.process_completed' }),
+      expect.objectContaining({ eventName: 'six1-event.ok' }),
     );
     expect(actionExecutor.executeEmitEventConfig).toHaveBeenCalledWith(
       { eventName: 'six1-event.process_completed', data: { ok: true } },
@@ -296,6 +306,38 @@ describe('ProcessStepActionExecutorService', () => {
     expect(result.executed[0].result).toMatchObject({
       token: 'tok-abc',
       verifyUrl: 'https://app.example.com/verify-customer?token=tok-abc',
+    });
+  });
+
+  it('delegates onboard_tenant to ProcessStepOnboardTenantService', async () => {
+    stepRepo.findOne.mockResolvedValue(stepRow);
+    processRepo.findOne.mockResolvedValue(processRow);
+    stepActionRepo.find.mockResolvedValue([
+      {
+        instanceStepActionId: 308,
+        actionType: PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT,
+        config: { registrationObjectType: 'hvac_tenant_registration' },
+        orderIndex: 0,
+      },
+    ]);
+
+    const result = await service.executeForStep(
+      200,
+      PROCESS_STEP_ACTION_RUN_ON_STEP_COMPLETED,
+    );
+
+    expect(result.executed[0].status).toBe('succeeded');
+    expect(onboardTenant.execute).toHaveBeenCalledWith(
+      { registrationObjectType: 'hvac_tenant_registration' },
+      expect.objectContaining({
+        tenantId: 1,
+        stepInstanceId: 200,
+        processContext: { customerId: 7 },
+      }),
+    );
+    expect(result.executed[0].result).toMatchObject({
+      tenantId: 9,
+      ownerUserId: 4,
     });
   });
 

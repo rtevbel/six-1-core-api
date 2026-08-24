@@ -1,6 +1,7 @@
 import {
   PROCESS_STEP_ACTION_TYPE_EMIT_EVENT,
   PROCESS_STEP_ACTION_TYPE_GENERATE_VERIFICATION_TOKEN,
+  PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT,
   PROCESS_STEP_ACTION_TYPE_SEND_NOTIFICATION,
   PROCESS_STEP_ACTION_TYPE_UPDATE_SOR_FIELD,
 } from './process-step-action.constants';
@@ -66,6 +67,17 @@ describe('process-step-action.types', () => {
       ttlHours: 48,
       clearVerifiedBeforeIssue: false,
     });
+  });
+
+  it('parses onboard_tenant config with optional object type', () => {
+    expect(
+      parseProcessStepActionConfig(PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT, {}),
+    ).toEqual({});
+    expect(
+      parseProcessStepActionConfig(PROCESS_STEP_ACTION_TYPE_ONBOARD_TENANT, {
+        registrationObjectType: 'hvac_tenant_registration',
+      }),
+    ).toEqual({ registrationObjectType: 'hvac_tenant_registration' });
   });
 
   it('returns null for invalid config', () => {

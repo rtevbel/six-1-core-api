@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantUserOffDaysService } from './tenant_user_off_days.service';
 import { TenantUserOffDaysController } from './tenant_user_off_days.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -15,7 +15,7 @@ import { ConfigObjectsModule } from '../../../config_objects/config_objects.modu
 @Module({
   imports: [
     TypeOrmModule.forFeature([TenantUserOffDaysEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   controllers: [TenantUserOffDaysController],
   providers: [TenantUserOffDaysService],

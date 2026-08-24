@@ -55,14 +55,14 @@ export class CreateTenantUserInvitationDto {
   /**
    * Invitation token.
    *
-   * - Required field.
-   * - Must be a string.
+   * - Optional: the service mints one when omitted.
+   * - Must be a string when provided.
    *
    * @type {string}
    */
   @IsString()
-  @IsNotEmpty()
-  token!: string;
+  @IsOptional()
+  token?: string;
 
   /**
    * Role ID.
@@ -91,14 +91,13 @@ export class CreateTenantUserInvitationDto {
   /**
    * User ID of the inviter.
    *
-   * - Required field.
-   * - Must be a number.
+   * - Optional: the service uses the authenticated actor when omitted.
    *
    * @type {number}
    */
   @IsNumber()
-  @IsNotEmpty()
-  invitedBy!: number;
+  @IsOptional()
+  invitedBy?: number;
 
   /**
    * Expiration date of the invitation.

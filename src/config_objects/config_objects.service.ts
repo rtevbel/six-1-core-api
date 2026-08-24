@@ -256,27 +256,59 @@ export class ConfigObjectsService {
     return expiresAt > Date.now();
   }
 
+  private formatConfigObjectScopeCacheSegment(scope?: {
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
+  }): string {
+    if (!scope) {
+      return 'default';
+    }
+    if (typeof scope.configObjectId === 'number') {
+      return `oid:${Math.trunc(scope.configObjectId)}`;
+    }
+    if (typeof scope.configTemplateSetId === 'number') {
+      return `tsid:${Math.trunc(scope.configTemplateSetId)}`;
+    }
+    const key = scope.templateSetKey?.trim();
+    if (key) {
+      return `tskey:${key}`;
+    }
+    return 'default';
+  }
+
   private getSchemaCacheKey(
     tenantId: number | null,
     objectType: string,
+    scope?: {
+      configObjectId?: number;
+      configTemplateSetId?: number;
+      templateSetKey?: string;
+    },
   ): string {
-    return `${tenantId ?? 'global'}::${objectType}`;
+    return `${tenantId ?? 'global'}::${objectType}::${this.formatConfigObjectScopeCacheSegment(scope)}`;
   }
 
   private getActiveViewCacheKey(params: {
     tenantId: number | null;
     entityKey: string;
     viewType: ConfigObjectViewType;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): string {
-    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.viewType}`;
+    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.viewType}::${this.formatConfigObjectScopeCacheSegment(params)}`;
   }
 
   private getRuntimeManifestCacheKey(params: {
     tenantId: number | null;
     entityKey: string;
     includeDiagnostics: boolean;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): string {
-    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.includeDiagnostics ? 'diag' : 'no_diag'}`;
+    return `${params.tenantId ?? 'global'}::${params.entityKey}::${params.includeDiagnostics ? 'diag' : 'no_diag'}::${this.formatConfigObjectScopeCacheSegment(params)}`;
   }
 
   private clearExpiredRuntimeCaches(): void {
@@ -373,10 +405,16 @@ export class ConfigObjectsService {
    * tenant-scoped configuration.
    */
   private getEffectiveTenantId(
-    tenantId: number | null | undefined,
+    tenantId: number | string | null | undefined,
   ): number | null {
     if (typeof tenantId === 'number' && tenantId > 0) {
       return tenantId;
+    }
+    if (typeof tenantId === 'string') {
+      const parsed = Number(tenantId);
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.trunc(parsed);
+      }
     }
     return null;
   }
@@ -1283,7 +1321,9 @@ export class ConfigObjectsService {
   }
 
   /**
-   * Loads a config object and ensures it belongs to the tenant scope and is standalone.
+   * Loads a config object and ensures it is standalone and visible in tenant scope.
+   * Global published packs (e.g. HVAC demo, platform tenant settings) are readable
+   * by tenant users; tenant-owned packs remain scoped to their owner.
    */
   private async getStandaloneConfigObjectForTenant(
     configObjectId: number,
@@ -1298,13 +1338,13 @@ export class ConfigObjectsService {
     }
 
     const templateSet = await this.templateSetRepository.findOne({
-      where: this.templateSetWhereForTenantScope(
-        existing.configTemplateSetId,
-        effectiveTenantId,
-      ),
+      where: { configTemplateSetId: existing.configTemplateSetId },
     });
 
-    if (!templateSet) {
+    if (
+      !templateSet ||
+      !this.isTemplateSetAccessibleForScope(templateSet, effectiveTenantId)
+    ) {
       throw new RpcException(
         'Config object does not belong to the specified tenant.',
       );
@@ -1424,8 +1464,8 @@ export class ConfigObjectsService {
         continue;
       }
 
-      const targetFieldViews = await this.loadFieldViewsForConfigObjectId(
-        targetConfigObject.configObjectId,
+      const targetFieldViews = await this.loadFieldViewsForSchemaBinding(
+        targetConfigObject,
       );
       out[rel.relationshipKey] = finalizeCoreFieldDescriptors({
         bindingMode: targetConfigObject.bindingMode,
@@ -1455,12 +1495,19 @@ export class ConfigObjectsService {
       relations,
       templateSetId,
     );
-    const relationManifestsByKey = Object.fromEntries(
-      relations.map((rel) => [
-        rel.relationshipKey,
-        rel.relationManifestJson ?? null,
-      ]),
-    );
+    const relationManifestsByKey: Record<string, Record<string, unknown> | null> =
+      {};
+    for (const rel of relations) {
+      const manifest = rel.relationManifestJson;
+      if (
+        manifest != null &&
+        typeof manifest === 'object' &&
+        !Array.isArray(manifest)
+      ) {
+        relationManifestsByKey[rel.relationshipKey] =
+          manifest as Record<string, unknown>;
+      }
+    }
 
     return {
       ...schema,
@@ -2287,54 +2334,32 @@ export class ConfigObjectsService {
   async getObjectSchema(
     tenantId: number | null | undefined,
     objectType: string,
+    scope?: {
+      configObjectId?: number;
+      configTemplateSetId?: number;
+      templateSetKey?: string;
+    },
   ): Promise<ConfigObjectRunnerSchemaView | null> {
     const canonicalObjectType =
       this.normalizeCanonicalObjectTypeOrThrow(objectType);
-    const candidateObjectTypes = this.buildCandidateObjectTypes(
-      objectType,
-      canonicalObjectType,
-    );
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     this.clearExpiredRuntimeCaches();
     const cacheKey = this.getSchemaCacheKey(
       effectiveTenantId,
       canonicalObjectType,
+      scope,
     );
     const cached = this.schemaCache.get(cacheKey);
     if (cached && this.isFresh(cached.expiresAt)) {
       return cached.value;
     }
 
-    const where =
-      effectiveTenantId === null
-        ? { status: 'PUBLISHED' as const }
-        : { tenantId: effectiveTenantId, status: 'PUBLISHED' as const };
-
-    let templateSet = await this.templateSetRepository.findOne({
-      where,
-      order: { configTemplateSetId: 'ASC' },
-    });
-
-    if (!templateSet && effectiveTenantId !== null) {
-      templateSet = await this.templateSetRepository.findOne({
-        where: { tenantId: IsNull(), status: 'PUBLISHED' as const },
-        order: { configTemplateSetId: 'ASC' },
-      });
-    }
-
-    if (!templateSet) {
-      this.schemaCache.set(cacheKey, {
-        expiresAt: Date.now() + this.runtimeCacheTtlMs,
-        value: null,
-      });
-      return null;
-    }
-
-    const configObject = await this.configObjectRepository.findOne({
-      where: {
-        configTemplateSetId: templateSet.configTemplateSetId,
-        objectType: In(candidateObjectTypes),
-      },
+    const configObject = await this.tryResolveConfigObjectForEntityScope({
+      entityKey: objectType,
+      effectiveTenantId,
+      configObjectId: scope?.configObjectId,
+      configTemplateSetId: scope?.configTemplateSetId,
+      templateSetKey: scope?.templateSetKey,
     });
 
     if (!configObject) {
@@ -2345,12 +2370,7 @@ export class ConfigObjectsService {
       return null;
     }
 
-    const fieldViews =
-      configObject.bindingMode === 'system_table'
-        ? await this.loadRuntimeFieldMetadataAsFieldViews(
-            configObject.configObjectId,
-          )
-        : await this.loadFieldViewsForConfigObjectId(configObject.configObjectId);
+    const fieldViews = await this.loadFieldViewsForSchemaBinding(configObject);
 
     const base = this.enrichSchemaViewWithRunner({
       configObject,
@@ -2358,7 +2378,7 @@ export class ConfigObjectsService {
     });
     const schema = await this.attachRelationCatalog(
       base,
-      templateSet.configTemplateSetId,
+      configObject.configTemplateSetId,
     );
     const withLookupCatalog = this.attachLookupCatalogToSchema(schema);
     this.schemaCache.set(cacheKey, {
@@ -3024,13 +3044,15 @@ export class ConfigObjectsService {
     }
 
     const templateSet = await this.templateSetRepository.findOne({
-      where: this.templateSetWhereForTenantScope(
-        configObject.configTemplateSetId,
-        effectiveTenantId,
-      ),
+      where: { configTemplateSetId: configObject.configTemplateSetId },
     });
 
-    if (!templateSet) {
+    // Global PUBLISHED packs (HVAC demo, platform tenant settings) are readable in
+    // tenant scope — same rule as Object Designer object load.
+    if (
+      !templateSet ||
+      !this.isTemplateSetAccessibleForScope(templateSet, effectiveTenantId)
+    ) {
       throw new RpcException(
         'Config object does not belong to the specified tenant.',
       );
@@ -3257,12 +3279,21 @@ export class ConfigObjectsService {
         ? templateSetFilterId
           ? { configTemplateSetId: templateSetFilterId }
           : {}
-        : {
-            tenantId: effectiveTenantId,
-            ...(templateSetFilterId
-              ? { configTemplateSetId: templateSetFilterId }
-              : {}),
-          };
+        : templateSetFilterId
+          ? [
+              {
+                configTemplateSetId: templateSetFilterId,
+                tenantId: effectiveTenantId,
+              },
+              {
+                configTemplateSetId: templateSetFilterId,
+                tenantId: IsNull(),
+              },
+            ]
+          : [
+              { tenantId: effectiveTenantId },
+              { tenantId: IsNull(), status: 'PUBLISHED' as const },
+            ];
 
     const templateSets = await this.templateSetRepository.find({
       where,
@@ -4596,6 +4627,17 @@ export class ConfigObjectsService {
     });
   }
 
+  private async loadFieldViewsForSchemaBinding(
+    configObject: ConfigObjectEntity,
+  ): Promise<ConfigObjectFieldView[]> {
+    if (configObject.bindingMode === 'system_table') {
+      return this.loadRuntimeFieldMetadataAsFieldViews(
+        configObject.configObjectId,
+      );
+    }
+    return this.loadFieldViewsForConfigObjectId(configObject.configObjectId);
+  }
+
   private async loadRuntimeFieldMetadataAsFieldViews(
     configObjectId: number,
   ): Promise<ConfigObjectFieldView[]> {
@@ -5582,10 +5624,17 @@ export class ConfigObjectsService {
     }
 
     for (const row of designerRows) {
-      if (byKey.has(row.relationshipKey)) {
+      const existing = byKey.get(row.relationshipKey);
+      if (existing?.relationshipSource === 'orm') {
+        // Pack/designer rows intentionally mirror ORM keys (e.g. platform_tenant_settings
+        // tenant_billing_info). Prefer authored metadata for Object Runner panels.
+        this.logger.debug(
+          `Relationship key "${row.relationshipKey}" on "${objectType}" exists in ORM and designer catalogs; using designer.`,
+        );
+      } else if (existing && existing.relationshipSource === 'designer') {
         throw authoringRpcException(
           AuthoringErrorCode.RelationConfigInvalid,
-          `Duplicate relationship key "${row.relationshipKey}" exists in both orm and designer catalogs for "${objectType}".`,
+          `Duplicate designer relationship key "${row.relationshipKey}" for "${objectType}".`,
         );
       }
       byKey.set(row.relationshipKey, {
@@ -6645,44 +6694,246 @@ export class ConfigObjectsService {
   }
 
   /**
+   * Whether a template set is readable for the effective tenant scope.
+   * - Tenant scope: own sets, or global PUBLISHED sets.
+   * - Global/superadmin scope (`effectiveTenantId === null`): any authorable set.
+   */
+  private isTemplateSetAccessibleForScope(
+    templateSet: ConfigTemplateSetEntity,
+    effectiveTenantId: number | null,
+  ): boolean {
+    const status = String(templateSet.status ?? '')
+      .trim()
+      .toUpperCase() as ConfigTemplateSetEntity['status'];
+    // TypeORM may surface bigint `tenant_id` as string; treat nullish/0 as global.
+    const rawTenantId = templateSet.tenantId as number | string | null | undefined;
+    const ownedTenantId =
+      rawTenantId == null || rawTenantId === ''
+        ? null
+        : Number(rawTenantId);
+    const normalizedOwnedTenantId =
+      ownedTenantId != null && Number.isFinite(ownedTenantId) && ownedTenantId >= 1
+        ? Math.trunc(ownedTenantId)
+        : null;
+
+    if (effectiveTenantId === null) {
+      return AUTHORABLE_TEMPLATE_SET_STATUSES.includes(status);
+    }
+    if (normalizedOwnedTenantId === effectiveTenantId) {
+      return AUTHORABLE_TEMPLATE_SET_STATUSES.includes(status);
+    }
+    // Global PUBLISHED packs are readable in tenant Object Designer scope.
+    return normalizedOwnedTenantId === null && status === 'PUBLISHED';
+  }
+
+  private objectTypeMatchesEntityKey(
+    objectType: string,
+    entityKey: string,
+    candidateObjectTypes: string[],
+  ): boolean {
+    const normalized = objectType?.trim().toLowerCase();
+    if (!normalized) {
+      return false;
+    }
+    if (candidateObjectTypes.includes(normalized)) {
+      return true;
+    }
+    try {
+      return (
+        this.normalizeCanonicalObjectTypeOrThrow(objectType) ===
+        this.normalizeCanonicalObjectTypeOrThrow(entityKey)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  private async findConfigObjectInTemplateSet(params: {
+    configTemplateSetId: number;
+    candidateObjectTypes: string[];
+  }): Promise<ConfigObjectEntity | null> {
+    return this.configObjectRepository.findOne({
+      where: {
+        configTemplateSetId: params.configTemplateSetId,
+        objectType: In(params.candidateObjectTypes),
+        status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
+      },
+      order: { configObjectId: 'ASC' },
+    });
+  }
+
+  /**
    * Read-safe: returns a `config_object` visible in the tenant/global scope, or `null`
    * when the type is unknown or not accessible (avoids 500s on list-only view reads).
+   *
+   * Prefer explicit pack selectors when multiple template sets share the same
+   * `objectType` (e.g. default customer id 3 vs HVAC customer id 30):
+   * 1. `configObjectId`
+   * 2. `configTemplateSetId` / `templateSetKey`
+   * 3. Unscoped fallback: first object found by walking published template sets
+   *    (tenant-owned ASC, then global ASC) — deterministic, not bare findOne.
    */
   private async tryResolveConfigObjectForEntityScope(params: {
     entityKey: string;
     effectiveTenantId: number | null;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): Promise<ConfigObjectEntity | null> {
-    const { entityKey, effectiveTenantId } = params;
+    const {
+      entityKey,
+      effectiveTenantId,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
+    } = params;
 
-    const configObject = await this.configObjectRepository.findOne({
-      where: {
-        objectType: entityKey,
-        status: In(AUTHORABLE_CONFIG_OBJECT_STATUSES),
-      },
-    });
-
-    if (!configObject) {
+    let canonicalObjectType: string;
+    try {
+      canonicalObjectType = this.normalizeCanonicalObjectTypeOrThrow(entityKey);
+    } catch {
       return null;
     }
+    const candidateObjectTypes = this.buildCandidateObjectTypes(
+      entityKey,
+      canonicalObjectType,
+    );
 
-    const templateSet = await this.templateSetRepository.findOne({
-      where: this.templateSetWhereForTenantScope(
-        configObject.configTemplateSetId,
-        effectiveTenantId,
-      ),
-    });
-
-    if (!templateSet) {
-      return null;
+    if (
+      typeof configObjectId === 'number' &&
+      Number.isFinite(configObjectId) &&
+      configObjectId >= 1
+    ) {
+      const byId = await this.configObjectRepository.findOne({
+        where: { configObjectId: Math.trunc(configObjectId) },
+      });
+      if (!byId) {
+        return null;
+      }
+      if (
+        !AUTHORABLE_CONFIG_OBJECT_STATUSES.includes(byId.status) ||
+        !this.objectTypeMatchesEntityKey(
+          byId.objectType,
+          entityKey,
+          candidateObjectTypes,
+        )
+      ) {
+        return null;
+      }
+      const templateSet = await this.templateSetRepository.findOne({
+        where: { configTemplateSetId: byId.configTemplateSetId },
+      });
+      if (
+        !templateSet ||
+        !this.isTemplateSetAccessibleForScope(templateSet, effectiveTenantId)
+      ) {
+        return null;
+      }
+      return byId;
     }
 
-    return configObject;
+    let resolvedTemplateSetId: number | null = null;
+    if (
+      typeof configTemplateSetId === 'number' &&
+      Number.isFinite(configTemplateSetId) &&
+      configTemplateSetId >= 1
+    ) {
+      resolvedTemplateSetId = Math.trunc(configTemplateSetId);
+    } else {
+      const key = templateSetKey?.trim();
+      if (key) {
+        let keyedSet: ConfigTemplateSetEntity | null = null;
+        if (effectiveTenantId !== null) {
+          keyedSet = await this.templateSetRepository.findOne({
+            where: { key, tenantId: effectiveTenantId },
+          });
+        }
+        if (!keyedSet) {
+          keyedSet = await this.templateSetRepository.findOne({
+            where: {
+              key,
+              tenantId: IsNull(),
+              status: In(AUTHORABLE_TEMPLATE_SET_STATUSES),
+            },
+            order: { configTemplateSetId: 'ASC' },
+          });
+        }
+        if (!keyedSet) {
+          return null;
+        }
+        resolvedTemplateSetId = keyedSet.configTemplateSetId;
+      }
+    }
+
+    if (resolvedTemplateSetId != null) {
+      const templateSet = await this.templateSetRepository.findOne({
+        where: { configTemplateSetId: resolvedTemplateSetId },
+      });
+      if (
+        !templateSet ||
+        !this.isTemplateSetAccessibleForScope(templateSet, effectiveTenantId)
+      ) {
+        return null;
+      }
+      return this.findConfigObjectInTemplateSet({
+        configTemplateSetId: resolvedTemplateSetId,
+        candidateObjectTypes,
+      });
+    }
+
+    if (effectiveTenantId !== null) {
+      const tenantSets = await this.templateSetRepository.find({
+        where: {
+          tenantId: effectiveTenantId,
+          status: In(AUTHORABLE_TEMPLATE_SET_STATUSES),
+        },
+        order: { configTemplateSetId: 'ASC' },
+      });
+      for (const set of tenantSets) {
+        const owned = await this.findConfigObjectInTemplateSet({
+          configTemplateSetId: set.configTemplateSetId,
+          candidateObjectTypes,
+        });
+        if (owned) {
+          return owned;
+        }
+      }
+    }
+
+    const globalWhere =
+      effectiveTenantId === null
+        ? {
+            status: 'PUBLISHED' as const,
+          }
+        : {
+            tenantId: IsNull(),
+            status: 'PUBLISHED' as const,
+          };
+
+    const globalSets = await this.templateSetRepository.find({
+      where: globalWhere,
+      order: { configTemplateSetId: 'ASC' },
+    });
+    for (const set of globalSets) {
+      const found = await this.findConfigObjectInTemplateSet({
+        configTemplateSetId: set.configTemplateSetId,
+        candidateObjectTypes,
+      });
+      if (found) {
+        return found;
+      }
+    }
+
+    return null;
   }
 
   /** Write / strict resolution; throws when the entity is unknown or tenant scope mismatches. */
   private async resolveConfigObjectForEntityScope(params: {
     entityKey: string;
     effectiveTenantId: number | null;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): Promise<ConfigObjectEntity> {
     const { entityKey } = params;
     const configObject =
@@ -6743,14 +6994,27 @@ export class ConfigObjectsService {
     tenantId: number | null | undefined;
     entityKey: string;
     viewType: ConfigObjectViewType;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): Promise<ConfigObjectViewEntity | null> {
-    const { tenantId, entityKey, viewType } = params;
+    const {
+      tenantId,
+      entityKey,
+      viewType,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
+    } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
     this.clearExpiredRuntimeCaches();
     const cacheKey = this.getActiveViewCacheKey({
       tenantId: effectiveTenantId,
       entityKey,
       viewType,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
     });
     const cached = this.activeViewCache.get(cacheKey);
     if (cached && this.isFresh(cached.expiresAt)) {
@@ -6760,6 +7024,9 @@ export class ConfigObjectsService {
     const configObject = await this.tryResolveConfigObjectForEntityScope({
       entityKey,
       effectiveTenantId,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
     });
 
     if (!configObject) {
@@ -6813,13 +7080,25 @@ export class ConfigObjectsService {
   async listActiveScopedConfigViews(params: {
     tenantId: number | null | undefined;
     entityKey: string;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): Promise<ConfigObjectViewEntity[]> {
-    const { tenantId, entityKey } = params;
+    const {
+      tenantId,
+      entityKey,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
+    } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
 
     const configObject = await this.tryResolveConfigObjectForEntityScope({
       entityKey,
       effectiveTenantId,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
     });
 
     if (!configObject) {
@@ -6874,20 +7153,40 @@ export class ConfigObjectsService {
     tenantId: number | null | undefined;
     entityKey: string;
     includeDiagnostics?: boolean;
+    configObjectId?: number;
+    configTemplateSetId?: number;
+    templateSetKey?: string;
   }): Promise<ConfigObjectRuntimeManifestView> {
-    const { tenantId, entityKey, includeDiagnostics = true } = params;
+    const {
+      tenantId,
+      entityKey,
+      includeDiagnostics = true,
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
+    } = params;
     const effectiveTenantId = this.getEffectiveTenantId(tenantId);
+    const packScope = {
+      configObjectId,
+      configTemplateSetId,
+      templateSetKey,
+    };
     this.clearExpiredRuntimeCaches();
     const cacheKey = this.getRuntimeManifestCacheKey({
       tenantId: effectiveTenantId,
       entityKey,
       includeDiagnostics,
+      ...packScope,
     });
     const cached = this.runtimeManifestCache.get(cacheKey);
     if (cached && this.isFresh(cached.expiresAt)) {
       return cached.value;
     }
-    const schema = await this.getObjectSchema(effectiveTenantId, entityKey);
+    const schema = await this.getObjectSchema(
+      effectiveTenantId,
+      entityKey,
+      packScope,
+    );
 
     if (!schema) {
       const missingSchemaResult: ConfigObjectRuntimeManifestView = {
@@ -6919,16 +7218,19 @@ export class ConfigObjectsService {
         tenantId: effectiveTenantId,
         entityKey,
         viewType: 'list',
+        ...packScope,
       }),
       this.getActiveScopedConfigView({
         tenantId: effectiveTenantId,
         entityKey,
         viewType: 'detail',
+        ...packScope,
       }),
       this.getActiveScopedConfigView({
         tenantId: effectiveTenantId,
         entityKey,
         viewType: 'form',
+        ...packScope,
       }),
     ]);
 
@@ -8509,10 +8811,15 @@ export class ConfigObjectsService {
   ): Promise<ConfigTemplateSetEntity[]> {
     const normalizedTenantId =
       typeof tenantId === 'number' && tenantId > 0 ? tenantId : null;
+    /** Archived packs stay in DB for history but must not clutter pickers. */
+    const activeStatuses = ['DRAFT', 'PUBLISHED', 'CONFLICT'] as const;
 
     if (normalizedTenantId === null) {
-      // Super admin / global scope: return all template sets regardless of tenant.
+      // Super admin / global scope: all non-archived template sets.
       return this.templateSetRepository.find({
+        where: {
+          status: In([...activeStatuses]),
+        },
         order: {
           configTemplateSetId: 'ASC',
         },
@@ -8520,9 +8827,10 @@ export class ConfigObjectsService {
     }
 
     return this.templateSetRepository.find({
-      where: {
-        tenantId: normalizedTenantId,
-      },
+      where: [
+        { tenantId: normalizedTenantId, status: In([...activeStatuses]) },
+        { tenantId: IsNull(), status: 'PUBLISHED' },
+      ],
       order: {
         configTemplateSetId: 'ASC',
       },

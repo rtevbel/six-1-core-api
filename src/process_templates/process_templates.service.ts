@@ -156,7 +156,8 @@ export class ProcessTemplatesService {
         const row = filters as FiltersDto;
         if (typeof row.tenantId === 'number') {
           if (row.tenantId > 0) {
-            qb.andWhere('pt.tenantId = :ptTenantId', {
+            // Tenant users also see platform (tenant_id = 0) journeys such as Invite tenant user.
+            qb.andWhere('(pt.tenantId = :ptTenantId OR pt.tenantId = 0)', {
               ptTenantId: row.tenantId,
             });
           } else if (row.tenantId === 0) {

@@ -102,7 +102,21 @@ export class CustomersService {
       tieBreakOrderBySql: 'c.customerId',
       catalogTenantResolver: (f) =>
         typeof f.tenantId === 'number' && f.tenantId > 0 ? f.tenantId : null,
-      applyMandatoryScope: () => undefined,
+      applyMandatoryScope: (qb, filters) => {
+        if (typeof filters.tenantId !== 'number' || filters.tenantId <= 0) {
+          return;
+        }
+        qb.andWhere(
+          `EXISTS (
+            SELECT 1
+              FROM customer_project_members cpm
+              INNER JOIN projects p ON p.project_id = cpm.project_id
+             WHERE cpm.customer_id = c.customer_id
+               AND p.tenant_id = :customerListTenantId
+          )`,
+          { customerListTenantId: filters.tenantId },
+        );
+      },
       schemaMissingForRelatedFiltersMessage:
         'Customer configuration schema is required for related list filters.',
     };

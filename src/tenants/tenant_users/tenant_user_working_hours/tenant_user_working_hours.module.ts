@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TenantUserWorkingHoursService } from './tenant_user_working_hours.service';
 import { TenantUserWorkingHoursController } from './tenant_user_working_hours.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -16,7 +16,7 @@ import { ConfigObjectsModule } from '../../../config_objects/config_objects.modu
   imports: [
     // Registers the TenantUserWorkingHoursEntity for TypeORM.
     TypeOrmModule.forFeature([TenantUserWorkingHoursEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantUserWorkingHoursController],

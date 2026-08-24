@@ -1,5 +1,5 @@
 // Importing necessary modules and decorators from NestJS
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 
 // Importing the service and controller for tenant off days
 import { TenantOffDaysService } from './tenant_off_days.service';
@@ -25,7 +25,7 @@ import { ConfigObjectsModule } from '../../config_objects/config_objects.module'
   imports: [
     // Registers the TenantOffDaysEntity for TypeORM.
     TypeOrmModule.forFeature([TenantOffDaysEntity]),
-    ConfigObjectsModule,
+    forwardRef(() => ConfigObjectsModule),
   ],
   // Specifies the controllers that handle incoming requests.
   controllers: [TenantOffDaysController],

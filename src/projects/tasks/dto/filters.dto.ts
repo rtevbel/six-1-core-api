@@ -16,9 +16,10 @@ import { SorStructuredFilterConditionDto } from '../../../common/dto/sor-structu
  * FiltersDto class for handling query parameters on task lists.
  */
 export class FiltersDto {
+  @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  projectId!: number;
+  projectId?: number;
 
   @IsOptional()
   @Type(() => Number)
