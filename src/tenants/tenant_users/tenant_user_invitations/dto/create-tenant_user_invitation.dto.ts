@@ -89,9 +89,9 @@ export class CreateTenantUserInvitationDto {
   status?: 'pending' | 'accepted' | 'declined';
 
   /**
-   * User ID of the inviter.
+   * Tenant user ID of the inviter (`tenant_users.tenant_user_id`).
    *
-   * - Optional: the service uses the authenticated actor when omitted.
+   * - Optional: the service uses the authenticated actor's membership when omitted.
    *
    * @type {number}
    */

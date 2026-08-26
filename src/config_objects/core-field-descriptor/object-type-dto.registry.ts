@@ -98,6 +98,10 @@ import { CreateTenantSubscriptionDto } from '../../tenants/tenant_subscriptions/
 import { UpdateTenantSubscriptionDto } from '../../tenants/tenant_subscriptions/dto/update-tenant_subscription.dto';
 import { CreateTenantTeamDto } from '../../tenants/tenant_teams/dto/create-tenant_team.dto';
 import { UpdateTenantTeamDto } from '../../tenants/tenant_teams/dto/update-tenant_team.dto';
+import { CreateTenantTeamMemberDto } from '../../tenants/tenant_teams/tenant_team_members/dto/create-tenant_team_member.dto';
+import { UpdateTenantTeamMemberDto } from '../../tenants/tenant_teams/tenant_team_members/dto/update-tenant_team_member.dto';
+import { CreateTenantTeamProjectDto } from '../../tenants/tenant_teams/tenant_team_projects/dto/create-tenant_team_project.dto';
+import { UpdateTenantTeamProjectDto } from '../../tenants/tenant_teams/tenant_team_projects/dto/update-tenant_team_project.dto';
 import { CreateTenantTypeDto } from '../../tenants/tenant_types/dto/create-tenant_type.dto';
 import { UpdateTenantTypeDto } from '../../tenants/tenant_types/dto/update-tenant_type.dto';
 import { CreateTenantUserDto } from '../../tenants/tenant_users/dto/create-tenant_user.dto';
@@ -328,6 +332,30 @@ const OBJECT_TYPE_DTO_REGISTRY: Record<string, ObjectTypeDtoPair> = {
   tenant_teams: {
     createDto: CreateTenantTeamDto,
     updateDto: UpdateTenantTeamDto,
+  },
+  team_member: {
+    createDto: CreateTenantTeamMemberDto,
+    updateDto: UpdateTenantTeamMemberDto,
+  },
+  tenant_team_member: {
+    createDto: CreateTenantTeamMemberDto,
+    updateDto: UpdateTenantTeamMemberDto,
+  },
+  tenant_team_members: {
+    createDto: CreateTenantTeamMemberDto,
+    updateDto: UpdateTenantTeamMemberDto,
+  },
+  team_project: {
+    createDto: CreateTenantTeamProjectDto,
+    updateDto: UpdateTenantTeamProjectDto,
+  },
+  tenant_team_project: {
+    createDto: CreateTenantTeamProjectDto,
+    updateDto: UpdateTenantTeamProjectDto,
+  },
+  tenant_team_projects: {
+    createDto: CreateTenantTeamProjectDto,
+    updateDto: UpdateTenantTeamProjectDto,
   },
   tenant_off_day: {
     createDto: CreateTenantOffDaysDto,

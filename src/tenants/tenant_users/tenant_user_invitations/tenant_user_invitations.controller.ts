@@ -17,7 +17,12 @@ import {
   MICROSERVICE_REMOVE_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_RESEND_TENANT_USER_INVITATION_PATTERN,
   MICROSERVICE_ACCEPT_TENANT_USER_INVITATION_PATTERN,
+  MICROSERVICE_PREVIEW_TENANT_USER_INVITATION_PATTERN,
 } from './constants';
+import type {
+  AcceptInvitationProfile,
+  InvitationAcceptPreview,
+} from './invitation-accept.types';
 
 /**
  * Controller for managing tenant user invitations.
@@ -129,10 +134,27 @@ export class TenantUserInvitationsController {
     return this.tenantUserInvitationsService.resend(userId, tenantId, id);
   }
 
+  @MessagePattern(MICROSERVICE_PREVIEW_TENANT_USER_INVITATION_PATTERN)
+  async previewTenantUserInvitation(
+    @Payload('data') data: { token?: string },
+  ): Promise<InvitationAcceptPreview> {
+    return this.tenantUserInvitationsService.previewByToken(
+      String(data?.token ?? ''),
+    );
+  }
+
   @MessagePattern(MICROSERVICE_ACCEPT_TENANT_USER_INVITATION_PATTERN)
   async acceptTenantUserInvitation(
-    @Payload('data') data: { token?: string },
+    @Payload('data')
+    data: { token?: string } & AcceptInvitationProfile,
   ): Promise<TenantUserInvitationsEntity> {
-    return this.tenantUserInvitationsService.acceptByToken(String(data?.token ?? ''));
+    return this.tenantUserInvitationsService.acceptByToken(
+      String(data?.token ?? ''),
+      {
+        firstName: data?.firstName,
+        lastName: data?.lastName,
+        password: data?.password,
+      },
+    );
   }
 }

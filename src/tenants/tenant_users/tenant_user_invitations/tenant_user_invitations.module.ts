@@ -4,6 +4,9 @@ import { TenantUserInvitationsController } from './tenant_user_invitations.contr
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUserInvitationsEntity } from './entities/tenant_user_invitation.entity';
 import { NotificationsModule } from '../../../notifications/notifications.module';
+import { TenantUsersEntity } from '../entities/tenant_user.entity';
+import { TenantUserRoleEntity } from '../tenant_user_roles/entities/tenant_user_role.entity';
+import { UserEntity } from '../../../users/entities/user.entity';
 
 /**
  * TenantUserInvitationsModule is responsible for managing tenant user invitations.
@@ -14,7 +17,12 @@ import { NotificationsModule } from '../../../notifications/notifications.module
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TenantUserInvitationsEntity]),
+    TypeOrmModule.forFeature([
+      TenantUserInvitationsEntity,
+      TenantUsersEntity,
+      TenantUserRoleEntity,
+      UserEntity,
+    ]),
     forwardRef(() => NotificationsModule),
   ],
   controllers: [TenantUserInvitationsController],

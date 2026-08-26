@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
-import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
+import { randomBytes, randomUUID } from 'crypto';
+import { Repository, UpdateResult, DeleteResult, Like, EntityManager, In } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantUserInvitationsEntity } from './entities/tenant_user_invitation.entity';
 import { CreateTenantUserInvitationDto } from './dto/create-tenant_user_invitation.dto';
@@ -8,6 +9,9 @@ import { FiltersDto } from './dto/filters.dto';
 import { FindAllResultInterface } from './interfaces/findall-result.interface';
 import { RpcException } from '@nestjs/microservices';
 import { EventsService } from '../../../events/events.service';
+import { PLATFORM_EVENT_NAMES } from '../../../events/constants/platform-event-names.constants';
+import { PlatformEventFlagsService } from '../../../events/config/platform-event-flags.service';
+import type { EventEmitOptions } from '../../../events/interfaces/event-emit-options.interface';
 import { NotificationUrlBuilderService } from '../../../notifications/services/notification-url-builder.service';
 import {
   buildRuntimeV2ListPagination,
@@ -20,14 +24,31 @@ import {
   NO_RECORD_FOUND_FOR_PASSED_FILTERS_MESSAGE,
 } from '../../../common/constants';
 import { applyTenantUserInvitationCreateDefaults } from './invitation-create.defaults';
+import { resolveInviterTenantUserId } from './invitation-inviter.resolve';
+import type {
+  AcceptInvitationProfile,
+  InvitationAcceptPreview,
+} from './invitation-accept.types';
+import { TenantUsersEntity } from '../entities/tenant_user.entity';
+import { TenantUserRoleEntity } from '../tenant_user_roles/entities/tenant_user_role.entity';
+import { UserEntity } from '../../../users/entities/user.entity';
+
+const DEFAULT_TENANT_USER_STATUS_ID = 1;
 
 @Injectable()
 export class TenantUserInvitationsService {
   constructor(
     @InjectRepository(TenantUserInvitationsEntity)
     private readonly tenantUserInvitationsRepository: Repository<TenantUserInvitationsEntity>,
+    @InjectRepository(TenantUsersEntity)
+    private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
+    @InjectRepository(TenantUserRoleEntity)
+    private readonly tenantUserRoleRepository: Repository<TenantUserRoleEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepository: Repository<UserEntity>,
     private readonly eventsService: EventsService,
     private readonly urlBuilder: NotificationUrlBuilderService,
+    private readonly platformEventFlags: PlatformEventFlagsService,
   ) {}
 
   /**
@@ -40,6 +61,11 @@ export class TenantUserInvitationsService {
     userId: number,
     createTenantUserInvitationDto: CreateTenantUserInvitationDto,
   ): Promise<TenantUserInvitationsEntity> {
+    const invitedBy = await this.resolveInviterTenantUserIdOrThrow(
+      userId,
+      createTenantUserInvitationDto.tenantId,
+      createTenantUserInvitationDto.invitedBy,
+    );
     const prepared = applyTenantUserInvitationCreateDefaults({
       tenantId: createTenantUserInvitationDto.tenantId,
       actorUserId: userId,
@@ -47,7 +73,7 @@ export class TenantUserInvitationsService {
       roleId: createTenantUserInvitationDto.roleId,
       token: createTenantUserInvitationDto.token,
       status: createTenantUserInvitationDto.status,
-      invitedBy: createTenantUserInvitationDto.invitedBy,
+      invitedBy,
       userId: createTenantUserInvitationDto.userId,
       expiresAt: createTenantUserInvitationDto.expiresAt,
     });
@@ -86,10 +112,12 @@ export class TenantUserInvitationsService {
       );
     }
 
+    const hydrated = await this.hydrateInvitationRows(tenantUserInvitations);
+
     const pagination = this.buildPagination(filtersDto, total);
     return {
-      items: tenantUserInvitations,
-      tenantUserInvitationsRecords: tenantUserInvitations,
+      items: hydrated,
+      tenantUserInvitationsRecords: hydrated,
       page: pagination.page,
       limit: pagination.limit,
       total: pagination.total,
@@ -150,7 +178,6 @@ export class TenantUserInvitationsService {
     tenantId: number,
     id: number,
   ): Promise<TenantUserInvitationsEntity> {
-    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
@@ -164,7 +191,8 @@ export class TenantUserInvitationsService {
       );
     }
 
-    return invitation;
+    const [hydrated] = await this.hydrateInvitationRows([invitation]);
+    return hydrated ?? invitation;
   }
 
   /**
@@ -181,7 +209,6 @@ export class TenantUserInvitationsService {
     id: number,
     updateTenantUserInvitationDto: UpdateTenantUserInvitationDto,
   ): Promise<UpdateResult> {
-    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
@@ -211,6 +238,7 @@ export class TenantUserInvitationsService {
         where: { invitationId: id, tenantId },
       });
       if (updated) {
+        await this.provisionTenantUserFromInvitation(updated);
         await this.emitTenantUserInvitationAcceptedEvent(updated);
       }
     }
@@ -223,14 +251,13 @@ export class TenantUserInvitationsService {
    * @param userId - ID of the user making the request.
    * @param tenantId - ID of the tenant.
    * @param id - ID of the invitation.
-   * @returns The result of the delete operation.
+   * @returns The result of the deletion operation.
    */
   async remove(
     userId: number,
     tenantId: number,
     id: number,
   ): Promise<DeleteResult> {
-    // Optionally validate userId permissions here
     const invitation = await this.tenantUserInvitationsRepository.findOne({
       where: { invitationId: id, tenantId },
     });
@@ -279,40 +306,58 @@ export class TenantUserInvitationsService {
       email: invitation.email,
       roleId: invitation.roleId,
     }).token;
-    invitation.invitedBy = userId;
+    invitation.invitedBy = await this.resolveInviterTenantUserIdOrThrow(
+      userId,
+      tenantId,
+      invitation.invitedBy,
+    );
     const saved = await this.tenantUserInvitationsRepository.save(invitation);
     await this.emitTenantUserInvitedEvent(saved);
     return saved;
   }
 
-  /**
-   * Accepts an invitation from the public token link.
-   */
-  async acceptByToken(token: string): Promise<TenantUserInvitationsEntity> {
-    const trimmed = token.trim();
-    if (!trimmed) {
-      throw new RpcException('Invitation token is required.');
-    }
-    const invitation = await this.tenantUserInvitationsRepository.findOne({
-      where: { token: trimmed },
+  async previewByToken(token: string): Promise<InvitationAcceptPreview> {
+    const invitation = await this.loadInvitationByToken(token);
+    const existingUser = await this.userRepository.findOne({
+      where: { email: invitation.email.trim().toLowerCase() },
     });
-    if (!invitation) {
-      throw new RpcException('Invalid invitation token.');
-    }
+    return {
+      email: invitation.email,
+      tenantName: invitation.tenant?.name ?? 'Your tenant',
+      roleName: this.roleDisplayName(invitation),
+      status: invitation.status,
+      expired: this.isInvitationExpired(invitation),
+      requiresAccountSetup: existingUser == null,
+    };
+  }
+
+  /**
+   * Accepts an invitation from the public token link and completes tenant user setup.
+   */
+  async acceptByToken(
+    token: string,
+    profile?: AcceptInvitationProfile,
+  ): Promise<TenantUserInvitationsEntity> {
+    const invitation = await this.loadInvitationByToken(token);
+    const wasPending = invitation.status === 'pending';
     if (invitation.status === 'accepted') {
+      await this.provisionTenantUserFromInvitation(invitation, profile);
       return invitation;
     }
     if (invitation.status !== 'pending') {
       throw new RpcException('This invitation is no longer pending.');
     }
-    if (invitation.expiresAt && invitation.expiresAt.getTime() < Date.now()) {
+    if (this.isInvitationExpired(invitation)) {
       throw new RpcException('This invitation has expired.');
     }
 
-    invitation.status = 'accepted';
-    const saved = await this.tenantUserInvitationsRepository.save(invitation);
-    await this.emitTenantUserInvitationAcceptedEvent(saved);
-    return saved;
+    await this.provisionTenantUserFromInvitation(invitation, profile, {
+      markAccepted: true,
+    });
+    if (wasPending) {
+      await this.emitTenantUserInvitationAcceptedEvent(invitation);
+    }
+    return invitation;
   }
 
   /**
@@ -335,10 +380,7 @@ export class TenantUserInvitationsService {
       [inviterUser?.firstName, inviterUser?.lastName].filter(Boolean).join(' ') ||
       inviterUser?.email ||
       'Someone';
-    const userRole =
-      (withRelations.role as any)?.descriptions?.[0]?.name ??
-      (withRelations.role as any)?.name ??
-      `Role #${withRelations.roleId}`;
+    const userRole = this.roleDisplayName(withRelations);
 
     const invitationUrl =
       this.urlBuilder.buildTenantUserInvitationUrl(withRelations.token);
@@ -350,25 +392,22 @@ export class TenantUserInvitationsService {
       expiryDays = Math.max(1, Math.ceil(ms / (1000 * 60 * 60 * 24)));
     }
 
-    await this.eventsService.emitWithLogs('tenant_user_invited', {
-      actorId: withRelations.invitedBy,
-      recipientIds:
-        withRelations.userId && withRelations.userId > 0
-          ? [withRelations.userId]
-          : [],
-      entity: {
-        entityId: withRelations.invitationId,
-        entityType: 'tenant_user_invitation',
+    await this.emitInvitationNotificationEvent(
+      PLATFORM_EVENT_NAMES.TENANT_USER_INVITED,
+      {
+        actorUserId: this.resolveInviterPlatformUserId(withRelations),
+        tenantId: withRelations.tenantId,
+        invitationId: withRelations.invitationId,
+        data: {
+          tenantName,
+          inviterName,
+          userRole,
+          invitationUrl,
+          expiryDays,
+          emailAddress: withRelations.email,
+        },
       },
-      data: {
-        tenantName,
-        inviterName,
-        userRole,
-        invitationUrl,
-        expiryDays,
-        emailAddress: withRelations.email,
-      },
-    });
+    );
   }
 
   /**
@@ -380,33 +419,33 @@ export class TenantUserInvitationsService {
     const withRelations =
       await this.tenantUserInvitationsRepository.findOne({
         where: { invitationId: invitation.invitationId },
-        relations: ['tenant', 'role', 'user'],
+        relations: [
+          'tenant',
+          'role',
+          'user',
+          'invitedByUser',
+          'invitedByUser.user',
+        ],
       });
     if (!withRelations) return;
 
     const tenantName = withRelations.tenant?.name ?? 'Your tenant';
-    const user =
-      (withRelations as any).user ??
-      null;
+    const user = withRelations.user ?? null;
     const userName =
       user?.displayName ||
       [user?.firstName, user?.lastName].filter(Boolean).join(' ') ||
       user?.email ||
       'User';
-    const userRole =
-      (withRelations.role as any)?.descriptions?.[0]?.name ??
-      (withRelations.role as any)?.name ??
-      `Role #${withRelations.roleId}`;
+    const userRole = this.roleDisplayName(withRelations);
+    const inviterUserId = this.resolveInviterPlatformUserId(withRelations);
 
-    await this.eventsService.emitWithLogs(
-      'tenant_user_invitation_accepted',
+    await this.emitInvitationNotificationEvent(
+      PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_ACCEPTED,
       {
-        actorId: withRelations.userId || withRelations.invitedBy,
-        recipientIds: [withRelations.invitedBy],
-        entity: {
-          entityId: withRelations.invitationId,
-          entityType: 'tenant_user_invitation',
-        },
+        actorUserId: inviterUserId,
+        tenantId: withRelations.tenantId,
+        invitationId: withRelations.invitationId,
+        recipientIds: [inviterUserId],
         data: {
           userName,
           tenantName,
@@ -414,6 +453,62 @@ export class TenantUserInvitationsService {
         },
       },
     );
+  }
+
+  /**
+   * Platform user id of the inviter (`tenant_users.user_id`), not tenant_user_id.
+   */
+  private resolveInviterPlatformUserId(
+    invitation: TenantUserInvitationsEntity,
+  ): number {
+    const fromMembership = Number(invitation.invitedByUser?.userId);
+    if (Number.isFinite(fromMembership) && fromMembership > 0) {
+      return fromMembership;
+    }
+    const fromUser = Number(invitation.invitedByUser?.user?.userId);
+    if (Number.isFinite(fromUser) && fromUser > 0) {
+      return fromUser;
+    }
+    return 1;
+  }
+
+  private async emitInvitationNotificationEvent(
+    eventName: string,
+    params: {
+      actorUserId: number;
+      tenantId: number;
+      invitationId: number;
+      data: Record<string, unknown>;
+      recipientIds?: number[];
+    },
+  ): Promise<void> {
+    const opts: EventEmitOptions<Record<string, unknown>> & {
+      actorId: number;
+      recipientIds?: number[];
+    } = {
+      actorId: params.actorUserId,
+      userId: params.actorUserId,
+      createdBy: params.actorUserId,
+      tenantId: params.tenantId,
+      correlationId: randomUUID(),
+      entity: {
+        entityId: params.invitationId,
+        entityType: 'tenant_user_invitation',
+      },
+      data: params.data,
+      recipientIds: params.recipientIds ?? [],
+    };
+
+    const useRuleEngine =
+      this.platformEventFlags.isEventBusEnabled() &&
+      this.platformEventFlags.isNotificationRulesEnabled();
+
+    if (useRuleEngine) {
+      await this.eventsService.emitAsync(eventName, opts);
+      return;
+    }
+
+    await this.eventsService.emitWithLogs(eventName, opts);
   }
 
   /**
@@ -431,6 +526,257 @@ export class TenantUserInvitationsService {
       filtersDto.limit,
       total,
       10,
+    );
+  }
+
+  private async resolveInviterTenantUserIdOrThrow(
+    actorUserId: number,
+    tenantId: number,
+    suggestedInvitedBy?: number | null,
+  ): Promise<number> {
+    try {
+      return await resolveInviterTenantUserId({
+        tenantId,
+        actorUserId,
+        suggestedInvitedBy,
+        findByTenantUserId: async (tenantUserId, scopedTenantId) =>
+          this.tenantUsersRepository.findOne({
+            where: { tenantUserId, tenantId: scopedTenantId },
+          }),
+        findByUserId: async (userId, scopedTenantId) =>
+          this.tenantUsersRepository.findOne({
+            where: { userId, tenantId: scopedTenantId },
+          }),
+      });
+    } catch (error) {
+      throw new RpcException(
+        error instanceof Error
+          ? error.message
+          : 'Inviter is not a member of this tenant.',
+      );
+    }
+  }
+
+  private async loadInvitationByToken(
+    token: string,
+  ): Promise<TenantUserInvitationsEntity> {
+    const trimmed = token.trim();
+    if (!trimmed) {
+      throw new RpcException('Invitation token is required.');
+    }
+    const invitation = await this.tenantUserInvitationsRepository.findOne({
+      where: { token: trimmed },
+      relations: ['tenant', 'role'],
+    });
+    if (!invitation) {
+      throw new RpcException('Invalid invitation token.');
+    }
+    return invitation;
+  }
+
+  private isInvitationExpired(invitation: TenantUserInvitationsEntity): boolean {
+    return Boolean(
+      invitation.expiresAt && invitation.expiresAt.getTime() < Date.now(),
+    );
+  }
+
+  private roleDisplayName(invitation: TenantUserInvitationsEntity): string {
+    const role = invitation.role as
+      | { name?: string; descriptions?: Array<{ name?: string }> }
+      | undefined;
+    return (
+      role?.descriptions?.[0]?.name ??
+      role?.name ??
+      `Role #${invitation.roleId}`
+    );
+  }
+
+  private async hydrateInvitationRows(
+    rows: TenantUserInvitationsEntity[],
+  ): Promise<TenantUserInvitationsEntity[]> {
+    const ids = rows.map((row) => row.invitationId).filter(Boolean);
+    if (ids.length === 0) return rows;
+    const loaded = await this.tenantUserInvitationsRepository.find({
+      where: { invitationId: In(ids) },
+      relations: ['role', 'invitedByUser', 'invitedByUser.user'],
+    });
+    const byId = new Map(loaded.map((row) => [row.invitationId, row]));
+    return rows.map((row) => {
+      const hydrated = byId.get(row.invitationId) ?? row;
+      const nestedUser = hydrated.invitedByUser?.user as
+        | { password?: string; displayName?: string; firstName?: string; lastName?: string; email?: string }
+        | undefined;
+      if (nestedUser) {
+        delete nestedUser.password;
+        const displayName =
+          nestedUser.displayName ||
+          [nestedUser.firstName, nestedUser.lastName].filter(Boolean).join(' ') ||
+          nestedUser.email;
+        if (displayName) {
+          (
+            hydrated.invitedByUser as TenantUsersEntity & {
+              displayName?: string;
+            }
+          ).displayName = displayName;
+        }
+      }
+      return hydrated;
+    });
+  }
+
+  private async provisionTenantUserFromInvitation(
+    invitation: TenantUserInvitationsEntity,
+    profile?: AcceptInvitationProfile,
+    options?: { markAccepted?: boolean },
+  ): Promise<void> {
+    await this.tenantUserInvitationsRepository.manager.transaction(
+      async (manager) => {
+        const user = await this.findOrCreateInvitedUser(
+          manager,
+          invitation,
+          profile,
+        );
+        const tenantUser = await this.findOrCreateTenantMembership(
+          manager,
+          invitation,
+          user,
+        );
+        await this.ensureInvitationRole(
+          manager,
+          invitation,
+          tenantUser,
+        );
+        invitation.userId = user.userId;
+        if (options?.markAccepted) {
+          invitation.status = 'accepted';
+        }
+        await manager.save(TenantUserInvitationsEntity, invitation);
+      },
+    );
+  }
+
+  private async findOrCreateInvitedUser(
+    manager: EntityManager,
+    invitation: TenantUserInvitationsEntity,
+    profile?: AcceptInvitationProfile,
+  ): Promise<UserEntity> {
+    const email = invitation.email.trim().toLowerCase();
+    const users = manager.getRepository(UserEntity);
+    const existing = await users.findOne({ where: { email } });
+    if (existing) {
+      return existing;
+    }
+
+    const firstName = profile?.firstName?.trim();
+    const lastName = profile?.lastName?.trim();
+    const password = profile?.password?.trim();
+    if (!firstName || !lastName || !password || password.length < 8) {
+      throw new RpcException(
+        'Please complete your name and password to finish tenant user setup.',
+      );
+    }
+
+    const username = await this.allocateUniqueUsername(users, email);
+    return users.save(
+      users.create({
+        email,
+        username,
+        firstName,
+        lastName,
+        password,
+        displayName: `${firstName} ${lastName}`.trim(),
+        status: 1,
+      }),
+    );
+  }
+
+  private async allocateUniqueUsername(
+    users: Repository<UserEntity>,
+    email: string,
+  ): Promise<string> {
+    if (!(await users.findOne({ where: { username: email } }))) {
+      return email;
+    }
+    const local = email.split('@')[0] || 'user';
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      const candidate = `${local}-${randomBytes(3).toString('hex')}`;
+      if (!(await users.findOne({ where: { username: candidate } }))) {
+        return candidate;
+      }
+    }
+    throw new RpcException('Could not allocate a unique username.');
+  }
+
+  private async findOrCreateTenantMembership(
+    manager: EntityManager,
+    invitation: TenantUserInvitationsEntity,
+    user: UserEntity,
+  ): Promise<TenantUsersEntity> {
+    const tenantUsers = manager.getRepository(TenantUsersEntity);
+    const existing = await tenantUsers.findOne({
+      where: { tenantId: invitation.tenantId, userId: user.userId },
+    });
+    if (existing) {
+      return existing;
+    }
+
+    const createdBy = await this.resolveCreatedByTenantUserId(
+      tenantUsers,
+      invitation,
+    );
+    return tenantUsers.save(
+      tenantUsers.create({
+        tenantId: invitation.tenantId,
+        userId: user.userId,
+        statusId: DEFAULT_TENANT_USER_STATUS_ID,
+        createdBy,
+      }),
+    );
+  }
+
+  private async resolveCreatedByTenantUserId(
+    tenantUsers: Repository<TenantUsersEntity>,
+    invitation: TenantUserInvitationsEntity,
+  ): Promise<number> {
+    const invitedBy = await tenantUsers.findOne({
+      where: {
+        tenantUserId: invitation.invitedBy,
+        tenantId: invitation.tenantId,
+      },
+    });
+    if (invitedBy) return invitedBy.tenantUserId;
+
+    const anyMember = await tenantUsers.findOne({
+      where: { tenantId: invitation.tenantId },
+      order: { tenantUserId: 'ASC' },
+    });
+    if (anyMember) return anyMember.tenantUserId;
+
+    throw new RpcException(
+      'Cannot complete tenant user setup — this tenant has no members to attribute createdBy.',
+    );
+  }
+
+  private async ensureInvitationRole(
+    manager: EntityManager,
+    invitation: TenantUserInvitationsEntity,
+    tenantUser: TenantUsersEntity,
+  ): Promise<void> {
+    const roles = manager.getRepository(TenantUserRoleEntity);
+    const existing = await roles.findOne({
+      where: {
+        tenantUserId: tenantUser.tenantUserId,
+        roleId: invitation.roleId,
+      },
+    });
+    if (existing) return;
+
+    await roles.save(
+      roles.create({
+        tenantUserId: tenantUser.tenantUserId,
+        roleId: invitation.roleId,
+        createdBy: tenantUser.createdBy || invitation.invitedBy,
+      }),
     );
   }
 }

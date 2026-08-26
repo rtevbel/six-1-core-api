@@ -24,6 +24,16 @@ import {
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 import { ROLES_MAX_PAGE_SIZE } from './constants';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
+import {
+  applyVisibleRolesScope,
+  isRoleVisibleUnderScope,
+  readPositiveFilterTenantId,
+  resolvePlatformRoleCatalogScope,
+  SUPER_ADMIN_ROLE_ID,
+  type PlatformRoleCatalogScope,
+} from '../common/rbac/platform-role-catalog-scope';
 
 @Injectable()
 export class RolesService {
@@ -56,6 +66,10 @@ export class RolesService {
     private readonly roleDescriptionRepository: Repository<RoleDescriptionEntity>,
     @InjectRepository(RolePermissionEntity)
     private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
+    @InjectRepository(UserRoleEntity)
+    private readonly userRoleRepository: Repository<UserRoleEntity>,
+    @InjectRepository(TenantUsersEntity)
+    private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
     private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
@@ -92,6 +106,7 @@ export class RolesService {
       filtersDto.page = 1;
     }
 
+    const catalogScope = await this.resolveCatalogScope(userId, filtersDto);
     const canonical = canonicalListObjectTypeForEntity(RoleEntity);
 
     const ctx: CatalogBackedDynamicListContext<RoleEntity> = {
@@ -113,7 +128,12 @@ export class RolesService {
           ? row.catalogTenantId
           : null;
       },
-      applyMandatoryScope: () => undefined,
+      applyMandatoryScope: (qb) => {
+        if (catalogScope.mode === 'unscoped') {
+          return;
+        }
+        applyVisibleRolesScope(qb, 'r', catalogScope);
+      },
       schemaMissingForRelatedFiltersMessage:
         'Role configuration schema is required for related list filters.',
       maxPageSize: ROLES_MAX_PAGE_SIZE,
@@ -192,6 +212,8 @@ export class RolesService {
       );
     }
 
+    await this.assertRoleReadable(userId, role);
+
     return role;
   }
 
@@ -218,6 +240,8 @@ export class RolesService {
       );
     }
 
+    await this.assertRoleReadable(userId, role);
+
     const {
       descriptions,
       permissions,
@@ -227,15 +251,39 @@ export class RolesService {
 
     if (descriptions) {
       for (const description of descriptions) {
+        const languageId = description.languageId ?? 1;
+        const {
+          roleId: _ignoredRoleId,
+          roleDescriptionId: _ignoredRoleDescriptionId,
+          ...descriptionFields
+        } = description;
         if (description.roleDescriptionId) {
           await this.roleDescriptionRepository.update(
             description.roleDescriptionId,
-            description,
+            {
+              ...descriptionFields,
+              roleId: id,
+              languageId,
+            },
           );
+          continue;
+        }
+        const existing = await this.roleDescriptionRepository.findOne({
+          where: { roleId: id, languageId },
+        });
+        if (existing) {
+          await this.roleDescriptionRepository.update(existing.roleDescriptionId, {
+            ...descriptionFields,
+            roleId: id,
+            languageId,
+          });
         } else {
-          description.roleId = id;
           await this.roleDescriptionRepository.save(
-            this.roleDescriptionRepository.create(description),
+            this.roleDescriptionRepository.create({
+              ...descriptionFields,
+              roleId: id,
+              languageId,
+            }),
           );
         }
       }
@@ -283,6 +331,63 @@ export class RolesService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
+    const role = await this.roleRepository.findOne({
+      where: { roleId: id },
+    });
+    if (!role) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', RoleEntity.name),
+      );
+    }
+    await this.assertRoleReadable(userId, role);
     return await this.roleRepository.delete({ roleId: id });
+  }
+
+  private async resolveCatalogScope(
+    userId: number,
+    filtersDto?: Pick<FiltersDto, 'tenantId'> | null,
+  ): Promise<PlatformRoleCatalogScope> {
+    const filterTenantId = readPositiveFilterTenantId(filtersDto ?? undefined);
+    const callerIsSuperAdmin = await this.userHasSuperAdminRole(userId);
+    return resolvePlatformRoleCatalogScope({
+      filterTenantId,
+      callerIsSuperAdmin,
+      userId,
+    });
+  }
+
+  private async userHasSuperAdminRole(userId: number): Promise<boolean> {
+    const row = await this.userRoleRepository.findOne({
+      where: { userId, roleId: SUPER_ADMIN_ROLE_ID },
+      select: ['userRoleId'],
+    });
+    return row != null;
+  }
+
+  private async assertRoleReadable(
+    userId: number,
+    role: Pick<RoleEntity, 'roleId' | 'tenantId'>,
+  ): Promise<void> {
+    const scope = await this.resolveCatalogScope(userId);
+    if (scope.mode === 'unscoped') {
+      return;
+    }
+    let membershipTenantIds: Set<number> | undefined;
+    if (scope.mode === 'membership') {
+      const rows = await this.tenantUsersRepository.find({
+        where: { userId },
+        select: ['tenantId'],
+      });
+      membershipTenantIds = new Set(
+        rows
+          .map((r) => r.tenantId)
+          .filter((t): t is number => typeof t === 'number' && t > 0),
+      );
+    }
+    if (!isRoleVisibleUnderScope(role, scope, membershipTenantIds)) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', RoleEntity.name),
+      );
+    }
   }
 }

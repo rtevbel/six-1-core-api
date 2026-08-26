@@ -31,6 +31,9 @@ export const PLATFORM_EVENT_NAMES = {
   TENANT_EMAIL_VERIFICATION_REQUESTED:
     'six1-event.tenant.email_verification_requested',
   TENANT_EMAIL_VERIFIED: 'six1-event.tenant.email_verified',
+  TENANT_USER_INVITED: 'six1-event.tenant_user_invited',
+  TENANT_USER_INVITATION_ACCEPTED: 'six1-event.tenant_user_invitation_accepted',
+  TENANT_USER_INVITATION_EXPIRED: 'six1-event.tenant_user_invitation_expired',
 } as const;
 
 export type PlatformEventName =

@@ -50,6 +50,7 @@ export const SYSTEM_TABLE_OBJECT_TYPES = [
   'tenant_user_configurations',
   'tenant_user_working_hours',
   'tenant_user_off_days',
+  'tenant_teams',
 
   // Security & system config
   'roles',

@@ -177,7 +177,10 @@ export class TenantUserWorkingHoursService {
     updateTenantUserWorkingHoursDto: UpdateTenantUserWorkingHoursDto,
   ): Promise<UpdateResult> {
     const workingHour = await this.tenantUserWorkingHoursRepository.findOne({
-      where: { tenantUserWorkingHourId: id, tenantUserId },
+      where: {
+        tenantUserWorkingHourId: Number(id),
+        tenantUserId: Number(tenantUserId),
+      },
     });
 
     if (!workingHour) {
@@ -190,7 +193,10 @@ export class TenantUserWorkingHoursService {
     }
 
     return await this.tenantUserWorkingHoursRepository.update(
-      { tenantUserWorkingHourId: id, tenantUserId },
+      {
+        tenantUserWorkingHourId: Number(id),
+        tenantUserId: Number(tenantUserId),
+      },
       updateTenantUserWorkingHoursDto,
     );
   }

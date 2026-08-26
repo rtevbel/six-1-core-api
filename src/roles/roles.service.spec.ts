@@ -5,6 +5,8 @@ import { RoleEntity } from './entities/role.entity';
 import { RoleDescriptionEntity } from './entities/role-description.entity';
 import { RolePermissionEntity } from './entities/role-permission.entity';
 import { ConfigObjectsService } from '../config_objects/config_objects.service';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
 
 describe('RolesService', () => {
   let service: RolesService;
@@ -16,12 +18,19 @@ describe('RolesService', () => {
     update: jest.fn(),
   };
   const roleRepository = {
-    findOne: jest.fn().mockResolvedValue({ roleId: 7 }),
+    findOne: jest.fn().mockResolvedValue({ roleId: 7, tenantId: 20 }),
     update: jest.fn(),
+  };
+  const userRoleRepository = {
+    findOne: jest.fn().mockResolvedValue({ userRoleId: 1 }),
+  };
+  const tenantUsersRepository = {
+    find: jest.fn().mockResolvedValue([{ tenantId: 20 }]),
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    userRoleRepository.findOne.mockResolvedValue({ userRoleId: 1 });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -37,6 +46,14 @@ describe('RolesService', () => {
         {
           provide: getRepositoryToken(RolePermissionEntity),
           useValue: rolePermissionRepository,
+        },
+        {
+          provide: getRepositoryToken(UserRoleEntity),
+          useValue: userRoleRepository,
+        },
+        {
+          provide: getRepositoryToken(TenantUsersEntity),
+          useValue: tenantUsersRepository,
         },
         {
           provide: ConfigObjectsService,

@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { Repository, UpdateResult, DeleteResult, Like } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
 import { TenantTeamProjectEntity } from './entities/tenant_team_project.entity';
+import { TenantTeamEntity } from '../entities/tenant_team.entity';
+import { TenantUsersEntity } from '../../tenant_users/entities/tenant_user.entity';
 import { CreateTenantTeamProjectDto } from './dto/create-tenant_team_project.dto';
 import { UpdateTenantTeamProjectDto } from './dto/update-tenant_team_project.dto';
 import { RpcException } from '@nestjs/microservices';
@@ -23,6 +25,10 @@ export class TenantTeamProjectService {
   constructor(
     @InjectRepository(TenantTeamProjectEntity)
     private readonly tenantTeamProjectRepository: Repository<TenantTeamProjectEntity>,
+    @InjectRepository(TenantTeamEntity)
+    private readonly tenantTeamRepository: Repository<TenantTeamEntity>,
+    @InjectRepository(TenantUsersEntity)
+    private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
   ) {}
 
   /**
@@ -38,7 +44,19 @@ export class TenantTeamProjectService {
     createTenantTeamProjectDto: CreateTenantTeamProjectDto,
   ): Promise<TenantTeamProjectEntity> {
     createTenantTeamProjectDto.tenantTeamId = tenantTeamId;
-    createTenantTeamProjectDto.createdBy = userId;
+    if (createTenantTeamProjectDto.createdBy == null) {
+      const team = await this.tenantTeamRepository.findOne({
+        where: { tenantTeamId },
+      });
+      if (team) {
+        const membership = await this.tenantUsersRepository.findOne({
+          where: { userId, tenantId: team.tenantId },
+        });
+        if (membership) {
+          createTenantTeamProjectDto.createdBy = membership.tenantUserId;
+        }
+      }
+    }
 
     return await this.tenantTeamProjectRepository.save(
       this.tenantTeamProjectRepository.create(createTenantTeamProjectDto),

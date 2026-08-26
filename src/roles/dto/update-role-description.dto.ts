@@ -25,19 +25,18 @@ export class UpdateRoleDescriptionDto extends PartialType(
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  roleDescriptionId?: number = 0;
+  roleDescriptionId?: number;
 
   /**
    * The ID of the role.
    *
    * - Optional field.
    * - Must be a number.
-   * - Default value is 0.
    *
    * @type {number}
    */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
-  roleId?: number = 0;
+  roleId?: number;
 }

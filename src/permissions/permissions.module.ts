@@ -6,6 +6,7 @@ import { PermissionEntity } from './entities/permission.entity';
 import { PermissionDescriptionEntity } from './entities/permission_description.entity';
 import { RolePermissionEntity } from '../roles/entities/role-permission.entity';
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
 
 /**
  * PermissionsModule is responsible for managing permissions.
@@ -22,6 +23,7 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
       PermissionEntity,
       PermissionDescriptionEntity,
       RolePermissionEntity,
+      UserRoleEntity,
     ]),
     ConfigObjectsModule,
   ],

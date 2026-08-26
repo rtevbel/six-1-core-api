@@ -6,6 +6,8 @@ import { RoleEntity } from './entities/role.entity';
 import { RoleDescriptionEntity } from './entities/role-description.entity';
 import { RolePermissionEntity } from './entities/role-permission.entity';
 import { ConfigObjectsModule } from '../config_objects/config_objects.module';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import { TenantUsersEntity } from '../tenants/tenant_users/entities/tenant_user.entity';
 
 /**
  * RolesModule is responsible for managing roles.
@@ -22,6 +24,8 @@ import { ConfigObjectsModule } from '../config_objects/config_objects.module';
       RoleEntity,
       RoleDescriptionEntity,
       RolePermissionEntity,
+      UserRoleEntity,
+      TenantUsersEntity,
     ]),
     ConfigObjectsModule,
   ],

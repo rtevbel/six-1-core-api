@@ -25,6 +25,21 @@ import {
   executeCatalogBackedDynamicListQuery,
   type CatalogBackedDynamicListContext,
 } from '../../config_objects/list-query/sor-bound-dynamic-list.executor';
+import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity';
+import { SUPER_ADMIN_ROLE_ID } from '../../common/rbac/platform-role-catalog-scope';
+import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
+
+export type TenantAccessAssertionResult = {
+  allowed: true;
+  tenantUserId: number | null;
+  isSuperAdmin: boolean;
+  tenantId: number;
+};
+
+export type AssertTenantAccessInput = {
+  tenantId?: number | null;
+  tenantTeamId?: number | null;
+};
 
 @Injectable()
 export class TenantUsersService {
@@ -53,6 +68,10 @@ export class TenantUsersService {
   constructor(
     @InjectRepository(TenantUsersEntity)
     private readonly tenantUsersRepository: Repository<TenantUsersEntity>,
+    @InjectRepository(UserRoleEntity)
+    private readonly userRoleRepository: Repository<UserRoleEntity>,
+    @InjectRepository(TenantTeamEntity)
+    private readonly tenantTeamRepository: Repository<TenantTeamEntity>,
     private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
@@ -173,7 +192,35 @@ export class TenantUsersService {
     const byId = new Map(loaded.map((t) => [t.tenantUserId, t]));
     return ids
       .map((id) => byId.get(id)!)
-      .filter(Boolean) as TenantUsersEntity[];
+      .filter(Boolean)
+      .map((row) => this.attachTenantUserDisplayName(row));
+  }
+
+  private attachTenantUserDisplayName(
+    row: TenantUsersEntity,
+  ): TenantUsersEntity {
+    const user = row.user as
+      | {
+          password?: string;
+          displayName?: string;
+          firstName?: string;
+          lastName?: string;
+          email?: string;
+        }
+      | undefined;
+    if (!user) {
+      return row;
+    }
+    delete user.password;
+    const displayName =
+      user.displayName?.trim() ||
+      [user.firstName, user.lastName].filter(Boolean).join(' ').trim() ||
+      user.email;
+    if (displayName) {
+      (row as TenantUsersEntity & { displayName?: string }).displayName =
+        displayName;
+    }
+    return row;
   }
 
   async findOne(
@@ -183,6 +230,7 @@ export class TenantUsersService {
   ): Promise<TenantUsersEntity> {
     const tenantUser = await this.tenantUsersRepository.findOne({
       where: { tenantUserId: id, tenantId },
+      relations: ['user', 'status'],
     });
 
     if (!tenantUser) {
@@ -193,7 +241,7 @@ export class TenantUsersService {
         ),
       );
     }
-    return tenantUser;
+    return this.attachTenantUserDisplayName(tenantUser);
   }
 
   async update(
@@ -245,6 +293,101 @@ export class TenantUsersService {
       tenantUserId: id,
       tenantId,
     });
+  }
+
+  /**
+   * Assert the caller may access tenant-scoped APIs.
+   * Resolves tenant from `tenantId` and/or `tenantTeamId` (team → tenant).
+   * Super Admin (global user_roles.role_id = 1) may access any tenant.
+   * Otherwise the caller must have a `tenant_users` membership row.
+   */
+  async assertTenantAccess(
+    userId: number,
+    input: number | AssertTenantAccessInput,
+  ): Promise<TenantAccessAssertionResult> {
+    const scope =
+      typeof input === 'number'
+        ? { tenantId: input, tenantTeamId: null }
+        : {
+            tenantId: input.tenantId ?? null,
+            tenantTeamId: input.tenantTeamId ?? null,
+          };
+
+    if (!Number.isFinite(userId) || userId <= 0) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Tenant scope mismatch',
+      });
+    }
+
+    let tenantId =
+      typeof scope.tenantId === 'number' &&
+      Number.isFinite(scope.tenantId) &&
+      scope.tenantId > 0
+        ? Math.trunc(scope.tenantId)
+        : null;
+
+    if (
+      tenantId == null &&
+      typeof scope.tenantTeamId === 'number' &&
+      Number.isFinite(scope.tenantTeamId) &&
+      scope.tenantTeamId > 0
+    ) {
+      const team = await this.tenantTeamRepository.findOne({
+        where: { tenantTeamId: Math.trunc(scope.tenantTeamId) },
+        select: ['tenantTeamId', 'tenantId'],
+      });
+      if (!team || !(team.tenantId > 0)) {
+        throw new RpcException({
+          statusCode: 403,
+          message: 'Tenant scope mismatch',
+        });
+      }
+      tenantId = team.tenantId;
+    }
+
+    if (tenantId == null || tenantId <= 0) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Tenant scope mismatch',
+      });
+    }
+
+    const isSuperAdmin = await this.userHasSuperAdminRole(userId);
+    if (isSuperAdmin) {
+      return {
+        allowed: true,
+        tenantUserId: null,
+        isSuperAdmin: true,
+        tenantId,
+      };
+    }
+
+    const membership = await this.tenantUsersRepository.findOne({
+      where: { userId, tenantId },
+      select: ['tenantUserId'],
+    });
+    if (!membership) {
+      throw new RpcException({
+        statusCode: 403,
+        message: 'Tenant scope mismatch',
+      });
+    }
+
+    return {
+      allowed: true,
+      tenantUserId: membership.tenantUserId,
+      isSuperAdmin: false,
+      tenantId,
+    };
+  }
+
+  private async userHasSuperAdminRole(userId: number): Promise<boolean> {
+    const row = await this.userRoleRepository.findOne({
+      where: { userId, roleId: SUPER_ADMIN_ROLE_ID },
+      select: ['userRoleId'],
+    });
+    return row != null;
   }
 
   private buildPagination(

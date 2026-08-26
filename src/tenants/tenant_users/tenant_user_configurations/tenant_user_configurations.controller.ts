@@ -65,8 +65,8 @@ export class TenantUserConfigurationsController {
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<TenantUserConfigurationsEntity> {
     return this.tenantUserConfigurationsService.findOne(
-      tenantId,
       userId,
+      tenantId,
       tenantUserId,
       id,
     );
@@ -109,10 +109,13 @@ export class TenantUserConfigurationsController {
     updateTenantUserConfigurationDto: UpdateTenantUserConfigurationDto,
   ): Promise<UpdateResult> {
     return this.tenantUserConfigurationsService.update(
-      tenantId,
       userId,
+      tenantId,
       tenantUserId,
-      updateTenantUserConfigurationDto.tenantUserConfigId,
+      Number(
+        updateTenantUserConfigurationDto.tenantUserConfigId ??
+          (updateTenantUserConfigurationDto as { id?: number }).id,
+      ),
       updateTenantUserConfigurationDto,
     );
   }

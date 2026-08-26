@@ -314,9 +314,21 @@ const CANONICAL_PLATFORM_EVENT_CATALOG: PlatformEventCatalogSeedEntry[] = [
     ),
     isSystem: true,
   },
-
-  /* ========= LEGACY NOTIFICATION EVENT NAMES (pre-canonical) ========= */
-  fromEventVars('tenant_user_invited', 'A user was invited to a tenant.', 'domain'),
+  fromEventVars(
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITED,
+    'A user was invited to a tenant.',
+    'domain',
+  ),
+  fromEventVars(
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_ACCEPTED,
+    'An invited user accepted a tenant invitation.',
+    'domain',
+  ),
+  fromEventVars(
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_EXPIRED,
+    'A tenant user invitation expired before it was accepted.',
+    'domain',
+  ),
 ];
 
 const PLATFORM_EVENT_CATALOG_BY_NAME = new Map(
@@ -354,6 +366,21 @@ const DEPRECATED_NOTIFICATION_SHIMS: PlatformEventCatalogSeedEntry[] = [
     'tenant_email_verified',
     PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFIED,
     'Deprecated — use six1-event.tenant.email_verified',
+  ),
+  deprecatedNotificationShim(
+    'tenant_user_invited',
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITED,
+    'Deprecated — use six1-event.tenant_user_invited',
+  ),
+  deprecatedNotificationShim(
+    'tenant_user_invitation_accepted',
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_ACCEPTED,
+    'Deprecated — use six1-event.tenant_user_invitation_accepted',
+  ),
+  deprecatedNotificationShim(
+    'tenant_user_invitation_expired',
+    PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_EXPIRED,
+    'Deprecated — use six1-event.tenant_user_invitation_expired',
   ),
 ];
 

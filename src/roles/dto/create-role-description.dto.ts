@@ -70,6 +70,10 @@ export class CreateRoleDescriptionDto {
   @IsOptional()
   @IsString()
   @MaxLength(65535)
-  @Transform(({ value }) => sanitizeHtml(value.trim()))
+  @Transform(({ value }) =>
+    value == null || value === ''
+      ? value
+      : sanitizeHtml(String(value).trim()),
+  )
   description?: string;
 }

@@ -16,6 +16,7 @@ import {
   MICROSERVICE_UPDATE_TENANT_USER_PATTERN,
   MICROSERVICE_REMOVE_TENANT_USER_PATTERN,
   MICROSERVICE_FIND_ALL_BY_TENANT_ID_PATTERN,
+  MICROSERVICE_ASSERT_TENANT_ACCESS_PATTERN,
 } from './constants';
 
 /**
@@ -112,5 +113,33 @@ export class TenantUsersController {
     @Payload('data', ParseIntPipe) id: number,
   ): Promise<DeleteResult> {
     return this.tenantUsersService.remove(userId, tenantId, id);
+  }
+
+  /**
+   * Asserts the caller may access APIs under `/tenants/:tenantId/...`
+   * or `/teams/:tenantTeamId/...` (team is resolved to its tenant).
+   */
+  @MessagePattern(MICROSERVICE_ASSERT_TENANT_ACCESS_PATTERN)
+  async assertTenantAccess(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('tenantId') tenantIdRaw: number | string | null | undefined,
+    @Payload('data')
+    data?: { tenantId?: number; tenantTeamId?: number } | null,
+  ): Promise<{
+    allowed: true;
+    tenantUserId: number | null;
+    isSuperAdmin: boolean;
+    tenantId: number;
+  }> {
+    const tenantIdFromPayload =
+      typeof tenantIdRaw === 'number'
+        ? tenantIdRaw
+        : typeof tenantIdRaw === 'string' && /^\d+$/.test(tenantIdRaw)
+          ? Number.parseInt(tenantIdRaw, 10)
+          : null;
+    return this.tenantUsersService.assertTenantAccess(userId, {
+      tenantId: data?.tenantId ?? tenantIdFromPayload,
+      tenantTeamId: data?.tenantTeamId ?? null,
+    });
   }
 }

@@ -262,6 +262,8 @@ const OBJECT_TYPE_ALIASES: Record<string, string> = {
   tenant_working_hour: 'tenant_working_hours',
   tenant_subscription: 'tenant_subscriptions',
   tenant_team: 'tenant_teams',
+  team_member: 'tenant_team_members',
+  team_project: 'tenant_team_projects',
   tenant_off_day: 'tenant_off_days',
   tenant_user: 'tenant_users',
   tenant_user_invitation: 'tenant_user_invitations',

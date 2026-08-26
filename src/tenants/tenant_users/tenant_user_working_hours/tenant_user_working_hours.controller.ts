@@ -112,7 +112,10 @@ export class TenantUserWorkingHoursController {
       userId,
       tenantId,
       tenantUserId,
-      updateTenantUserWorkingHoursDto.tenantUserWorkingHourId,
+      Number(
+        updateTenantUserWorkingHoursDto.tenantUserWorkingHourId ??
+          (updateTenantUserWorkingHoursDto as { id?: number }).id,
+      ),
       updateTenantUserWorkingHoursDto,
     );
   }

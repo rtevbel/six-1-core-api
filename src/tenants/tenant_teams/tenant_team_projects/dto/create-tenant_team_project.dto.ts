@@ -1,4 +1,4 @@
-import { IsNumber, IsNotEmpty } from 'class-validator';
+import { IsNumber, IsNotEmpty, IsOptional } from 'class-validator';
 
 /**
  * Create tenant team project DTO class.
@@ -35,12 +35,12 @@ export class CreateTenantTeamProjectDto {
   /**
    * Created by user ID.
    *
-   * - Required field.
+   * - Optional field; stamped from the caller's tenant membership when omitted.
    * - Must be a number.
    *
    * @type {number}
    */
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
-  createdBy!: number;
+  createdBy?: number;
 }

@@ -153,6 +153,65 @@ export const PLATFORM_NOTIFICATION_TEMPLATE_SEED: PlatformNotificationTemplateSe
       ].join('\n'),
       requiredPaths: ['recipient.name', 'payload.loginUrl'],
     },
+    {
+      key: 'tenant_user_invited',
+      name: 'tenant_user_invited_email',
+      subject: "You're invited to join {{payload.tenantName}}",
+      message: [
+        'You have been invited by {{payload.inviterName}} to join **{{payload.tenantName}}**.',
+        '',
+        '{{#if payload.userRole}}**Role:** {{payload.userRole}}{{/if}}',
+        '',
+        'To accept the invitation, open this link:',
+        '',
+        '{{payload.invitationUrl}}',
+        '',
+        'This invitation expires in {{payload.expiryDays}} days.',
+        '',
+        'If you were not expecting this invitation, you can ignore this email.',
+      ].join('\n'),
+      requiredPaths: [
+        'payload.tenantName',
+        'payload.inviterName',
+        'payload.invitationUrl',
+        'payload.expiryDays',
+      ],
+    },
+    {
+      key: 'tenant_user_invitation_accepted',
+      name: 'tenant_user_invitation_accepted_email',
+      subject:
+        'Invitation accepted: {{payload.userName}} joined {{payload.tenantName}}',
+      message: [
+        '{{payload.userName}} accepted your invitation to join **{{payload.tenantName}}**.',
+        '',
+        '{{#if payload.userRole}}**Role:** {{payload.userRole}}{{/if}}',
+        '',
+        'They can now work with you in this tenant.',
+      ].join('\n'),
+      requiredPaths: [
+        'payload.userName',
+        'payload.tenantName',
+        'payload.userRole',
+      ],
+    },
+    {
+      key: 'tenant_user_invitation_expired',
+      name: 'tenant_user_invitation_expired_email',
+      subject: 'Invitation expired: {{payload.emailAddress}}',
+      message: [
+        'Your invitation to **{{payload.emailAddress}}** to join **{{payload.tenantName}}** has expired.',
+        '',
+        'Resend the invitation if you still want this person to join.',
+        '',
+        '{{#if payload.resendUrl}}Resend: {{payload.resendUrl}}{{/if}}',
+      ].join('\n'),
+      requiredPaths: [
+        'payload.emailAddress',
+        'payload.tenantName',
+        'payload.resendUrl',
+      ],
+    },
   ];
 
 export const PLATFORM_NOTIFICATION_RULE_SEED: PlatformNotificationRuleSeedEntry[] =
@@ -194,6 +253,27 @@ export const PLATFORM_NOTIFICATION_RULE_SEED: PlatformNotificationRuleSeedEntry[
     {
       eventName: PLATFORM_EVENT_NAMES.TENANT_EMAIL_VERIFIED,
       templateKey: 'tenant_email_verified',
+      recipientSpec: { type: 'event_actor' },
+      priority: 100,
+    },
+    {
+      eventName: PLATFORM_EVENT_NAMES.TENANT_USER_INVITED,
+      templateKey: 'tenant_user_invited',
+      recipientSpec: {
+        type: 'event_payload_field',
+        path: 'data.emailAddress',
+      },
+      priority: 100,
+    },
+    {
+      eventName: PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_ACCEPTED,
+      templateKey: 'tenant_user_invitation_accepted',
+      recipientSpec: { type: 'event_actor' },
+      priority: 100,
+    },
+    {
+      eventName: PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_EXPIRED,
+      templateKey: 'tenant_user_invitation_expired',
       recipientSpec: { type: 'event_actor' },
       priority: 100,
     },

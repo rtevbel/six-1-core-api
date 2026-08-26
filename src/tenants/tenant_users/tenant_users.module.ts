@@ -4,6 +4,8 @@ import { TenantUsersController } from './tenant_users.controller';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantUsersEntity } from './entities/tenant_user.entity';
 import { ConfigObjectsModule } from '../../config_objects/config_objects.module';
+import { UserRoleEntity } from '../../users/user-roles/entities/user-role.entity';
+import { TenantTeamEntity } from '../tenant_teams/entities/tenant_team.entity';
 
 import { TenantUserInvitationsModule } from './tenant_user_invitations/tenant_user_invitations.module';
 import { TenantUserConfigurationsModule } from './tenant_user_configurations/tenant_user_configurations.module';
@@ -21,7 +23,11 @@ import { TenantUserRolesModule } from './tenant_user_roles/tenant_user_roles.mod
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TenantUsersEntity]),
+    TypeOrmModule.forFeature([
+      TenantUsersEntity,
+      UserRoleEntity,
+      TenantTeamEntity,
+    ]),
     forwardRef(() => ConfigObjectsModule),
     forwardRef(() => TenantUserInvitationsModule),
     TenantUserConfigurationsModule,

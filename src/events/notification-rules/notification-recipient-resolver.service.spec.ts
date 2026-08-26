@@ -116,6 +116,20 @@ describe('NotificationRecipientResolverService', () => {
     ]);
   });
 
+  it('resolves event_payload_field email to destinationEmail', async () => {
+    await expect(
+      service.resolveDeliveryTargets(
+        { type: 'event_payload_field', path: 'data.emailAddress' },
+        {
+          ...envelope,
+          data: { emailAddress: 'invitee@example.com' },
+        },
+      ),
+    ).resolves.toEqual([
+      { userId: 42, destinationEmail: 'invitee@example.com' },
+    ]);
+  });
+
   it('resolves entity.fields.email via customer context', async () => {
     customerRepository.findOne.mockResolvedValue({
       customerId: 63,

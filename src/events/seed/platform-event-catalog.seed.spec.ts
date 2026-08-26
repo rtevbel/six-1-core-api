@@ -1,3 +1,4 @@
+import { PLATFORM_EVENT_NAMES } from '../constants/platform-event-names.constants';
 import {
   PLATFORM_EVENT_CATALOG_SEED,
   getPlatformEventCatalogSeedEntry,
@@ -29,6 +30,10 @@ describe('platform-event-catalog.seed', () => {
     expect(names.has('six1-event.project_created')).toBe(true);
     expect(names.has('six1-event.project_status_changed')).toBe(true);
     expect(names.has('six1-event.task_status_changed')).toBe(true);
+    expect(names.has(PLATFORM_EVENT_NAMES.TENANT_USER_INVITED)).toBe(true);
+    expect(names.has(PLATFORM_EVENT_NAMES.TENANT_USER_INVITATION_ACCEPTED)).toBe(
+      true,
+    );
   });
 
   it('sets is_system on all seeded entries', () => {

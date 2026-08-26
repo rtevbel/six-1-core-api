@@ -186,7 +186,10 @@ export class TenantUserConfigurationsService {
   ): Promise<TenantUserConfigurationsEntity> {
     const configuration = await this.tenantUserConfigurationsRepository.findOne(
       {
-        where: { tenantUserConfigId: id, tenantUserId },
+        where: {
+          tenantUserConfigId: Number(id),
+          tenantUserId: Number(tenantUserId),
+        },
       },
     );
 
@@ -214,7 +217,10 @@ export class TenantUserConfigurationsService {
   ): Promise<UpdateResult> {
     const configuration = await this.tenantUserConfigurationsRepository.findOne(
       {
-        where: { tenantUserConfigId: id, tenantUserId },
+        where: {
+          tenantUserConfigId: Number(id),
+          tenantUserId: Number(tenantUserId),
+        },
       },
     );
 
@@ -228,7 +234,7 @@ export class TenantUserConfigurationsService {
     }
 
     return await this.tenantUserConfigurationsRepository.update(
-      { tenantUserConfigId: id, tenantUserId },
+      { tenantUserConfigId: Number(id), tenantUserId: Number(tenantUserId) },
       updateTenantUserConfigurationDto,
     );
   }
@@ -244,7 +250,10 @@ export class TenantUserConfigurationsService {
   ): Promise<DeleteResult> {
     const configuration = await this.tenantUserConfigurationsRepository.findOne(
       {
-        where: { tenantUserConfigId: id, tenantUserId },
+        where: {
+          tenantUserConfigId: Number(id),
+          tenantUserId: Number(tenantUserId),
+        },
       },
     );
 
@@ -258,8 +267,8 @@ export class TenantUserConfigurationsService {
     }
 
     return await this.tenantUserConfigurationsRepository.delete({
-      tenantUserConfigId: id,
-      tenantUserId,
+      tenantUserConfigId: Number(id),
+      tenantUserId: Number(tenantUserId),
     });
   }
 

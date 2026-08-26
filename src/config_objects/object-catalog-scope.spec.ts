@@ -11,6 +11,8 @@ describe('object catalog scope policy', () => {
     expect(isSystemTableObjectType('process_instance_steps')).toBe(true);
     expect(isSystemTableObjectType('tenant')).toBe(true);
     expect(isSystemTableObjectType('tenants')).toBe(true);
+    expect(isSystemTableObjectType('tenant_team')).toBe(true);
+    expect(isSystemTableObjectType('tenant_teams')).toBe(true);
   });
 
   it('marks pure membership tables as junction-only', () => {

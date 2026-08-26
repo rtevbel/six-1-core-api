@@ -67,12 +67,12 @@ export class CreateTenantTeamDto {
   /**
    * Tenant-user ID who created the team.
    *
-   * - Required field.
+   * - Optional field; stamped from the caller's tenant membership when omitted.
    * - Must be a number.
    *
    * @type {number}
    */
+  @IsOptional()
   @IsNumber()
-  @IsNotEmpty()
-  createdBy!: number;
+  createdBy?: number;
 }

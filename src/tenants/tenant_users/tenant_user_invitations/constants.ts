@@ -13,5 +13,7 @@ export const MICROSERVICE_RESEND_TENANT_USER_INVITATION_PATTERN =
   'v0.1_resend_tenant_user_invitation';
 export const MICROSERVICE_ACCEPT_TENANT_USER_INVITATION_PATTERN =
   'v0.1_accept_tenant_user_invitation';
+export const MICROSERVICE_PREVIEW_TENANT_USER_INVITATION_PATTERN =
+  'v0.1_preview_tenant_user_invitation';
 export const MESSAGE_BROKER_TENANT_USER_INVITATION_SERVICE_CLIENT_TOKEN =
   'tenant_user_invitation_service_token';

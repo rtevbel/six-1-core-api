@@ -66,4 +66,14 @@ export class CatalogDynamicListFiltersMixin {
   @Type(() => Number)
   @IsNumber()
   catalogTenantId?: number;
+
+  /**
+   * Explorer list requests include `tenantId` from JWT/query. When present and
+   * positive, role/permission catalogs apply tenant-visible scoping (shared
+   * globals except Super Admin, plus caller-tenant rows / grants).
+   */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  tenantId?: number;
 }

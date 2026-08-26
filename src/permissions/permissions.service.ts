@@ -24,6 +24,14 @@ import {
   type CatalogBackedDynamicListContext,
 } from '../config_objects/list-query/sor-bound-dynamic-list.executor';
 import { PERMISSIONS_MAX_PAGE_SIZE } from './constants';
+import { UserRoleEntity } from '../users/user-roles/entities/user-role.entity';
+import {
+  applyPermissionsVisibleViaRolesScope,
+  readPositiveFilterTenantId,
+  resolvePlatformRoleCatalogScope,
+  SUPER_ADMIN_ROLE_ID,
+  type PlatformRoleCatalogScope,
+} from '../common/rbac/platform-role-catalog-scope';
 
 @Injectable()
 export class PermissionsService {
@@ -54,6 +62,8 @@ export class PermissionsService {
     private readonly permissionDescriptionRepository: Repository<PermissionDescriptionEntity>,
     @InjectRepository(RolePermissionEntity)
     private readonly rolePermissionRepository: Repository<RolePermissionEntity>,
+    @InjectRepository(UserRoleEntity)
+    private readonly userRoleRepository: Repository<UserRoleEntity>,
     private readonly configObjectsService: ConfigObjectsService,
   ) {}
 
@@ -90,6 +100,7 @@ export class PermissionsService {
       filtersDto.page = 1;
     }
 
+    const catalogScope = await this.resolveCatalogScope(userId, filtersDto);
     const canonical = canonicalListObjectTypeForEntity(PermissionEntity);
 
     const ctx: CatalogBackedDynamicListContext<PermissionEntity> = {
@@ -111,7 +122,12 @@ export class PermissionsService {
           ? row.catalogTenantId
           : null;
       },
-      applyMandatoryScope: () => undefined,
+      applyMandatoryScope: (qb) => {
+        if (catalogScope.mode === 'unscoped') {
+          return;
+        }
+        applyPermissionsVisibleViaRolesScope(qb, 'p', catalogScope);
+      },
       augmentSearchRawOrClauses: () => [
         `EXISTS (SELECT 1 FROM permission_descriptions p_s_desc WHERE p_s_desc.permission_id = p.permission_id AND (LOWER(p_s_desc.name) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(p_s_desc.description, '')) LIKE LOWER(:_sorSearch) OR LOWER(COALESCE(p_s_desc.permission_group, '')) LIKE LOWER(:_sorSearch)))`,
       ],
@@ -200,6 +216,8 @@ export class PermissionsService {
       );
     }
 
+    await this.assertPermissionReadable(userId, id);
+
     return {
       ...permission,
       roles: permission.rolePermissions ?? [],
@@ -223,6 +241,8 @@ export class PermissionsService {
       permissionId: id,
     });
 
+    await this.assertPermissionReadable(userId, id);
+
     updatePermissionDto.updatedBy = userId;
 
     if (!permission) {
@@ -239,15 +259,42 @@ export class PermissionsService {
 
     if (descriptions) {
       for (const description of descriptions) {
+        const languageId = description.languageId ?? 1;
+        const {
+          permissionId: _ignoredPermissionId,
+          permissionDescriptionId: _ignoredPermissionDescriptionId,
+          ...descriptionFields
+        } = description;
         if (description.permissionDescriptionId) {
           await this.permissionDescriptionRepository.update(
             description.permissionDescriptionId,
-            description,
+            {
+              ...descriptionFields,
+              permissionId: id,
+              languageId,
+            },
+          );
+          continue;
+        }
+        const existing = await this.permissionDescriptionRepository.findOne({
+          where: { permissionId: id, languageId },
+        });
+        if (existing) {
+          await this.permissionDescriptionRepository.update(
+            existing.permissionDescriptionId,
+            {
+              ...descriptionFields,
+              permissionId: id,
+              languageId,
+            },
           );
         } else {
-          description.permissionId = id;
           await this.permissionDescriptionRepository.save(
-            this.permissionDescriptionRepository.create(description),
+            this.permissionDescriptionRepository.create({
+              ...descriptionFields,
+              permissionId: id,
+              languageId,
+            }),
           );
         }
       }
@@ -301,6 +348,53 @@ export class PermissionsService {
    * @returns The result of the delete operation.
    */
   async remove(userId: number, id: number): Promise<DeleteResult> {
+    await this.assertPermissionReadable(userId, id);
     return await this.permissionRepository.delete({ permissionId: id });
+  }
+
+  private async resolveCatalogScope(
+    userId: number,
+    filtersDto?: Pick<FiltersDto, 'tenantId'> | null,
+  ): Promise<PlatformRoleCatalogScope> {
+    const filterTenantId = readPositiveFilterTenantId(filtersDto ?? undefined);
+    const callerIsSuperAdmin = await this.userHasSuperAdminRole(userId);
+    return resolvePlatformRoleCatalogScope({
+      filterTenantId,
+      callerIsSuperAdmin,
+      userId,
+    });
+  }
+
+  private async userHasSuperAdminRole(userId: number): Promise<boolean> {
+    const row = await this.userRoleRepository.findOne({
+      where: { userId, roleId: SUPER_ADMIN_ROLE_ID },
+      select: ['userRoleId'],
+    });
+    return row != null;
+  }
+
+  private async assertPermissionReadable(
+    userId: number,
+    permissionId: number,
+  ): Promise<void> {
+    const scope = await this.resolveCatalogScope(userId);
+    if (scope.mode === 'unscoped') {
+      return;
+    }
+
+    const qb = this.permissionRepository
+      .createQueryBuilder('p')
+      .select('p.permissionId')
+      .where('p.permissionId = :permissionId', { permissionId });
+    applyPermissionsVisibleViaRolesScope(qb, 'p', scope);
+    const visible = await qb.getOne();
+    if (!visible) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll(
+          '{entity_name}',
+          PermissionEntity.name,
+        ),
+      );
+    }
   }
 }

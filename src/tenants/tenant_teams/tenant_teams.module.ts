@@ -5,6 +5,7 @@ import { TenantTeamMembersModule } from './tenant_team_members/tenant_team_membe
 import { TenantTeamProjectsModule } from './tenant_team_projects/tenant_team_projects.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TenantTeamEntity } from './entities/tenant_team.entity';
+import { TenantUsersEntity } from '../tenant_users/entities/tenant_user.entity';
 
 /**
  * TenantTeamsModule is responsible for managing tenant teams.
@@ -15,7 +16,7 @@ import { TenantTeamEntity } from './entities/tenant_team.entity';
  */
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TenantTeamEntity]),
+    TypeOrmModule.forFeature([TenantTeamEntity, TenantUsersEntity]),
     TenantTeamMembersModule,
     TenantTeamProjectsModule,
   ],
