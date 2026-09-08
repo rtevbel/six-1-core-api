@@ -1,6 +1,3 @@
-export const CALENDAR_PROVIDER = Symbol('CALENDAR_PROVIDER');
-export const TASK_CONTEXT_PROVIDER = Symbol('TASK_CONTEXT_PROVIDER');
-
 export interface CalendarProvider {
   /** Best timezone for schedule fitting (tenant-user > tenant > 'UTC') */
   getTimezone(tenantId: number, tenantUserId?: number): Promise<string>;
@@ -21,23 +18,32 @@ export interface CalendarProvider {
   ): Promise<Array<{ start: string; end: string }>>;
 }
 
+export type TaskStartConstraintType =
+  | 'ASAP'
+  | 'NoEarlierThan'
+  | 'On'
+  | 'NoLaterThan'
+  | 'MustStartOn'
+  | 'MustFinishOn';
+
+export type TaskSchedulingMode = 'manual' | 'fixed_duration' | 'fixed_effort';
+
+export interface TaskSchedulingContext {
+  tenantId: number;
+  projectId: number;
+  taskStatusId: number;
+  assigneeId: number | null;
+  teamId: number | null;
+  startConstraintType?: TaskStartConstraintType | null;
+  startConstraintUtc?: Date | null;
+  finishConstraintUtc?: Date | null;
+  estimatedDuration?: number | null;
+  effortHours?: number | null;
+  schedulingMode?: TaskSchedulingMode;
+  defaultShiftHours?: number | null;
+}
+
 export interface TaskContextProvider {
   /** Minimal context to scope calendar/ACL and constraints for a task */
-  getTaskContext(taskId: number): Promise<{
-    tenantId: number;
-    projectId: number;
-    taskStatusId: number;
-    assigneeId: number | null;
-    // Optional: constraints from task
-    startConstraintType?:
-      | 'ASAP'
-      | 'NoEarlierThan'
-      | 'On'
-      | 'NoLaterThan'
-      | 'MustStartOn'
-      | 'MustFinishOn'
-      | null;
-    startConstraintUtc?: Date | null;
-    finishConstraintUtc?: Date | null;
-  }>;
+  getTaskContext(taskId: number): Promise<TaskSchedulingContext>;
 }

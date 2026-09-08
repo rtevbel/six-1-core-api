@@ -11,7 +11,19 @@ describe('SchedulerController', () => {
       providers: [
         {
           provide: SchedulerService,
-          useValue: { scheduleTaskWindow: jest.fn() },
+          useValue: {
+            scheduleTaskWindow: jest.fn(),
+            scheduleFromShifts: jest.fn(),
+            findAll: jest.fn(),
+            findAllByTask: jest.fn(),
+            findOne: jest.fn(),
+            reschedule: jest.fn(),
+            pause: jest.fn(),
+            resume: jest.fn(),
+            cancel: jest.fn(),
+            validatePlacement: jest.fn(),
+            utilization: jest.fn(),
+          },
         },
       ],
     }).compile();

@@ -1,11 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { RpcException } from '@nestjs/microservices';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
+import { NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
+import { TaskSchedulingContext } from '../core/interfaces';
 
 /**
  * TaskContextAdapter
- * - Resolves tenantId/projectId and (optionally) scheduling constraints from task row.
+ * - Resolves tenant/project, assignee/team, and scheduling constraint fields from task row.
  */
 @Injectable()
 export class TaskContextAdapter {
@@ -14,35 +17,31 @@ export class TaskContextAdapter {
     private readonly taskRepo: Repository<TaskEntity>,
   ) {}
 
-  async getTaskContext(taskId: number): Promise<{
-    tenantId: number;
-    projectId: number;
-    taskStatusId: number;
-    assigneeId: number | null;
-    startConstraintType?:
-      | 'ASAP'
-      | 'NoEarlierThan'
-      | 'On'
-      | 'NoLaterThan'
-      | 'MustStartOn'
-      | 'MustFinishOn'
-      | null;
-    startConstraintUtc?: Date | null;
-    finishConstraintUtc?: Date | null;
-  }> {
+  async getTaskContext(taskId: number): Promise<TaskSchedulingContext> {
     const t = await this.taskRepo.findOne({ where: { taskId } });
-    if (!t) throw new Error(`Task ${taskId} not found`);
+    if (!t) {
+      throw new RpcException(
+        NO_RECORD_FOUND_MESSAGE.replaceAll('{entity_name}', TaskEntity.name),
+      );
+    }
 
     return {
       tenantId: t.tenantId,
       projectId: t.projectId,
       taskStatusId: t.taskStatusId,
       assigneeId: t.primaryAssigneeId ?? null,
-      startConstraintType: (t as any).startConstraintType ?? null,
-      startConstraintUtc: (t as any).startConstraintUtc ?? null,
-      finishConstraintUtc: (t as any).finishConstraintUtc ?? null,
+      teamId: t.teamId ?? null,
+      startConstraintType: t.startConstraintType ?? null,
+      startConstraintUtc: t.startConstraintUtc ?? null,
+      finishConstraintUtc: t.finishConstraintUtc ?? null,
+      estimatedDuration:
+        t.estimatedDuration != null ? Number(t.estimatedDuration) : null,
+      effortHours: t.effortHours != null ? Number(t.effortHours) : null,
+      schedulingMode: t.schedulingMode ?? 'manual',
+      defaultShiftHours:
+        t.defaultShiftHours != null ? Number(t.defaultShiftHours) : null,
     };
   }
 }
 
-export { TaskContextAdapter as TaskContextProvider }; // satisfies TASK_CONTEXT_PROVIDER token
+export { TaskContextAdapter as TaskContextProvider };

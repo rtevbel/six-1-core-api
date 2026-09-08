@@ -10,6 +10,7 @@ import { ResourceEntity } from './entities/resource.entity';
 import { ResourceAssignmentEntity } from './entities/resource_assignment.entity';
 import { ResourceAvailabilityEntity } from './entities/resource_availability.entity';
 import { ResourceBlackoutDateEntity } from './entities/resource_blackout_date.entity';
+import { ResourceMetaEntity } from './entities/resource_meta.entity';
 import { TaskDependencyEntity } from './entities/task_dependency.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
 import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
@@ -18,6 +19,7 @@ import { TenantWorkingHoursEntity } from '../tenants/tenant_working_hours/entiti
 import { TenantUserWorkingHoursEntity } from '../tenants/tenant_users/tenant_user_working_hours/entities/tenant_user_working_hour.entity';
 import { TenantOffDaysEntity } from '../tenants/tenant_off_days/entities/tenant_off_day.entity';
 import { TenantUserOffDaysEntity } from '../tenants/tenant_users/tenant_user_off_days/entities/tenant_user_off_day.entity';
+import { TenantTeamMemberEntity } from '../tenants/tenant_teams/tenant_team_members/entities/tenant_team_member.entity';
 
 import { SchedulerService } from './services/scheduler.service';
 import { ScheduledTasksService } from './services/scheduled_tasks.service';
@@ -40,6 +42,10 @@ import { ResourceBlackoutDatesController } from './controllers/resource_blackout
 import { CalendarAdapter } from './adapters/calendar.adapter';
 import { TaskContextAdapter } from './adapters/task_context.adapter';
 import { CALENDAR_PROVIDER, TASK_CONTEXT_PROVIDER } from './constants';
+import {
+  ConstraintCapacityEngine,
+  ResourceAvailabilityAdapter,
+} from './constraints';
 
 import {
   REDIS_DATABASE_HOST_KEY,
@@ -48,16 +54,11 @@ import {
 } from '../auth/constants';
 
 /**
- * SchedulerModule is responsible for managing task scheduling.
- * It includes the controller, services, and configurations for scheduling tasks.
- *
- * @version 0.0.1
+ * SchedulerModule manages live scheduling, resources, and constraint capacity.
  */
 @Module({
-  // Imports required modules and configurations.
   imports: [
     ConfigModule,
-    // Registers the entities for TypeORM.
     TypeOrmModule.forFeature([
       ScheduledTaskEntity,
       ScheduledTaskHistoryEntity,
@@ -67,6 +68,7 @@ import {
       ResourceAssignmentEntity,
       ResourceAvailabilityEntity,
       ResourceBlackoutDateEntity,
+      ResourceMetaEntity,
       TaskDependencyEntity,
       TaskEntity,
       TenantConfigurationsEntity,
@@ -75,8 +77,8 @@ import {
       TenantUserWorkingHoursEntity,
       TenantOffDaysEntity,
       TenantUserOffDaysEntity,
+      TenantTeamMemberEntity,
     ]),
-    // Configure BullMQ connection (Redis) and the queue
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({
@@ -93,7 +95,6 @@ import {
     ConfigObjectsModule,
     AutomationModule,
   ],
-  // Specifies the controllers that handle incoming requests.
   controllers: [
     SchedulerController,
     ResourceAssignmentsController,
@@ -101,8 +102,6 @@ import {
     ResourceAvailabilityController,
     ResourceBlackoutDatesController,
   ],
-
-  // Specifies the providers that contain the business logic.
   providers: [
     SchedulerService,
     ScheduledTasksService,
@@ -113,6 +112,8 @@ import {
     ResourcesService,
     ResourceAvailabilityService,
     ResourceBlackoutDatesService,
+    ResourceAvailabilityAdapter,
+    ConstraintCapacityEngine,
     TaskProcessor,
     CalendarAdapter,
     { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },
@@ -124,6 +125,8 @@ import {
     ResourcesService,
     ResourceAvailabilityService,
     ResourceBlackoutDatesService,
+    ConstraintCapacityEngine,
+    SchedulerService,
   ],
 })
 export class SchedulerModule {}

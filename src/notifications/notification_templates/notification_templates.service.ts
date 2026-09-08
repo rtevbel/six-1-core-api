@@ -195,6 +195,16 @@ export class NotificationTemplatesService {
   }
 
   /**
+   * Looks up a template by ID without throwing when it is missing.
+   * Used by background dispatch so a stale event-log snapshot cannot stall the sweeper.
+   */
+  async findById(id: number): Promise<NotificationTemplateEntity | null> {
+    return this.notificationTemplateRepository.findOne({
+      where: { templateId: id },
+    });
+  }
+
+  /**
    * Retrieves a notification template by name and channel ID.
    * @param name - Template name.
    * @param channelId - Channel ID.

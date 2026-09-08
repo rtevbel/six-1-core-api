@@ -359,7 +359,7 @@ export class ScheduledTaskEntity {
     generatedType: 'VIRTUAL',
     nullable: true,
   })
-  @Index('uq_active_per_task', { unique: false })
+  @Index('uq_active_per_task', { unique: true })
   activeGuard?: number | null;
 
   @ManyToOne(() => TenantEntity, { onDelete: 'CASCADE' })

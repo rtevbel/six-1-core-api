@@ -8,6 +8,11 @@ import { ScheduleFromShiftsDto } from './dto/schedule-from-shifts.dto';
 import { PlanProjectDto } from './dto/plan-project.dto';
 import { CommitPlanDto } from './dto/commit-plan.dto';
 import { FiltersDto } from './dto/filters.dto';
+import {
+  UtilizationQueryDto,
+  ValidatePlacementDto,
+} from './dto/validate-placement.dto';
+import { RequirePermissions } from '../authorization/authorization.decorator';
 
 import {
   MICROSERVICE_SCHEDULE_TASk_WINDOW_PATTERN,
@@ -21,6 +26,8 @@ import {
   MICROSERVICE_PAUSE_PATTERN,
   MICROSERVICE_RESUME_PATTERN,
   MICROSERVICE_CANCEL_PATTERN,
+  MICROSERVICE_VALIDATE_PLACEMENT_PATTERN,
+  MICROSERVICE_UTILIZATION_PATTERN,
 } from './constants';
 
 @Controller('scheduler')
@@ -28,18 +35,13 @@ import {
 export class SchedulerController {
   constructor(private readonly scheduler: SchedulerService) {}
 
-  /**
-   * Handles scheduling a task window.
-   * @param userId - ID of the user making the request.
-   * @param ScheduleWindowDto - Data transfer object containing scheduling details.
-   * @returns The result of the scheduling operation.
-   */
   @MessagePattern(MICROSERVICE_SCHEDULE_TASk_WINDOW_PATTERN)
+  @RequirePermissions('scheduler.create')
   @UsePipes(AppRpcValidationPipe)
   async scheduleTaskWindow(
     @Payload('userId', ParseIntPipe) userId: number,
     @Payload('data') createSchedulerDto: ScheduleWindowDto,
-  ): Promise<any> {
+  ): Promise<Record<string, unknown>> {
     const res = await this.scheduler.scheduleTaskWindow(userId, {
       taskId: createSchedulerDto.taskId,
       requestedStartUtc: new Date(createSchedulerDto.requestedStartUtc),
@@ -51,18 +53,13 @@ export class SchedulerController {
     });
 
     return {
-      message: 'Scheduled with dependency + calendar gating',
+      message: 'Scheduled with constraint + calendar gating',
       ...res,
     };
   }
 
-  /**
-   * Handles the ScheduleTaskFromShifts message pattern.
-   *
-   * @param ScheduleFromShiftsDto - The data transfer object containing the task and shift details.
-   * Processes a request to schedule a task based on provided shift data.
-   */
   @MessagePattern(MICROSERVICE_SCHEDULE_TASk_FROM_SHIFT_PATTERN)
+  @RequirePermissions('scheduler.create')
   @UsePipes(AppRpcValidationPipe)
   async scheduleFromShifts(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -84,8 +81,8 @@ export class SchedulerController {
     });
   }
 
-  /** Find all schedules (tenant scope) */
   @MessagePattern(MICROSERVICE_FIND_ALL_SCHEDULES_PATTERN)
+  @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
   async findAll(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -94,8 +91,8 @@ export class SchedulerController {
     return this.scheduler.findAll(userId, dto);
   }
 
-  /** Find schedules by task */
   @MessagePattern(MICROSERVICE_FIND_ALL_BY_TASK_PATTERN)
+  @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
   async findAllByTask(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -104,8 +101,8 @@ export class SchedulerController {
     return this.scheduler.findAllByTask(userId, dto);
   }
 
-  /** Find one schedule by id */
   @MessagePattern(MICROSERVICE_FIND_ONE_SCHEDULE_PATTERN)
+  @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
   async findOne(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -114,8 +111,8 @@ export class SchedulerController {
     return this.scheduler.findOne(userId, dto.scheduledTaskId);
   }
 
-  /** Reschedule an existing scheduled row */
   @MessagePattern(MICROSERVICE_RESCHEDULE_PATTERN)
+  @RequirePermissions('scheduler.update')
   @UsePipes(AppRpcValidationPipe)
   async reschedule(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -133,8 +130,8 @@ export class SchedulerController {
     });
   }
 
-  /** Pause a schedule */
   @MessagePattern(MICROSERVICE_PAUSE_PATTERN)
+  @RequirePermissions('scheduler.update')
   @UsePipes(AppRpcValidationPipe)
   async pause(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -146,8 +143,8 @@ export class SchedulerController {
     });
   }
 
-  /** Resume a schedule */
   @MessagePattern(MICROSERVICE_RESUME_PATTERN)
+  @RequirePermissions('scheduler.update')
   @UsePipes(AppRpcValidationPipe)
   async resume(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -158,8 +155,8 @@ export class SchedulerController {
     });
   }
 
-  /** Cancel a schedule */
   @MessagePattern(MICROSERVICE_CANCEL_PATTERN)
+  @RequirePermissions('scheduler.delete')
   @UsePipes(AppRpcValidationPipe)
   async cancel(
     @Payload('userId', ParseIntPipe) userId: number,
@@ -170,33 +167,66 @@ export class SchedulerController {
     });
   }
 
-  /**
-   * Handles the PlanProject message pattern.
-   *
-   * @param PlanProjectDto - The data transfer object containing project planning details (not used in this example).
-   * Returns a mock response with a plan summary.
-   */
-  @MessagePattern(MICROSERVICE_PLAN_PROJECT_PATTERN)
+  @MessagePattern(MICROSERVICE_VALIDATE_PLACEMENT_PATTERN)
+  @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
-  async planProject(
+  async validatePlacement(
     @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') planProjectDto: PlanProjectDto,
+    @Payload('data') dto: ValidatePlacementDto,
   ) {
-    return { planId: 1, summary: { tasks: 0, shifts: 0, conflicts: [] } }; // Mock response
+    return this.scheduler.validatePlacement(userId, {
+      tenantId: dto.tenantId,
+      taskId: dto.taskId,
+      tenantUserId: dto.tenantUserId,
+      resourceId: dto.resourceId,
+      startUtc: new Date(dto.startUtc),
+      endUtc: new Date(dto.endUtc),
+      teamId: dto.teamId,
+      mode: dto.mode,
+      excludeScheduledTaskIds: dto.excludeScheduledTaskIds,
+      horizonStartUtc: dto.horizonStartUtc
+        ? new Date(dto.horizonStartUtc)
+        : undefined,
+      horizonEndUtc: dto.horizonEndUtc
+        ? new Date(dto.horizonEndUtc)
+        : undefined,
+    });
   }
 
-  /**
-   * Handles the CommitPlan message pattern.
-   *
-   * @param CommitPlanDto - The data transfer object containing plan commit details (not used in this example).
-   * Returns a mock response indicating the plan was committed.
-   */
+  @MessagePattern(MICROSERVICE_UTILIZATION_PATTERN)
+  @RequirePermissions('scheduler.read')
+  @UsePipes(AppRpcValidationPipe)
+  async utilization(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: UtilizationQueryDto,
+  ) {
+    return this.scheduler.utilization(userId, {
+      tenantId: dto.tenantId,
+      fromUtc: new Date(dto.fromUtc),
+      toUtc: new Date(dto.toUtc),
+      resourceIds: dto.resourceIds,
+      tenantUserIds: dto.tenantUserIds,
+      teamId: dto.teamId,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_PLAN_PROJECT_PATTERN)
+  @RequirePermissions('scheduler.create')
+  @UsePipes(AppRpcValidationPipe)
+  async planProject(
+    @Payload('userId', ParseIntPipe) _userId: number,
+    @Payload('data') _planProjectDto: PlanProjectDto,
+  ) {
+    return { planId: 1, summary: { tasks: 0, shifts: 0, conflicts: [] } };
+  }
+
   @MessagePattern(MICROSERVICE_COMMIT_PLAN_PATTERN)
+  @RequirePermissions('scheduler.manage')
   @UsePipes(AppRpcValidationPipe)
   async commitPlan(
-    @Payload('userId', ParseIntPipe) userId: number,
-    @Payload('data') commitPlanDto: CommitPlanDto,
+    @Payload('userId', ParseIntPipe) _userId: number,
+    @Payload('data') _commitPlanDto: CommitPlanDto,
   ) {
-    return { committed: true }; // Mock response
+    return { committed: true };
   }
 }

@@ -14,6 +14,86 @@ export const MICROSERVICE_RESCHEDULE_PATTERN = 'v0.1_scheduler_reschedule';
 export const MICROSERVICE_PAUSE_PATTERN = 'v0.1_scheduler_pause';
 export const MICROSERVICE_RESUME_PATTERN = 'v0.1_scheduler_resume';
 export const MICROSERVICE_CANCEL_PATTERN = 'v0.1_scheduler_cancel';
+export const MICROSERVICE_VALIDATE_PLACEMENT_PATTERN =
+  'v0.1_scheduler_constraints_validate';
+export const MICROSERVICE_UTILIZATION_PATTERN =
+  'v0.1_scheduler_planner_utilization';
+
+/** Scheduling requirements */
+export const MICROSERVICE_CREATE_SCHEDULING_REQUIREMENT_PATTERN =
+  'v0.1_scheduler_requirement_create';
+export const MICROSERVICE_UPDATE_SCHEDULING_REQUIREMENT_PATTERN =
+  'v0.1_scheduler_requirement_update';
+export const MICROSERVICE_FIND_ONE_SCHEDULING_REQUIREMENT_PATTERN =
+  'v0.1_scheduler_requirement_find_one';
+export const MICROSERVICE_FIND_ALL_SCHEDULING_REQUIREMENTS_PATTERN =
+  'v0.1_scheduler_requirement_find_all';
+export const MICROSERVICE_CLOSE_SCHEDULING_REQUIREMENT_PATTERN =
+  'v0.1_scheduler_requirement_close';
+
+/** Schedule scenarios */
+export const MICROSERVICE_CREATE_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_create';
+export const MICROSERVICE_UPDATE_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_update';
+export const MICROSERVICE_SET_SCHEDULE_SCENARIO_STATUS_PATTERN =
+  'v0.1_scheduler_scenario_set_status';
+export const MICROSERVICE_FIND_ONE_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_find_one';
+export const MICROSERVICE_FIND_ALL_SCHEDULE_SCENARIOS_PATTERN =
+  'v0.1_scheduler_scenario_find_all';
+export const MICROSERVICE_FORK_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_fork';
+export const MICROSERVICE_COMPARE_SCHEDULE_SCENARIOS_PATTERN =
+  'v0.1_scheduler_scenario_compare';
+export const MICROSERVICE_PROMOTE_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_promote';
+
+/** Scenario planned items */
+export const MICROSERVICE_UPSERT_SCENARIO_PLANNED_TASK_PATTERN =
+  'v0.1_scheduler_scenario_planned_task_upsert';
+export const MICROSERVICE_REMOVE_SCENARIO_PLANNED_TASK_PATTERN =
+  'v0.1_scheduler_scenario_planned_task_remove';
+export const MICROSERVICE_FIND_SCENARIO_PLANNED_TASKS_PATTERN =
+  'v0.1_scheduler_scenario_planned_tasks_find';
+export const MICROSERVICE_UPSERT_SCENARIO_ASSIGNMENT_PATTERN =
+  'v0.1_scheduler_scenario_assignment_upsert';
+export const MICROSERVICE_REMOVE_SCENARIO_ASSIGNMENT_PATTERN =
+  'v0.1_scheduler_scenario_assignment_remove';
+
+/** Planner read models */
+export const MICROSERVICE_PLANNER_BOARD_PATTERN =
+  'v0.1_scheduler_planner_board';
+export const MICROSERVICE_PLANNER_CONFLICTS_PATTERN =
+  'v0.1_scheduler_planner_conflicts';
+
+export type SchedulingRequirementScopeType = 'project' | 'board';
+export type SchedulingRequirementStatus = 'open' | 'locked' | 'closed';
+export type ScheduleScenarioStatus =
+  | 'draft'
+  | 'active'
+  | 'archived'
+  | 'final';
+export type SchedulingRequirementMemberType = 'project' | 'task';
+export type ScheduleScenarioEventKind =
+  | 'created'
+  | 'forked'
+  | 'updated'
+  | 'status_changed'
+  | 'item_moved'
+  | 'compared'
+  | 'promoted'
+  | 'archived';
+
+/** Domain event names for future WS / collaboration consumers */
+export const SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED =
+  'scheduler.scenario.updated';
+export const SCHEDULER_DOMAIN_EVENT_SCENARIO_PROMOTED =
+  'scheduler.scenario.promoted';
+export const SCHEDULER_DOMAIN_EVENT_CONFLICTS_CHANGED =
+  'scheduler.conflicts.changed';
+export const SCHEDULER_DOMAIN_EVENT_REQUIREMENT_UPDATED =
+  'scheduler.requirement.updated';
 
 // Resource patterns
 export const MICROSERVICE_CREATE_RESOURCE_PATTERN = 'v0.1_resource_create';

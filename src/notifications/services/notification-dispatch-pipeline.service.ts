@@ -296,7 +296,7 @@ export class NotificationDispatchPipelineService {
   ): Promise<ListenerShape[]> {
     const ruleDispatch = readRuleDispatchFromPayload(eventLog.payload);
     if (ruleDispatch && this.platformEventFlags.isNotificationRulesEnabled()) {
-      return this.buildListenersFromRuleDispatch(ruleDispatch);
+      return this.buildListenersFromRuleDispatch(eventLog.logId, ruleDispatch);
     }
 
     if (this.platformEventFlags.isNotificationRulesEnabled()) {
@@ -359,16 +359,26 @@ export class NotificationDispatchPipelineService {
   }
 
   private async buildListenersFromRuleDispatch(
+    eventLogId: number,
     dispatch: NonNullable<ReturnType<typeof readRuleDispatchFromPayload>>,
   ): Promise<ListenerShape[]> {
-    const channel = await this.notificationChannelsService.findOne(
-      1,
+    const channel = await this.notificationChannelsService.findById(
       dispatch.channelId,
     );
-    const template = await this.notificationTemplatesService.findOne(
-      1,
+    const template = await this.notificationTemplatesService.findById(
       dispatch.templateId,
     );
+
+    if (!channel || !template) {
+      this.logger.warn(
+        `Skipping rule dispatch for eventLog ${eventLogId} rule ${dispatch.ruleId}: missing ${
+          !channel
+            ? `channel ${dispatch.channelId}`
+            : `template ${dispatch.templateId}`
+        }`,
+      );
+      return [];
+    }
 
     return [
       {

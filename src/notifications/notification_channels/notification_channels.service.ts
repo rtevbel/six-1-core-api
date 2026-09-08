@@ -106,6 +106,16 @@ export class NotificationChannelsService {
   }
 
   /**
+   * Looks up a channel by ID without throwing when it is missing.
+   * Used by background dispatch so a stale event-log snapshot cannot stall the sweeper.
+   */
+  async findById(id: number): Promise<NotificationChannelEntity | null> {
+    return this.notificationChannelRepository.findOne({
+      where: { channelId: id },
+    });
+  }
+
+  /**
    * Retrieves a single notification channel by name.
    * @param name - Name of the channel to retrieve.
    * @returns The NotificationChannelEntity matching the name.

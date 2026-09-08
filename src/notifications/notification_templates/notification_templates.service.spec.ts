@@ -8,9 +8,11 @@ import { NotificationTemplatesService } from './notification_templates.service';
 describe('NotificationTemplatesService', () => {
   let service: NotificationTemplatesService;
   let findAndCount: jest.Mock;
+  let findOne: jest.Mock;
 
   beforeEach(async () => {
     findAndCount = jest.fn();
+    findOne = jest.fn();
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationTemplatesService,
@@ -20,6 +22,7 @@ describe('NotificationTemplatesService', () => {
             save: jest.fn(),
             create: jest.fn((value) => value),
             findAndCount,
+            findOne,
           },
         },
         {
@@ -73,6 +76,22 @@ describe('NotificationTemplatesService', () => {
         }),
       ).rejects.toBeInstanceOf(RpcException);
       expect(findAndCount).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findById', () => {
+    it('returns the template when it exists', async () => {
+      const template = { templateId: 258, name: 'Invite' };
+      findOne.mockResolvedValue(template);
+
+      await expect(service.findById(258)).resolves.toEqual(template);
+      expect(findOne).toHaveBeenCalledWith({ where: { templateId: 258 } });
+    });
+
+    it('returns null when the template is missing', async () => {
+      findOne.mockResolvedValue(null);
+
+      await expect(service.findById(258)).resolves.toBeNull();
     });
   });
 });

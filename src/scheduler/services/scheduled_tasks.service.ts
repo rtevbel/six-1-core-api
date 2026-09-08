@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, IsNull, Repository } from 'typeorm';
 import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
 
 /**
@@ -23,8 +23,24 @@ export class ScheduledTasksService {
     return this.repo.save(row);
   }
 
-  async deactivateAllForTask(taskId: number) {
-    await this.repo.update({ taskId, isActive: 1 }, { isActive: 0 });
+  /** Deactivates every active schedule row for a task (parent + children). */
+  async deactivateAllForTask(taskId: number): Promise<ScheduledTaskEntity[]> {
+    const active = await this.repo.find({
+      where: { taskId, isActive: 1 },
+    });
+    if (!active.length) return [];
+    await this.repo.update(
+      { scheduledTaskId: In(active.map((r) => r.scheduledTaskId)) },
+      { isActive: 0, status: 'cancelled' },
+    );
+    return active;
+  }
+
+  /** Active parent window for a task (parent_scheduled_task_id IS NULL). */
+  async findActiveParent(taskId: number): Promise<ScheduledTaskEntity | null> {
+    return this.repo.findOne({
+      where: { taskId, isActive: 1, parentScheduledTaskId: IsNull() },
+    });
   }
 
   async loadActive(id: number) {
