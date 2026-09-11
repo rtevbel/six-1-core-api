@@ -83,7 +83,8 @@ export type ScheduleScenarioEventKind =
   | 'item_moved'
   | 'compared'
   | 'promoted'
-  | 'archived';
+  | 'archived'
+  | 'conflict_checked';
 
 /** Domain event names for future WS / collaboration consumers */
 export const SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED =

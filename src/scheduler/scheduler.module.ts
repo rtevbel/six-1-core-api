@@ -12,6 +12,14 @@ import { ResourceAvailabilityEntity } from './entities/resource_availability.ent
 import { ResourceBlackoutDateEntity } from './entities/resource_blackout_date.entity';
 import { ResourceMetaEntity } from './entities/resource_meta.entity';
 import { TaskDependencyEntity } from './entities/task_dependency.entity';
+import { SchedulingRequirementEntity } from './entities/scheduling_requirement.entity';
+import { SchedulingRequirementMemberEntity } from './entities/scheduling_requirement_member.entity';
+import { ScheduleScenarioEntity } from './entities/schedule_scenario.entity';
+import { ScenarioPlannedTaskEntity } from './entities/scenario_planned_task.entity';
+import { ScenarioPlannedShiftEntity } from './entities/scenario_planned_shift.entity';
+import { ScenarioResourceAssignmentEntity } from './entities/scenario_resource_assignment.entity';
+import { ScheduleScenarioEventEntity } from './entities/schedule_scenario_event.entity';
+import { ScheduleScenarioSnapshotEntity } from './entities/schedule_scenario_snapshot.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
 import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
 import { TenantUserConfigurationsEntity } from '../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
@@ -38,6 +46,9 @@ import { ResourceAssignmentsController } from './controllers/resource_assignment
 import { ResourcesController } from './controllers/resources.controller';
 import { ResourceAvailabilityController } from './controllers/resource_availability.controller';
 import { ResourceBlackoutDatesController } from './controllers/resource_blackout_dates.controller';
+import { SchedulingRequirementsController } from './requirements/scheduling-requirements.controller';
+import { ScheduleScenariosController } from './scenarios/schedule-scenarios.controller';
+import { ScenarioPlanningController } from './planning/scenario-planning.controller';
 
 import { CalendarAdapter } from './adapters/calendar.adapter';
 import { TaskContextAdapter } from './adapters/task_context.adapter';
@@ -46,6 +57,13 @@ import {
   ConstraintCapacityEngine,
   ResourceAvailabilityAdapter,
 } from './constraints';
+import { SchedulingRequirementsService } from './requirements/scheduling-requirements.service';
+import { ScheduleScenariosService } from './scenarios/schedule-scenarios.service';
+import { ScenarioPlanningService } from './planning/scenario-planning.service';
+import { PromoteOrchestratorService } from './scenarios/promote-orchestrator.service';
+import { ScenarioAuditService } from './scenarios/scenario-audit.service';
+import { PlannerReadService } from './planning/planner-read.service';
+import { PlannerReadController } from './planning/planner-read.controller';
 
 import {
   REDIS_DATABASE_HOST_KEY,
@@ -53,9 +71,6 @@ import {
   REDIS_DATABASE_PORT_KEY,
 } from '../auth/constants';
 
-/**
- * SchedulerModule manages live scheduling, resources, and constraint capacity.
- */
 @Module({
   imports: [
     ConfigModule,
@@ -70,6 +85,14 @@ import {
       ResourceBlackoutDateEntity,
       ResourceMetaEntity,
       TaskDependencyEntity,
+      SchedulingRequirementEntity,
+      SchedulingRequirementMemberEntity,
+      ScheduleScenarioEntity,
+      ScenarioPlannedTaskEntity,
+      ScenarioPlannedShiftEntity,
+      ScenarioResourceAssignmentEntity,
+      ScheduleScenarioEventEntity,
+      ScheduleScenarioSnapshotEntity,
       TaskEntity,
       TenantConfigurationsEntity,
       TenantUserConfigurationsEntity,
@@ -101,6 +124,10 @@ import {
     ResourcesController,
     ResourceAvailabilityController,
     ResourceBlackoutDatesController,
+    SchedulingRequirementsController,
+    ScheduleScenariosController,
+    ScenarioPlanningController,
+    PlannerReadController,
   ],
   providers: [
     SchedulerService,
@@ -114,6 +141,12 @@ import {
     ResourceBlackoutDatesService,
     ResourceAvailabilityAdapter,
     ConstraintCapacityEngine,
+    SchedulingRequirementsService,
+    ScheduleScenariosService,
+    ScenarioPlanningService,
+    PromoteOrchestratorService,
+    ScenarioAuditService,
+    PlannerReadService,
     TaskProcessor,
     CalendarAdapter,
     { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },
@@ -127,6 +160,9 @@ import {
     ResourceBlackoutDatesService,
     ConstraintCapacityEngine,
     SchedulerService,
+    SchedulingRequirementsService,
+    ScheduleScenariosService,
+    PromoteOrchestratorService,
   ],
 })
 export class SchedulerModule {}

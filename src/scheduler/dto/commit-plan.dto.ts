@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsInt } from 'class-validator';
 
 /**
@@ -7,6 +8,18 @@ import { IsInt } from 'class-validator';
  */
 export class CommitPlanDto {
   /**
+   * Tenant ID.
+   *
+   * - Required field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @Type(() => Number)
+  tenantId!: number;
+
+  /**
    * Project ID.
    *
    * - Required field.
@@ -15,10 +28,11 @@ export class CommitPlanDto {
    * @type {number}
    */
   @IsInt()
+  @Type(() => Number)
   projectId!: number;
 
   /**
-   * Plan ID.
+   * Plan ID (schedule scenario id).
    *
    * - Required field.
    * - Must be an integer.
@@ -26,5 +40,6 @@ export class CommitPlanDto {
    * @type {number}
    */
   @IsInt()
+  @Type(() => Number)
   planId!: number;
 }

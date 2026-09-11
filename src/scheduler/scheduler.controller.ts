@@ -1,6 +1,10 @@
 import { Controller, ParseIntPipe, UsePipes, UseFilters } from '@nestjs/common';
 import { MessagePattern, Payload } from '@nestjs/microservices';
 import { SchedulerService } from './services/scheduler.service';
+import { SchedulingRequirementsService } from './requirements/scheduling-requirements.service';
+import { ScheduleScenariosService } from './scenarios/schedule-scenarios.service';
+import { PromoteOrchestratorService } from './scenarios/promote-orchestrator.service';
+import { ScenarioPlanningService } from './planning/scenario-planning.service';
 import { AppRpcValidationPipe } from '../common/pipes/app-rpc-validation.pipe';
 import { AppRpcExceptionsFilter } from '../common/filters/app-rpc-exceptions.filter';
 import { ScheduleWindowDto } from './dto/schedule-window.dto';
@@ -33,7 +37,13 @@ import {
 @Controller('scheduler')
 @UseFilters(AppRpcExceptionsFilter)
 export class SchedulerController {
-  constructor(private readonly scheduler: SchedulerService) {}
+  constructor(
+    private readonly scheduler: SchedulerService,
+    private readonly requirements: SchedulingRequirementsService,
+    private readonly scenarios: ScheduleScenariosService,
+    private readonly promote: PromoteOrchestratorService,
+    private readonly planning: ScenarioPlanningService,
+  ) {}
 
   @MessagePattern(MICROSERVICE_SCHEDULE_TASk_WINDOW_PATTERN)
   @RequirePermissions('scheduler.create')
@@ -210,23 +220,73 @@ export class SchedulerController {
     });
   }
 
+  /**
+   * Compatibility alias: create a project-scoped requirement + active scenario from live.
+   */
   @MessagePattern(MICROSERVICE_PLAN_PROJECT_PATTERN)
   @RequirePermissions('scheduler.create')
   @UsePipes(AppRpcValidationPipe)
   async planProject(
-    @Payload('userId', ParseIntPipe) _userId: number,
-    @Payload('data') _planProjectDto: PlanProjectDto,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') planProjectDto: PlanProjectDto,
   ) {
-    return { planId: 1, summary: { tasks: 0, shifts: 0, conflicts: [] } };
+    const horizonDays = planProjectDto.horizonDays ?? 30;
+    const horizonStartUtc = new Date();
+    const horizonEndUtc = new Date(
+      horizonStartUtc.getTime() + horizonDays * 24 * 60 * 60 * 1000,
+    );
+
+    const requirement = await this.requirements.create(userId, {
+      tenantId: planProjectDto.tenantId,
+      name: `Project ${planProjectDto.projectId} plan`,
+      scopeType: 'project',
+      primaryProjectId: planProjectDto.projectId,
+      horizonStartUtc,
+      horizonEndUtc,
+    });
+
+    const scenario = await this.scenarios.create(userId, {
+      tenantId: planProjectDto.tenantId,
+      schedulingRequirementId: requirement.schedulingRequirementId,
+      name: `Project ${planProjectDto.projectId} active scenario`,
+      from: 'live',
+      activate: true,
+    });
+
+    const planned = await this.planning.findPlannedTasks(userId, {
+      tenantId: planProjectDto.tenantId,
+      scheduleScenarioId: scenario.scheduleScenarioId,
+    });
+    const shifts = planned.reduce(
+      (n, t) => n + (t.shifts?.length ?? 0),
+      0,
+    );
+
+    return {
+      planId: scenario.scheduleScenarioId,
+      requirementId: requirement.schedulingRequirementId,
+      summary: {
+        tasks: planned.length,
+        shifts,
+        conflicts: [],
+      },
+    };
   }
 
+  /**
+   * Compatibility alias: promote scenario `planId` to live.
+   */
   @MessagePattern(MICROSERVICE_COMMIT_PLAN_PATTERN)
-  @RequirePermissions('scheduler.manage')
+  @RequirePermissions('scheduler.promote')
   @UsePipes(AppRpcValidationPipe)
   async commitPlan(
-    @Payload('userId', ParseIntPipe) _userId: number,
-    @Payload('data') _commitPlanDto: CommitPlanDto,
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') commitPlanDto: CommitPlanDto,
   ) {
-    return { committed: true };
+    const result = await this.promote.promote(userId, {
+      tenantId: commitPlanDto.tenantId,
+      scheduleScenarioId: commitPlanDto.planId,
+    });
+    return { committed: true, ...result };
   }
 }

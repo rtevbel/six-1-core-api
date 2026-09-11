@@ -1,3 +1,4 @@
+import { Type } from 'class-transformer';
 import { IsInt, IsNumber, IsOptional } from 'class-validator';
 
 /**
@@ -7,6 +8,18 @@ import { IsInt, IsNumber, IsOptional } from 'class-validator';
  */
 export class PlanProjectDto {
   /**
+   * Tenant ID.
+   *
+   * - Required field.
+   * - Must be an integer.
+   *
+   * @type {number}
+   */
+  @IsInt()
+  @Type(() => Number)
+  tenantId!: number;
+
+  /**
    * Project ID.
    *
    * - Required field.
@@ -15,6 +28,7 @@ export class PlanProjectDto {
    * @type {number}
    */
   @IsInt()
+  @Type(() => Number)
   projectId!: number;
 
   /**
@@ -28,5 +42,6 @@ export class PlanProjectDto {
    */
   @IsOptional()
   @IsNumber()
+  @Type(() => Number)
   horizonDays?: number;
 }
