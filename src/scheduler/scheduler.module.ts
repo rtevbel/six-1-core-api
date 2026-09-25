@@ -20,6 +20,8 @@ import { ScenarioPlannedShiftEntity } from './entities/scenario_planned_shift.en
 import { ScenarioResourceAssignmentEntity } from './entities/scenario_resource_assignment.entity';
 import { ScheduleScenarioEventEntity } from './entities/schedule_scenario_event.entity';
 import { ScheduleScenarioSnapshotEntity } from './entities/schedule_scenario_snapshot.entity';
+import { ScheduleScenarioVersionEntity } from './entities/schedule_scenario_version.entity';
+import { ScheduleConstraintEventEntity } from './entities/schedule_constraint_event.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
 import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
 import { TenantUserConfigurationsEntity } from '../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
@@ -93,6 +95,8 @@ import {
       ScenarioResourceAssignmentEntity,
       ScheduleScenarioEventEntity,
       ScheduleScenarioSnapshotEntity,
+      ScheduleScenarioVersionEntity,
+      ScheduleConstraintEventEntity,
       TaskEntity,
       TenantConfigurationsEntity,
       TenantUserConfigurationsEntity,

@@ -59,7 +59,7 @@ export function assertRequirementOpen(status: string): void {
 }
 
 export function assertScenarioEditable(status: string): void {
-  if (status === 'archived' || status === 'final') {
+  if (status === 'archived' || status === 'definitive') {
     throw new RpcException(
       `Scenario status '${status}' does not allow planning mutations`,
     );

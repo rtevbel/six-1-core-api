@@ -38,7 +38,7 @@ export class PlannerReadService {
     const scenarioId =
       input.scheduleScenarioId ??
       requirement.activeScenarioId ??
-      requirement.finalScenarioId;
+      requirement.definitiveScenarioId;
     if (!scenarioId) {
       return {
         requirement,
@@ -95,7 +95,7 @@ export class PlannerReadService {
     const scenarioId =
       input.scheduleScenarioId ??
       requirement.activeScenarioId ??
-      requirement.finalScenarioId;
+      requirement.definitiveScenarioId;
     if (!scenarioId) {
       return { conflicts: [], count: 0 };
     }

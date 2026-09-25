@@ -42,7 +42,7 @@ export class ScheduleScenarioEntity {
   @Column({
     name: 'status',
     type: 'enum',
-    enum: ['draft', 'active', 'archived', 'final'],
+    enum: ['draft', 'active', 'archived', 'definitive'],
     default: 'draft',
   })
   status!: ScheduleScenarioStatus;

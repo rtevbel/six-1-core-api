@@ -152,12 +152,14 @@ export class ScheduleScenariosService {
     input: {
       tenantId: number;
       scheduleScenarioId: number;
-      status: Exclude<ScheduleScenarioStatus, 'final'>;
+      status: Exclude<ScheduleScenarioStatus, 'definitive'>;
       expectedRevision?: number;
     },
   ): Promise<ScheduleScenarioEntity> {
-    if (input.status === ('final' as ScheduleScenarioStatus)) {
-      throw new RpcException('final status is only set via promote');
+    if (input.status === ('definitive' as ScheduleScenarioStatus)) {
+      throw new RpcException(
+        'definitive status is only set via mark_definitive',
+      );
     }
 
     return this.dataSource.transaction(async (manager) => {

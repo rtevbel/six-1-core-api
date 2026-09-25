@@ -236,19 +236,19 @@ export class PromoteOrchestratorService {
       const scenarioRepo = manager.getRepository(ScheduleScenarioEntity);
       const reqRepo = manager.getRepository(SchedulingRequirementEntity);
 
-      if (requirement.finalScenarioId) {
+      if (requirement.definitiveScenarioId) {
         await scenarioRepo.update(
-          { scheduleScenarioId: requirement.finalScenarioId },
+          { scheduleScenarioId: requirement.definitiveScenarioId },
           { status: 'archived' },
         );
       }
 
-      scenario.status = 'final';
+      scenario.status = 'definitive';
       scenario.promotedAt = new Date();
       scenario.promotedBy = userId;
       await scenarioRepo.save(scenario);
 
-      requirement.finalScenarioId = scenario.scheduleScenarioId;
+      requirement.definitiveScenarioId = scenario.scheduleScenarioId;
       requirement.activeScenarioId = null;
       requirement.syncedToLiveAt = new Date();
       requirement.syncedScenarioRevision = scenario.revision;

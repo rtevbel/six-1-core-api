@@ -107,7 +107,7 @@ export class SchedulingRequirementsService {
       promotePolicy,
       createdBy: input.createdBy ?? userId,
       activeScenarioId: null,
-      finalScenarioId: null,
+      definitiveScenarioId: null,
       syncedToLiveAt: null,
       syncedScenarioRevision: null,
     });

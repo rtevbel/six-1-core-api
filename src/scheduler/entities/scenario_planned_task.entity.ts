@@ -8,6 +8,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
+import { ScenarioPlanningKind } from '../constants';
 import { ScheduleScenarioEntity } from './schedule_scenario.entity';
 import { ScenarioPlannedShiftEntity } from './scenario_planned_shift.entity';
 import { ScenarioResourceAssignmentEntity } from './scenario_resource_assignment.entity';
@@ -80,6 +81,47 @@ export class ScenarioPlannedTaskEntity {
 
   @Column({ name: 'conflict_summary', type: 'json', nullable: true })
   conflictSummary!: Record<string, unknown> | null;
+
+  @Column({ name: 'is_planned', type: 'tinyint', width: 1, default: 1 })
+  isPlanned!: boolean;
+
+  @Column({ name: 'is_ready', type: 'tinyint', width: 1, default: 0 })
+  isReady!: boolean;
+
+  @Column({ name: 'is_milestone', type: 'tinyint', width: 1, default: 0 })
+  isMilestone!: boolean;
+
+  @Column({
+    name: 'planning_kind',
+    type: 'enum',
+    enum: ['task', 'external', 'milestone'],
+    default: 'task',
+  })
+  planningKind!: ScenarioPlanningKind;
+
+  @Column({
+    name: 'baseline_start_utc',
+    type: 'datetime',
+    precision: 6,
+    nullable: true,
+  })
+  baselineStartUtc!: Date | null;
+
+  @Column({
+    name: 'baseline_end_utc',
+    type: 'datetime',
+    precision: 6,
+    nullable: true,
+  })
+  baselineEndUtc!: Date | null;
+
+  @Column({
+    name: 'deadline_utc',
+    type: 'datetime',
+    precision: 6,
+    nullable: true,
+  })
+  deadlineUtc!: Date | null;
 
   @ManyToOne(() => ScheduleScenarioEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'schedule_scenario_id' })

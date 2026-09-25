@@ -12,7 +12,8 @@ import {
 } from '../constants';
 
 export interface SchedulingPromotePolicy {
-  promoteFrom: 'active_only';
+  /** Epic A/B lock: only the definitive scenario may Commit to live. */
+  promoteFrom: 'definitive_only' | 'active_only';
   inFlight: 'block' | 'force_cancel';
   scope: 'horizon_and_members_only';
   outsideScopeLive: 'leave_untouched';
@@ -22,7 +23,7 @@ export interface SchedulingPromotePolicy {
 }
 
 export const DEFAULT_PROMOTE_POLICY: SchedulingPromotePolicy = {
-  promoteFrom: 'active_only',
+  promoteFrom: 'definitive_only',
   inFlight: 'block',
   scope: 'horizon_and_members_only',
   outsideScopeLive: 'leave_untouched',
@@ -104,13 +105,14 @@ export class SchedulingRequirementEntity {
   })
   activeScenarioId!: number | null;
 
+  /** Pointer only — no FK to avoid circular dependency with scenarios. */
   @Column({
-    name: 'final_scenario_id',
+    name: 'definitive_scenario_id',
     type: 'bigint',
     unsigned: true,
     nullable: true,
   })
-  finalScenarioId!: number | null;
+  definitiveScenarioId!: number | null;
 
   @Column({
     name: 'synced_to_live_at',

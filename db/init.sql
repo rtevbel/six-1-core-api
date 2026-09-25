@@ -539,9 +539,10 @@ CREATE TABLE IF NOT EXISTS `process_templates` (
     `tenant_id`           BIGINT UNSIGNED DEFAULT 0 COMMENT 'Who owns this process_template?',
     `created_by`          BIGINT UNSIGNED NOT NULL COMMENT 'Tenant User ID',
     `updated_by`          BIGINT UNSIGNED DEFAULT 0 COMMENT 'Tenant User ID',
+    `status`              ENUM('DRAFT','PUBLISHED','ARCHIVED','CONFLICT') NOT NULL DEFAULT 'DRAFT' COMMENT 'Lifecycle status of the process template',
     `created_at`          DATETIME  DEFAULT current_timestamp(),
     `updated_at`          TIMESTAMP DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-    
+
     PRIMARY KEY (`process_template_id`),
     FOREIGN KEY (`tenant_id`)  REFERENCES `tenants`      (`tenant_id`)       ON DELETE CASCADE,
     FOREIGN KEY (`created_by`) REFERENCES `tenant_users` (`tenant_user_id`),
@@ -1171,6 +1172,10 @@ CREATE TABLE IF NOT EXISTS `events` (
     `event_id`   BIGINT UNSIGNED AUTO_INCREMENT,
     `name`       VARCHAR(255) NOT NULL COMMENT 'Name of the event (e.g., task_assigned, comment_added)',
     `description` TEXT COMMENT 'Description of the event',
+    `category` VARCHAR(64) NULL COMMENT 'Catalog grouping: process, domain, requirement, etc.',
+    `schema_version` VARCHAR(32) NOT NULL DEFAULT '1.0' COMMENT 'Payload contract version for this event',
+    `payload_schema` JSON NULL COMMENT 'Optional JSON Schema describing event data payload',
+    `is_system` TINYINT(1) UNSIGNED NOT NULL DEFAULT 0 COMMENT 'System-managed catalog entry; not user-deletable in admin UI',
     `created_by` BIGINT UNSIGNED NOT NULL COMMENT 'WP User who created the event',
     `updated_by` BIGINT UNSIGNED DEFAULT 0 COMMENT 'WP User who updated the event',
     `created_at` DATETIME  DEFAULT current_timestamp(),

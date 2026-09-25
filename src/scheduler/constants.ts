@@ -73,7 +73,10 @@ export type ScheduleScenarioStatus =
   | 'draft'
   | 'active'
   | 'archived'
-  | 'final';
+  | 'definitive';
+
+/** Planner task planning type (overlay / sheet) — UAT v0.5 */
+export type ScenarioPlanningKind = 'task' | 'external' | 'milestone';
 export type SchedulingRequirementMemberType = 'project' | 'task';
 export type ScheduleScenarioEventKind =
   | 'created'

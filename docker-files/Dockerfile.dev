@@ -1,11 +1,12 @@
 #six1-core-api/Dockerfile.dev
 # Use the official Node.js image as the base image
-FROM node:16
+# Pin to bullseye; plain node:16 resolves to EOL Debian buster with broken apt mirrors.
+FROM node:16-bullseye
 
-# Install passwd package (replacement for shadow-utils) and vim
-RUN apt-get update || cat /var/log/apt/term.log && \
-    apt-get install -y vim \
-    && rm -rf /var/lib/apt/lists/* 
+# Install vim for container debugging
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends vim && \
+    rm -rf /var/lib/apt/lists/* 
 
 #Create a non-root user for running application (to avoid running as root)    
 RUN groupadd -r six1capig202507 && useradd -m -r -g six1capig202507 six1capiu202507

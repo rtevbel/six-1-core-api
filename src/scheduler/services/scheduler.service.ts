@@ -94,7 +94,9 @@ export class SchedulerService {
     const previous = await this.scheduledTasks.deactivateAllForTask(taskId);
     await this.removeJobsForRows(previous);
     for (const row of previous) {
-      await this.history.snapshot({ ...row, isActive: 0, status: 'cancelled' });
+      row.isActive = 0;
+      row.status = 'cancelled';
+      await this.history.snapshot(row);
     }
   }
 

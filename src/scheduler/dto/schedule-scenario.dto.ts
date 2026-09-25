@@ -71,7 +71,8 @@ export class UpdateScheduleScenarioDto {
 }
 
 /**
- * Transition scenario status (draft | active | archived). Final is promote-only.
+ * Transition scenario status (draft | active | archived).
+ * Definitive is mark_definitive-only (Epic C); not via this DTO.
  */
 export class SetScheduleScenarioStatusDto {
   @IsInt()
@@ -83,7 +84,7 @@ export class SetScheduleScenarioStatusDto {
   scheduleScenarioId!: number;
 
   @IsIn(['draft', 'active', 'archived'])
-  status!: Exclude<ScheduleScenarioStatus, 'final'>;
+  status!: Exclude<ScheduleScenarioStatus, 'definitive'>;
 
   @IsOptional()
   @IsInt()
@@ -156,7 +157,7 @@ export class FiltersScheduleScenarioDto {
   schedulingRequirementId!: number;
 
   @IsOptional()
-  @IsIn(['draft', 'active', 'archived', 'final'])
+  @IsIn(['draft', 'active', 'archived', 'definitive'])
   status?: ScheduleScenarioStatus;
 
   @IsOptional()

@@ -21,8 +21,8 @@ import {
  */
 export class SchedulingPromotePolicyDto {
   @IsOptional()
-  @IsIn(['active_only'])
-  promoteFrom?: 'active_only';
+  @IsIn(['definitive_only', 'active_only'])
+  promoteFrom?: 'definitive_only' | 'active_only';
 
   @IsOptional()
   @IsIn(['block', 'force_cancel'])
