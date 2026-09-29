@@ -38,5 +38,6 @@ import { TenantUserRolesModule } from './tenant_user_roles/tenant_user_roles.mod
   ],
   controllers: [TenantUsersController],
   providers: [TenantUsersService],
+  exports: [TenantUsersService],
 })
 export class TenantUsersModule {}

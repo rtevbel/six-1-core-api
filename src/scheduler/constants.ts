@@ -48,6 +48,16 @@ export const MICROSERVICE_COMPARE_SCHEDULE_SCENARIOS_PATTERN =
   'v0.1_scheduler_scenario_compare';
 export const MICROSERVICE_PROMOTE_SCHEDULE_SCENARIO_PATTERN =
   'v0.1_scheduler_scenario_promote';
+export const MICROSERVICE_MARK_SCHEDULE_SCENARIO_DEFINITIVE_PATTERN =
+  'v0.1_scheduler_scenario_mark_definitive';
+export const MICROSERVICE_SAVE_SCHEDULE_SCENARIO_PATTERN =
+  'v0.1_scheduler_scenario_save';
+export const MICROSERVICE_LIST_SCHEDULE_SCENARIO_VERSIONS_PATTERN =
+  'v0.1_scheduler_scenario_versions_list';
+export const MICROSERVICE_GET_SCHEDULE_SCENARIO_VERSION_PATTERN =
+  'v0.1_scheduler_scenario_version_get';
+export const MICROSERVICE_RESTORE_SCHEDULE_SCENARIO_VERSION_PATTERN =
+  'v0.1_scheduler_scenario_version_restore';
 
 /** Scenario planned items */
 export const MICROSERVICE_UPSERT_SCENARIO_PLANNED_TASK_PATTERN =

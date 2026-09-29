@@ -172,7 +172,8 @@ export class FiltersScheduleScenarioDto {
 }
 
 /**
- * Promote an active scenario to live.
+ * Promote a definitive scenario to live (Commit to live).
+ * Make final is a separate mark_definitive call.
  */
 export class PromoteScheduleScenarioDto {
   @IsInt()

@@ -66,6 +66,7 @@ import { PromoteOrchestratorService } from './scenarios/promote-orchestrator.ser
 import { ScenarioAuditService } from './scenarios/scenario-audit.service';
 import { PlannerReadService } from './planning/planner-read.service';
 import { PlannerReadController } from './planning/planner-read.controller';
+import { TenantUsersModule } from '../tenants/tenant_users/tenant_users.module';
 
 import {
   REDIS_DATABASE_HOST_KEY,
@@ -76,6 +77,7 @@ import {
 @Module({
   imports: [
     ConfigModule,
+    TenantUsersModule,
     TypeOrmModule.forFeature([
       ScheduledTaskEntity,
       ScheduledTaskHistoryEntity,

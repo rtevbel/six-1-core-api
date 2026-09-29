@@ -15,6 +15,8 @@ import { SchedulerService } from '../services/scheduler.service';
 import { ResourceAssignmentsService } from '../services/resource_assignments.service';
 import { SCHEDULER_DOMAIN_EVENT_SCENARIO_PROMOTED } from '../constants';
 import { ConstraintConflict } from '../constraints/constraint.types';
+import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
+import { assertExpectedRevision } from './scenario-lifecycle.mapper';
 
 @Injectable()
 export class PromoteOrchestratorService {
@@ -30,12 +32,14 @@ export class PromoteOrchestratorService {
     private readonly execution: SchedulerService,
     private readonly resourceAssignments: ResourceAssignmentsService,
     private readonly audit: ScenarioAuditService,
+    private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
     private readonly events: EventEmitter2,
   ) {}
 
   /**
-   * Promote an active scenario to live (replace-live-for-scope).
+   * Commit to live — promote definitive scenario (replace-live-for-scope).
+   * Does not set definitive; Make final must run first.
    */
   async promote(
     userId: number,
@@ -52,19 +56,13 @@ export class PromoteOrchestratorService {
     promotedTaskIds: number[];
     softConflicts: ConstraintConflict[];
   }> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
+
     const scenario = await this.scenarios.findOneOrFail(
       input.scheduleScenarioId,
       input.tenantId,
     );
-    if (scenario.status !== 'active') {
-      throw new RpcException('Only an active scenario can be promoted');
-    }
-    if (
-      input.expectedRevision != null &&
-      scenario.revision !== input.expectedRevision
-    ) {
-      throw new RpcException('Scenario revision conflict; reload and retry');
-    }
+    assertExpectedRevision(scenario, input.expectedRevision);
 
     const requirement = await this.requirements.findOneOrFail(
       scenario.schedulingRequirementId,
@@ -77,6 +75,28 @@ export class PromoteOrchestratorService {
     }
 
     const policy = requirement.promotePolicy;
+    const promoteFrom = policy.promoteFrom ?? 'definitive_only';
+    if (promoteFrom === 'definitive_only') {
+      if (
+        scenario.status !== 'definitive' ||
+        requirement.definitiveScenarioId !== scenario.scheduleScenarioId
+      ) {
+        throw new RpcException({
+          statusCode: 400,
+          message:
+            'Only the definitive scenario can be committed to live; Make final first',
+          errorCode: 'promote_requires_definitive',
+        });
+      }
+    } else if (scenario.status !== 'active') {
+      throw new RpcException({
+        statusCode: 400,
+        message:
+          'Only an active scenario can be promoted under active_only policy',
+        errorCode: 'promote_requires_active',
+      });
+    }
+
     const graph = await this.planning.loadScenarioGraph(
       scenario.scheduleScenarioId,
     );
@@ -132,13 +152,14 @@ export class PromoteOrchestratorService {
         input.overrideHardConflicts === true;
       if (!allowOverride) {
         throw new RpcException({
+          statusCode: 400,
           message: 'Promote blocked by hard conflicts',
+          errorCode: 'promote_hard_conflicts',
           conflicts: hard,
         });
       }
     }
 
-    // In-flight check for scoped tasks intersecting horizon
     const inFlight = await this.schedRepo.find({
       where: {
         taskId: In([...scopedSet]),
@@ -153,7 +174,9 @@ export class PromoteOrchestratorService {
     );
     if (inFlightInHorizon.length && policy.inFlight === 'block') {
       throw new RpcException({
+        statusCode: 400,
         message: 'Promote blocked by in-flight live schedules',
+        errorCode: 'promote_in_flight',
         scheduledTaskIds: inFlightInHorizon.map((r) => r.scheduledTaskId),
       });
     }
@@ -161,12 +184,7 @@ export class PromoteOrchestratorService {
     const promotedTaskIds: number[] = [];
 
     for (const pt of graph.plannedTasks) {
-      if (policy.inFlight === 'force_cancel') {
-        await this.execution.replaceActiveSchedulesForTask(pt.taskId);
-      } else {
-        // deactivate prior active rows for this task (no in-flight in scope)
-        await this.execution.replaceActiveSchedulesForTask(pt.taskId);
-      }
+      await this.execution.replaceActiveSchedulesForTask(pt.taskId);
 
       const parent = await this.execution.scheduleTaskWindow(userId, {
         taskId: pt.taskId,
@@ -174,7 +192,7 @@ export class PromoteOrchestratorService {
         requestedEndUtc: pt.plannedEndUtc,
         priority: pt.priority,
         parentScheduledTaskId: null,
-        replaceExisting: false, // already replaced above
+        replaceExisting: false,
         createdBy: userId,
       });
 
@@ -236,20 +254,11 @@ export class PromoteOrchestratorService {
       const scenarioRepo = manager.getRepository(ScheduleScenarioEntity);
       const reqRepo = manager.getRepository(SchedulingRequirementEntity);
 
-      if (requirement.definitiveScenarioId) {
-        await scenarioRepo.update(
-          { scheduleScenarioId: requirement.definitiveScenarioId },
-          { status: 'archived' },
-        );
-      }
-
-      scenario.status = 'definitive';
+      // Commit metadata only — Make final owns definitive status/pointer.
       scenario.promotedAt = new Date();
       scenario.promotedBy = userId;
       await scenarioRepo.save(scenario);
 
-      requirement.definitiveScenarioId = scenario.scheduleScenarioId;
-      requirement.activeScenarioId = null;
       requirement.syncedToLiveAt = new Date();
       requirement.syncedScenarioRevision = scenario.revision;
       await reqRepo.save(requirement);
@@ -262,6 +271,7 @@ export class PromoteOrchestratorService {
           .where('scheduling_requirement_id = :rid', {
             rid: requirement.schedulingRequirementId,
           })
+          .andWhere('tenant_id = :tid', { tid: input.tenantId })
           .andWhere('schedule_scenario_id <> :sid', {
             sid: scenario.scheduleScenarioId,
           })

@@ -16,12 +16,24 @@ import {
   UpdateScheduleScenarioDto,
 } from '../dto/schedule-scenario.dto';
 import {
+  GetScheduleScenarioVersionDto,
+  ListScheduleScenarioVersionsDto,
+  MarkScheduleScenarioDefinitiveDto,
+  RestoreScheduleScenarioVersionDto,
+  SaveScheduleScenarioDto,
+} from '../dto/schedule-scenario-lifecycle.dto';
+import {
   MICROSERVICE_COMPARE_SCHEDULE_SCENARIOS_PATTERN,
   MICROSERVICE_CREATE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_FIND_ALL_SCHEDULE_SCENARIOS_PATTERN,
   MICROSERVICE_FIND_ONE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_FORK_SCHEDULE_SCENARIO_PATTERN,
+  MICROSERVICE_GET_SCHEDULE_SCENARIO_VERSION_PATTERN,
+  MICROSERVICE_LIST_SCHEDULE_SCENARIO_VERSIONS_PATTERN,
+  MICROSERVICE_MARK_SCHEDULE_SCENARIO_DEFINITIVE_PATTERN,
   MICROSERVICE_PROMOTE_SCHEDULE_SCENARIO_PATTERN,
+  MICROSERVICE_RESTORE_SCHEDULE_SCENARIO_VERSION_PATTERN,
+  MICROSERVICE_SAVE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_SET_SCHEDULE_SCENARIO_STATUS_PATTERN,
   MICROSERVICE_UPDATE_SCHEDULE_SCENARIO_PATTERN,
 } from '../constants';
@@ -34,9 +46,6 @@ export class ScheduleScenariosController {
     private readonly promoteOrchestrator: PromoteOrchestratorService,
   ) {}
 
-  /**
-   * Create a scenario (empty, from live, or from another scenario).
-   */
   @MessagePattern(MICROSERVICE_CREATE_SCHEDULE_SCENARIO_PATTERN)
   @RequirePermissions('scheduler.scenario.manage')
   @UsePipes(AppRpcValidationPipe)
@@ -61,9 +70,6 @@ export class ScheduleScenariosController {
     });
   }
 
-  /**
-   * Update scenario name / notes.
-   */
   @MessagePattern(MICROSERVICE_UPDATE_SCHEDULE_SCENARIO_PATTERN)
   @RequirePermissions('scheduler.scenario.manage')
   @UsePipes(AppRpcValidationPipe)
@@ -79,9 +85,6 @@ export class ScheduleScenariosController {
     });
   }
 
-  /**
-   * Set scenario status (draft | active | archived).
-   */
   @MessagePattern(MICROSERVICE_SET_SCHEDULE_SCENARIO_STATUS_PATTERN)
   @RequirePermissions('scheduler.scenario.manage')
   @UsePipes(AppRpcValidationPipe)
@@ -97,9 +100,6 @@ export class ScheduleScenariosController {
     });
   }
 
-  /**
-   * Find one schedule scenario.
-   */
   @MessagePattern(MICROSERVICE_FIND_ONE_SCHEDULE_SCENARIO_PATTERN)
   @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
@@ -114,9 +114,6 @@ export class ScheduleScenariosController {
     );
   }
 
-  /**
-   * List scenarios for a scheduling requirement.
-   */
   @MessagePattern(MICROSERVICE_FIND_ALL_SCHEDULE_SCENARIOS_PATTERN)
   @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
@@ -127,9 +124,6 @@ export class ScheduleScenariosController {
     return this.scenariosService.findAll(userId, dto);
   }
 
-  /**
-   * Fork a scenario into a new draft (optionally activate).
-   */
   @MessagePattern(MICROSERVICE_FORK_SCHEDULE_SCENARIO_PATTERN)
   @RequirePermissions('scheduler.scenario.manage')
   @UsePipes(AppRpcValidationPipe)
@@ -145,9 +139,6 @@ export class ScheduleScenariosController {
     });
   }
 
-  /**
-   * Compare two scenarios under the same requirement.
-   */
   @MessagePattern(MICROSERVICE_COMPARE_SCHEDULE_SCENARIOS_PATTERN)
   @RequirePermissions('scheduler.read')
   @UsePipes(AppRpcValidationPipe)
@@ -162,8 +153,81 @@ export class ScheduleScenariosController {
     });
   }
 
+  @MessagePattern(MICROSERVICE_SAVE_SCHEDULE_SCENARIO_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async save(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: SaveScheduleScenarioDto,
+  ) {
+    return this.scenariosService.save(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      expectedRevision: dto.expectedRevision,
+      summary: dto.summary,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_MARK_SCHEDULE_SCENARIO_DEFINITIVE_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async markDefinitive(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: MarkScheduleScenarioDefinitiveDto,
+  ) {
+    return this.scenariosService.markDefinitive(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      expectedRevision: dto.expectedRevision,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_LIST_SCHEDULE_SCENARIO_VERSIONS_PATTERN)
+  @RequirePermissions('scheduler.read')
+  @UsePipes(AppRpcValidationPipe)
+  async listVersions(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: ListScheduleScenarioVersionsDto,
+  ) {
+    return this.scenariosService.listVersions(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      page: dto.page,
+      limit: dto.limit,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_GET_SCHEDULE_SCENARIO_VERSION_PATTERN)
+  @RequirePermissions('scheduler.read')
+  @UsePipes(AppRpcValidationPipe)
+  async getVersion(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: GetScheduleScenarioVersionDto,
+  ) {
+    return this.scenariosService.getVersion(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      version: dto.version,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_RESTORE_SCHEDULE_SCENARIO_VERSION_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async restoreVersion(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: RestoreScheduleScenarioVersionDto,
+  ) {
+    return this.scenariosService.restoreVersion(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      version: dto.version,
+      expectedRevision: dto.expectedRevision,
+    });
+  }
+
   /**
-   * Promote an active scenario to live (replace-live-for-scope).
+   * Commit to live — promote definitive scenario only (definitive_only).
    */
   @MessagePattern(MICROSERVICE_PROMOTE_SCHEDULE_SCENARIO_PATTERN)
   @RequirePermissions('scheduler.promote')

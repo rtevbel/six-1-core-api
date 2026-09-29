@@ -6,7 +6,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * - schedule_scenario_versions + schedule_constraint_events
  * - planned-task planning flags / kind / baseline
  * - promote policy default definitive_only
- * - seed scheduler.read (100)
+ * - RBAC seed deferred to 0070 (ids 100–103 collide with reports/config)
  */
 export class PlannerEpicBDomainLocks1720000000069
   implements MigrationInterface
@@ -116,63 +116,11 @@ export class PlannerEpicBDomainLocks1720000000069
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
 
-    // --- Permission: scheduler.read (was used in code, not seeded) ---
-    await queryRunner.query(`
-      INSERT INTO \`permissions\`
-        (\`permission_id\`, \`status_id\`, \`created_by\`, \`updated_by\`, \`created_at\`, \`updated_at\`)
-      SELECT 100, 1, 1, 0, CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
-      FROM DUAL
-      WHERE NOT EXISTS (
-        SELECT 1 FROM \`permissions\` WHERE \`permission_id\` = 100
-      )
-    `);
-    await queryRunner.query(`
-      INSERT INTO \`permission_descriptions\`
-        (\`permission_id\`, \`language_id\`, \`name\`, \`description\`, \`permission_group\`, \`created_at\`, \`updated_at\`)
-      SELECT 100, 1, 'scheduler.read',
-        'Open Planner and read scheduling scenarios', 'Scheduler',
-        CURRENT_TIMESTAMP(6), CURRENT_TIMESTAMP(6)
-      FROM DUAL
-      WHERE NOT EXISTS (
-        SELECT 1 FROM \`permission_descriptions\`
-        WHERE \`permission_id\` = 100 AND \`language_id\` = 1
-      )
-    `);
-    await queryRunner.query(`
-      UPDATE \`permission_descriptions\`
-      SET \`description\` = 'Commit definitive scenario to live schedule'
-      WHERE \`permission_id\` = 102 AND \`language_id\` = 1
-    `);
-
-    for (const roleId of [1, 2]) {
-      await queryRunner.query(`
-        INSERT INTO \`role_permissions\` (\`role_id\`, \`permission_id\`, \`created_at\`)
-        SELECT ${roleId}, 100, CURRENT_TIMESTAMP(6) FROM DUAL
-        WHERE NOT EXISTS (
-          SELECT 1 FROM \`role_permissions\`
-          WHERE \`role_id\` = ${roleId} AND \`permission_id\` = 100
-        )
-      `);
-    }
+    // RBAC seeds intentionally omitted here: IDs 100–103 collide with
+    // reports/config on existing DBs. Name-based seed is in 0070.
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`
-      DELETE FROM \`role_permissions\` WHERE \`permission_id\` = 100
-    `);
-    await queryRunner.query(`
-      DELETE FROM \`permission_descriptions\` WHERE \`permission_id\` = 100
-    `);
-    await queryRunner.query(`
-      DELETE FROM \`permissions\` WHERE \`permission_id\` = 100
-    `);
-
-    await queryRunner.query(`
-      UPDATE \`permission_descriptions\`
-      SET \`description\` = 'Promote an active scenario to live schedule'
-      WHERE \`permission_id\` = 102 AND \`language_id\` = 1
-    `);
-
     await queryRunner.query(`
       DROP TABLE IF EXISTS \`schedule_constraint_events\`
     `);
