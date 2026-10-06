@@ -8,6 +8,7 @@ export type {
   FittedWindow,
   PlacementMode,
   PlacementRequest,
+  ScenarioBusyInterval,
   UtilizationBucket,
   UtilizationQuery,
   UtilizationResult,

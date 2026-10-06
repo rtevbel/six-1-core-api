@@ -31,6 +31,12 @@ export interface ConstraintResult {
 
 export type PlacementMode = 'parent_window' | 'shift' | 'assignment';
 
+export interface ScenarioBusyInterval extends UtcInterval {
+  key?: string;
+  tenantUserId?: number | null;
+  resourceId?: number | null;
+}
+
 export interface PlacementRequest {
   tenantId: number;
   taskId?: number;
@@ -47,6 +53,15 @@ export interface PlacementRequest {
   horizonEndUtc?: Date;
   /** When false, soft conflicts do not affect ok (default true: ok = no hard). */
   failOnSoft?: boolean;
+  /**
+   * When true, user/equipment overlap uses `scenarioBusyIntervals` instead of live schedules.
+   * Used for scenario-aware planner conflict reads (Epic D).
+   */
+  useScenarioBusy?: boolean;
+  /** Busy intervals from scenario overlay (exclude self via key). */
+  scenarioBusyIntervals?: ScenarioBusyInterval[];
+  /** Placement key used to exclude self from scenario busy checks. */
+  placementKey?: string;
 }
 
 export interface FitWindowRequest {
@@ -95,4 +110,11 @@ export interface ConflictQuery {
     endUtc: Date;
     excludeScheduledTaskIds?: number[];
   }>;
+  /**
+   * When true, overlap checks use scenario overlay busy intervals built from
+   * `placements` (plus optional `scenarioBusyIntervals`) instead of live schedules.
+   */
+  useScenarioBusy?: boolean;
+  /** Extra scenario busy rows (optional; defaults to placements themselves). */
+  scenarioBusyIntervals?: ScenarioBusyInterval[];
 }

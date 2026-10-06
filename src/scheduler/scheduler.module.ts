@@ -23,6 +23,7 @@ import { ScheduleScenarioSnapshotEntity } from './entities/schedule_scenario_sna
 import { ScheduleScenarioVersionEntity } from './entities/schedule_scenario_version.entity';
 import { ScheduleConstraintEventEntity } from './entities/schedule_constraint_event.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
+import { ProjectEntity } from '../projects/entities/project.entity';
 import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
 import { TenantUserConfigurationsEntity } from '../tenants/tenant_users/tenant_user_configurations/entities/tenant_user_configuration.entity';
 import { TenantWorkingHoursEntity } from '../tenants/tenant_working_hours/entities/tenant_working_hour.entity';
@@ -66,6 +67,8 @@ import { PromoteOrchestratorService } from './scenarios/promote-orchestrator.ser
 import { ScenarioAuditService } from './scenarios/scenario-audit.service';
 import { PlannerReadService } from './planning/planner-read.service';
 import { PlannerReadController } from './planning/planner-read.controller';
+import { PlannerMutateService } from './planning/planner-mutate.service';
+import { PlannerMutateController } from './planning/planner-mutate.controller';
 import { TenantUsersModule } from '../tenants/tenant_users/tenant_users.module';
 
 import {
@@ -100,6 +103,7 @@ import {
       ScheduleScenarioVersionEntity,
       ScheduleConstraintEventEntity,
       TaskEntity,
+      ProjectEntity,
       TenantConfigurationsEntity,
       TenantUserConfigurationsEntity,
       TenantWorkingHoursEntity,
@@ -134,6 +138,7 @@ import {
     ScheduleScenariosController,
     ScenarioPlanningController,
     PlannerReadController,
+    PlannerMutateController,
   ],
   providers: [
     SchedulerService,
@@ -153,6 +158,7 @@ import {
     PromoteOrchestratorService,
     ScenarioAuditService,
     PlannerReadService,
+    PlannerMutateService,
     TaskProcessor,
     CalendarAdapter,
     { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },

@@ -74,8 +74,20 @@ export const MICROSERVICE_REMOVE_SCENARIO_ASSIGNMENT_PATTERN =
 /** Planner read models */
 export const MICROSERVICE_PLANNER_BOARD_PATTERN =
   'v0.1_scheduler_planner_board';
+export const MICROSERVICE_PLANNER_KPIS_PATTERN =
+  'v0.1_scheduler_planner_kpis';
 export const MICROSERVICE_PLANNER_CONFLICTS_PATTERN =
   'v0.1_scheduler_planner_conflicts';
+
+/** Planner mutate (Week 5 — task sheet) */
+export const MICROSERVICE_PLANNER_TASK_UPSERT_PATTERN =
+  'v0.1_scheduler_planner_task_upsert';
+export const MICROSERVICE_PLANNER_TASK_REMOVE_PATTERN =
+  'v0.1_scheduler_planner_task_remove';
+export const MICROSERVICE_PLANNER_ASSESS_PATTERN =
+  'v0.1_scheduler_planner_assess';
+export const MICROSERVICE_CONSTRAINTS_SUGGEST_PATTERN =
+  'v0.1_scheduler_constraints_suggest';
 
 export type SchedulingRequirementScopeType = 'project' | 'board';
 export type SchedulingRequirementStatus = 'open' | 'locked' | 'closed';

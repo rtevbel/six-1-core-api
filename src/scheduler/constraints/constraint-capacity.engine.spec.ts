@@ -226,4 +226,42 @@ describe('ConstraintCapacityEngine', () => {
       ),
     ).toBe(true);
   });
+
+  it('findConflicts uses scenario busy instead of live schedules', async () => {
+    const qb = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue([
+        { scheduledTaskId: 999 }, // would conflict if live were used
+      ]),
+    };
+    schedRepo.createQueryBuilder.mockReturnValue(qb);
+
+    const conflicts = await engine.findConflicts({
+      tenantId: 1,
+      useScenarioBusy: true,
+      placements: [
+        {
+          key: 'shift:1:1',
+          taskId: 1,
+          tenantUserId: 7,
+          startUtc: new Date('2026-09-10T10:00:00.000Z'),
+          endUtc: new Date('2026-09-10T12:00:00.000Z'),
+        },
+        {
+          key: 'shift:2:1',
+          taskId: 2,
+          tenantUserId: 7,
+          startUtc: new Date('2026-09-10T11:00:00.000Z'),
+          endUtc: new Date('2026-09-10T13:00:00.000Z'),
+        },
+      ],
+    });
+
+    expect(
+      conflicts.some((c) => c.code === ConstraintConflictCode.USER_OVERLAP),
+    ).toBe(true);
+    // Live schedule query must not be used in scenario-busy mode
+    expect(schedRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
 });

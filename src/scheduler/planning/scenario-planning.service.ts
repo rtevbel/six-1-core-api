@@ -12,9 +12,13 @@ import {
   assertRequirementOpen,
   assertScenarioEditable,
 } from '../scenarios/scenario-audit.service';
+import { assertExpectedRevision } from '../scenarios/scenario-lifecycle.mapper';
 import { ConstraintCapacityEngine } from '../constraints/constraint-capacity.engine';
 import { ConstraintConflict } from '../constraints/constraint.types';
+import { ScenarioPlanningKind } from '../constants';
 import { NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
+import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
+import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 
 @Injectable()
 export class ScenarioPlanningService {
@@ -29,9 +33,12 @@ export class ScenarioPlanningService {
     private readonly shiftRepo: Repository<ScenarioPlannedShiftEntity>,
     @InjectRepository(ScenarioResourceAssignmentEntity)
     private readonly assignmentRepo: Repository<ScenarioResourceAssignmentEntity>,
+    @InjectRepository(TaskEntity)
+    private readonly taskRepo: Repository<TaskEntity>,
     private readonly requirements: SchedulingRequirementsService,
     private readonly constraints: ConstraintCapacityEngine,
     private readonly audit: ScenarioAuditService,
+    private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -47,6 +54,13 @@ export class ScenarioPlanningService {
       priority?: number;
       taskStatusId?: number | null;
       notes?: string | null;
+      planningKind?: ScenarioPlanningKind;
+      deadlineUtc?: Date | null;
+      isPlanned?: boolean;
+      isReady?: boolean;
+      isMilestone?: boolean;
+      taskName?: string;
+      expectedRevision?: number;
       shifts?: Array<{
         sequenceNo: number;
         tenantUserId?: number | null;
@@ -64,11 +78,14 @@ export class ScenarioPlanningService {
   ): Promise<{
     plannedTask: ScenarioPlannedTaskEntity;
     conflicts: ConstraintConflict[];
+    revision: number;
   }> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
     const scenario = await this.loadEditableScenario(
       input.scheduleScenarioId,
       input.tenantId,
     );
+    assertExpectedRevision(scenario, input.expectedRevision);
     const requirement = await this.requirements.findOneOrFail(
       scenario.schedulingRequirementId,
       input.tenantId,
@@ -106,6 +123,7 @@ export class ScenarioPlanningService {
         mode: 'shift',
         horizonStartUtc: requirement.horizonStartUtc,
         horizonEndUtc: requirement.horizonEndUtc,
+        useScenarioBusy: true,
       });
       conflicts.push(...shiftResult.hard, ...shiftResult.soft);
     }
@@ -133,6 +151,23 @@ export class ScenarioPlanningService {
       row.priority = input.priority ?? 0;
       row.taskStatusId = input.taskStatusId ?? null;
       row.notes = input.notes ?? null;
+      if (input.planningKind != null) {
+        row.planningKind = input.planningKind;
+      }
+      if (input.deadlineUtc !== undefined) {
+        row.deadlineUtc = input.deadlineUtc;
+      }
+      if (input.isPlanned != null) {
+        row.isPlanned = input.isPlanned;
+      }
+      if (input.isReady != null) {
+        row.isReady = input.isReady;
+      }
+      if (input.isMilestone != null) {
+        row.isMilestone = input.isMilestone;
+      } else if (input.planningKind === 'milestone') {
+        row.isMilestone = true;
+      }
       row.conflictSummary = {
         hard: conflicts.filter((c) => c.severity === 'hard'),
         soft: conflicts.filter((c) => c.severity === 'soft'),
@@ -156,6 +191,9 @@ export class ScenarioPlanningService {
           }),
         );
         await shRepo.save(shifts);
+        saved.shifts = shifts;
+      } else {
+        saved.shifts = [];
       }
 
       if (input.assignments?.length) {
@@ -169,6 +207,19 @@ export class ScenarioPlanningService {
           }),
         );
         await asRepo.save(assignments);
+        saved.assignments = assignments;
+      } else {
+        saved.assignments = [];
+      }
+
+      if (input.taskName?.trim()) {
+        const task = await manager.getRepository(TaskEntity).findOne({
+          where: { taskId: input.taskId, tenantId: input.tenantId },
+        });
+        if (task) {
+          task.name = input.taskName.trim();
+          await manager.getRepository(TaskEntity).save(task);
+        }
       }
 
       scenario.revision += 1;
@@ -184,7 +235,11 @@ export class ScenarioPlanningService {
       payload: { taskId: input.taskId, conflictCount: conflicts.length },
     });
 
-    return { plannedTask, conflicts };
+    return {
+      plannedTask,
+      conflicts,
+      revision: scenario.revision,
+    };
   }
 
   async removePlannedTask(
@@ -193,12 +248,15 @@ export class ScenarioPlanningService {
       tenantId: number;
       scheduleScenarioId: number;
       taskId: number;
+      expectedRevision?: number;
     },
-  ): Promise<{ removed: boolean }> {
+  ): Promise<{ removed: boolean; revision: number }> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
     const scenario = await this.loadEditableScenario(
       input.scheduleScenarioId,
       input.tenantId,
     );
+    assertExpectedRevision(scenario, input.expectedRevision);
     const requirement = await this.requirements.findOneOrFail(
       scenario.schedulingRequirementId,
       input.tenantId,
@@ -229,13 +287,14 @@ export class ScenarioPlanningService {
       kind: 'updated',
       payload: { removedTaskId: input.taskId },
     });
-    return { removed: true };
+    return { removed: true, revision: scenario.revision };
   }
 
   async findPlannedTasks(
     userId: number,
     input: { tenantId: number; scheduleScenarioId: number },
   ): Promise<ScenarioPlannedTaskEntity[]> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
     await this.loadScenario(input.scheduleScenarioId, input.tenantId);
     return this.plannedTaskRepo.find({
       where: { scheduleScenarioId: input.scheduleScenarioId },

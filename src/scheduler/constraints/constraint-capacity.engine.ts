@@ -234,6 +234,18 @@ export class ConstraintCapacityEngine {
 
   async findConflicts(query: ConflictQuery): Promise<ConstraintConflict[]> {
     const all: ConstraintConflict[] = [];
+    const scenarioBusy =
+      query.scenarioBusyIntervals ??
+      (query.useScenarioBusy
+        ? query.placements.map((p) => ({
+            key: p.key,
+            tenantUserId: p.tenantUserId,
+            resourceId: p.resourceId,
+            startUtc: p.startUtc,
+            endUtc: p.endUtc,
+          }))
+        : undefined);
+
     for (const placement of query.placements) {
       const result = await this.validatePlacement({
         tenantId: query.tenantId,
@@ -244,12 +256,16 @@ export class ConstraintCapacityEngine {
         endUtc: placement.endUtc,
         excludeScheduledTaskIds: placement.excludeScheduledTaskIds,
         mode: placement.resourceId ? 'assignment' : 'shift',
+        useScenarioBusy: query.useScenarioBusy,
+        scenarioBusyIntervals: scenarioBusy,
+        placementKey: placement.key,
       });
       const tagged = [...result.hard, ...result.soft].map((c) => ({
         ...c,
         details: {
           ...c.details,
           placementKey: placement.key,
+          taskId: placement.taskId ?? c.details?.taskId,
         },
       }));
       all.push(...tagged);
@@ -603,6 +619,39 @@ export class ConstraintCapacityEngine {
     hard: ConstraintConflict[],
   ): Promise<void> {
     if (!request.tenantUserId) return;
+
+    if (request.useScenarioBusy) {
+      const overlaps = (request.scenarioBusyIntervals ?? []).filter((b) => {
+        if (b.tenantUserId == null || b.tenantUserId !== request.tenantUserId) {
+          return false;
+        }
+        if (
+          request.placementKey &&
+          b.key &&
+          b.key === request.placementKey
+        ) {
+          return false;
+        }
+        return (
+          b.startUtc.getTime() < request.endUtc.getTime() &&
+          b.endUtc.getTime() > request.startUtc.getTime()
+        );
+      });
+      if (overlaps.length) {
+        hard.push({
+          code: ConstraintConflictCode.USER_OVERLAP,
+          severity: 'hard',
+          message: 'Assignee has overlapping scenario placement(s)',
+          details: {
+            overlappingPlacementKeys: overlaps
+              .map((o) => o.key)
+              .filter(Boolean),
+          },
+        });
+      }
+      return;
+    }
+
     const qb = this.schedRepo
       .createQueryBuilder('s')
       .where('s.tenant_user_id = :uid', { uid: request.tenantUserId })
@@ -690,30 +739,63 @@ export class ConstraintCapacityEngine {
     }
 
     if (resource.type === 'equipment') {
-      const overlaps = await this.assignmentRepo
-        .createQueryBuilder('a')
-        .where('a.resource_id = :rid', { rid: request.resourceId })
-        .andWhere(
-          '(a.assigned_start < :to) AND (a.assigned_end > :from)',
-          { from: request.startUtc, to: request.endUtc },
-        )
-        .getMany();
-
-      const filtered = overlaps.filter((a) => {
-        if (!request.excludeScheduledTaskIds?.length) return true;
-        if (a.scheduledTaskId == null) return true;
-        return !request.excludeScheduledTaskIds.includes(a.scheduledTaskId);
-      });
-
-      if (filtered.length) {
-        hard.push({
-          code: ConstraintConflictCode.EQUIPMENT_OVERLAP,
-          severity: 'hard',
-          message: 'Equipment is already assigned in an overlapping window',
-          details: {
-            overlappingAssignmentIds: filtered.map((a) => a.resourceAssignmentId),
-          },
+      if (request.useScenarioBusy) {
+        const overlaps = (request.scenarioBusyIntervals ?? []).filter((b) => {
+          if (b.resourceId == null || b.resourceId !== request.resourceId) {
+            return false;
+          }
+          if (
+            request.placementKey &&
+            b.key &&
+            b.key === request.placementKey
+          ) {
+            return false;
+          }
+          return (
+            b.startUtc.getTime() < request.endUtc.getTime() &&
+            b.endUtc.getTime() > request.startUtc.getTime()
+          );
         });
+        if (overlaps.length) {
+          hard.push({
+            code: ConstraintConflictCode.EQUIPMENT_OVERLAP,
+            severity: 'hard',
+            message: 'Equipment is already assigned in an overlapping scenario window',
+            details: {
+              overlappingPlacementKeys: overlaps
+                .map((o) => o.key)
+                .filter(Boolean),
+            },
+          });
+        }
+      } else {
+        const overlaps = await this.assignmentRepo
+          .createQueryBuilder('a')
+          .where('a.resource_id = :rid', { rid: request.resourceId })
+          .andWhere(
+            '(a.assigned_start < :to) AND (a.assigned_end > :from)',
+            { from: request.startUtc, to: request.endUtc },
+          )
+          .getMany();
+
+        const filtered = overlaps.filter((a) => {
+          if (!request.excludeScheduledTaskIds?.length) return true;
+          if (a.scheduledTaskId == null) return true;
+          return !request.excludeScheduledTaskIds.includes(a.scheduledTaskId);
+        });
+
+        if (filtered.length) {
+          hard.push({
+            code: ConstraintConflictCode.EQUIPMENT_OVERLAP,
+            severity: 'hard',
+            message: 'Equipment is already assigned in an overlapping window',
+            details: {
+              overlappingAssignmentIds: filtered.map(
+                (a) => a.resourceAssignmentId,
+              ),
+            },
+          });
+        }
       }
     }
 

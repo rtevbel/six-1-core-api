@@ -15,6 +15,10 @@ export const ConstraintConflictCode = {
   TEAM_OVERLOAD: 'TEAM_OVERLOAD',
   OUTSIDE_HORIZON: 'OUTSIDE_HORIZON',
   INVALID_WINDOW: 'INVALID_WINDOW',
+  /** Planned task has no assignee in the planning context. */
+  UNASSIGNED: 'UNASSIGNED',
+  /** Subject utilization exceeds available capacity in the window. */
+  CAPACITY_EXCEEDED: 'CAPACITY_EXCEEDED',
 } as const;
 
 export type ConstraintConflictCode =
