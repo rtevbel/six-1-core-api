@@ -189,9 +189,10 @@ describe('PlannerReadService Epic D Week 4', () => {
     });
 
     expect(kpis.toScheduleCount).toBeGreaterThanOrEqual(1); // 502 unassigned
-    expect(kpis.needsAttentionCount).toBe(1);
+    // 501 overlap + 502 UNASSIGNED both count as attention; only the overlap is hard
+    expect(kpis.needsAttentionCount).toBe(2);
     expect(kpis.blockersCount).toBe(1);
-    expect(kpis.conflictCount).toBe(1);
+    expect(kpis.conflictCount).toBe(2);
     expect(kpis.criticalPathCount).toBe(2);
     expect(kpis.shiftedCount).toBe(1);
     expect(kpis.capacityPressure).toEqual(
