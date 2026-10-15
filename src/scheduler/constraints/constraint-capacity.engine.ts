@@ -73,8 +73,8 @@ export class ConstraintCapacityEngine {
    * dependency gates + task start/finish constraints.
    */
   async fitWindow(request: FitWindowRequest): Promise<FittedWindow> {
-    let reqStart = DateTime.fromJSDate(request.requestedStartUtc);
-    let reqEnd = request.requestedEndUtc
+    let reqStart: DateTime = DateTime.fromJSDate(request.requestedStartUtc);
+    let reqEnd: DateTime | null = request.requestedEndUtc
       ? DateTime.fromJSDate(request.requestedEndUtc)
       : null;
 
@@ -100,8 +100,8 @@ export class ConstraintCapacityEngine {
         reqEnd,
         taskCtx,
       );
-      reqStart = adjusted.start;
-      reqEnd = adjusted.end;
+      reqStart = adjusted.start as DateTime;
+      reqEnd = adjusted.end as DateTime | null;
     }
 
     if (reqEnd && reqEnd < reqStart) {
