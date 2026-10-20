@@ -4,11 +4,15 @@ import { AppRpcValidationPipe } from '../../common/pipes/app-rpc-validation.pipe
 import { AppRpcExceptionsFilter } from '../../common/filters/app-rpc-exceptions.filter';
 import { RequirePermissions } from '../../authorization/authorization.decorator';
 import { PlannerReadService } from './planner-read.service';
-import { PlannerReadQueryDto } from '../dto/planner-read.dto';
+import {
+  PlannerQueueQueryDto,
+  PlannerReadQueryDto,
+} from '../dto/planner-read.dto';
 import {
   MICROSERVICE_PLANNER_BOARD_PATTERN,
   MICROSERVICE_PLANNER_CONFLICTS_PATTERN,
   MICROSERVICE_PLANNER_KPIS_PATTERN,
+  MICROSERVICE_PLANNER_QUEUE_PATTERN,
 } from '../constants';
 
 @Controller('planner-read')
@@ -44,5 +48,15 @@ export class PlannerReadController {
     @Payload('data') dto: PlannerReadQueryDto,
   ) {
     return this.plannerRead.getConflicts(userId, dto);
+  }
+
+  @MessagePattern(MICROSERVICE_PLANNER_QUEUE_PATTERN)
+  @RequirePermissions('scheduler.read')
+  @UsePipes(AppRpcValidationPipe)
+  async queue(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: PlannerQueueQueryDto,
+  ) {
+    return this.plannerRead.getQueue(userId, dto);
   }
 }

@@ -65,3 +65,13 @@ export interface PlannerSuggestView {
   taskId: number;
   slots: PlannerSuggestSlotView[];
 }
+
+export type PlannerImpactApplyAction =
+  | 'applied_with_issues'
+  | 'resolved'
+  | 'overridden';
+
+export interface PlannerImpactApplyView extends PlannerTaskUpsertView {
+  action: PlannerImpactApplyAction;
+  scheduleConstraintEventId: number;
+}

@@ -16,6 +16,7 @@ import { TaskDependencyEntity } from '../entities/task_dependency.entity';
 import { ScenarioPlannedTaskEntity } from '../entities/scenario_planned_task.entity';
 import {
   PlannerAttention,
+  PlannerQueueQueryDto,
   PlannerReadQueryDto,
   PlannerScale,
   PlannerView,
@@ -27,6 +28,9 @@ import {
   PlannerBoardView,
   PlannerConflictsView,
   PlannerKpisView,
+  PlannerQueueItemView,
+  PlannerQueueReasonCode,
+  PlannerQueueView,
 } from '../interfaces/planner-read.interface';
 import { busyMsWithinRange } from '../constraints/interval.utils';
 
@@ -38,8 +42,7 @@ type ResolvedRange = {
 };
 
 /**
- * Planner read models (board / KPIs / conflicts) for FE and gateway.
- * Week 4: dual-lane board, KPIs, scenario-aware conflicts.
+ * Planner read models (board / KPIs / conflicts / queue) for FE and gateway.
  */
 @Injectable()
 export class PlannerReadService {
@@ -302,6 +305,122 @@ export class PlannerReadService {
       count: conflicts.length,
       conflicts,
     };
+  }
+
+  /**
+   * Work queue: tasks still to schedule / assign.
+   * Empty page is success — never throws “no records”.
+   */
+  async getQueue(
+    userId: number,
+    input: PlannerQueueQueryDto,
+  ): Promise<PlannerQueueView> {
+    const page = Math.max(1, input.page ?? 1);
+    const limit = Math.min(100, Math.max(1, input.limit ?? 50));
+
+    const readQuery: PlannerReadQueryDto = {
+      tenantId: input.tenantId,
+      schedulingRequirementId: input.schedulingRequirementId,
+      scheduleScenarioId: input.scheduleScenarioId,
+      projectId: input.projectId,
+      q: input.q,
+    };
+    const ctx = await this.resolveContext(userId, readQuery);
+
+    if (!ctx.scenarioId) {
+      return {
+        tenantId: input.tenantId,
+        schedulingRequirementId: input.schedulingRequirementId,
+        scheduleScenarioId: null,
+        revision: null,
+        items: [],
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+      };
+    }
+
+    const scopedTasks = await this.loadScopedTasks(
+      ctx.requirement,
+      input.projectId ?? null,
+    );
+    const plannedByTaskId = new Map(
+      ctx.plannedTasks.map((p) => [p.taskId, p]),
+    );
+    const projectIds = Array.from(
+      new Set(scopedTasks.map((t) => t.projectId).filter(Boolean)),
+    );
+    const projects =
+      projectIds.length > 0
+        ? await this.projectRepo.find({
+            where: { projectId: In(projectIds) },
+          })
+        : [];
+    const projectNameById = new Map(
+      projects.map((p) => [p.projectId, p.name]),
+    );
+
+    const items: PlannerQueueItemView[] = [];
+    for (const task of scopedTasks) {
+      if (!this.matchesSearch(task.name, input.q)) continue;
+      const planned = plannedByTaskId.get(task.taskId);
+      const reason = this.queueReasonFor(planned);
+      if (!reason) continue;
+      if (input.reason && input.reason !== reason) continue;
+
+      const primaryShift = (planned?.shifts ?? [])[0];
+      items.push({
+        taskId: task.taskId,
+        taskName: task.name,
+        projectId: task.projectId ?? null,
+        projectName: task.projectId
+          ? (projectNameById.get(task.projectId) ?? null)
+          : null,
+        reason,
+        plannedStartUtc: planned?.plannedStartUtc
+          ? planned.plannedStartUtc.toISOString()
+          : null,
+        plannedEndUtc: planned?.plannedEndUtc
+          ? planned.plannedEndUtc.toISOString()
+          : null,
+        tenantUserId: primaryShift?.tenantUserId ?? null,
+        isPlanned: planned ? !!planned.isPlanned : false,
+      });
+    }
+
+    items.sort((a, b) => a.taskName.localeCompare(b.taskName));
+    const total = items.length;
+    const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
+    const start = (page - 1) * limit;
+    const pageItems = items.slice(start, start + limit);
+
+    return {
+      tenantId: input.tenantId,
+      schedulingRequirementId: input.schedulingRequirementId,
+      scheduleScenarioId: ctx.scenarioId,
+      revision: ctx.revision,
+      items: pageItems,
+      page,
+      limit,
+      total,
+      totalPages,
+    };
+  }
+
+  private queueReasonFor(
+    planned?: ScenarioPlannedTaskEntity | null,
+  ): PlannerQueueReasonCode | null {
+    if (!planned || !planned.isPlanned) {
+      return 'unplanned';
+    }
+    if (!planned.plannedStartUtc || !planned.plannedEndUtc) {
+      return 'no_date';
+    }
+    if (!this.hasAssignee(planned)) {
+      return 'unassigned';
+    }
+    return null;
   }
 
   private async resolveContext(

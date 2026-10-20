@@ -93,3 +93,29 @@ export interface PlannerConflictsView {
   count: number;
   conflicts: ConstraintConflict[];
 }
+
+export type PlannerQueueReasonCode = 'unplanned' | 'unassigned' | 'no_date';
+
+export interface PlannerQueueItemView {
+  taskId: number;
+  taskName: string;
+  projectId: number | null;
+  projectName: string | null;
+  reason: PlannerQueueReasonCode;
+  plannedStartUtc: string | null;
+  plannedEndUtc: string | null;
+  tenantUserId: number | null;
+  isPlanned: boolean;
+}
+
+export interface PlannerQueueView {
+  tenantId: number;
+  schedulingRequirementId: number;
+  scheduleScenarioId: number | null;
+  revision: number | null;
+  items: PlannerQueueItemView[];
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}

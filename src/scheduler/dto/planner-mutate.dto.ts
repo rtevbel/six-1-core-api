@@ -212,3 +212,18 @@ export class PlannerSuggestDto {
   @Max(50)
   limit?: number;
 }
+
+/**
+ * Impact Apply: persist placement (upsert) and append constraint event log.
+ */
+export class PlannerImpactApplyDto extends PlannerTaskUpsertDto {
+  @IsOptional()
+  @IsBoolean()
+  @Type(() => Boolean)
+  acknowledgeOverride?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(512)
+  reason?: string | null;
+}

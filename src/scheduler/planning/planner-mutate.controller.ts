@@ -6,6 +6,7 @@ import { RequirePermissions } from '../../authorization/authorization.decorator'
 import { PlannerMutateService } from './planner-mutate.service';
 import {
   PlannerAssessDto,
+  PlannerImpactApplyDto,
   PlannerSuggestDto,
   PlannerTaskRemoveDto,
   PlannerTaskUpsertDto,
@@ -13,6 +14,7 @@ import {
 import {
   MICROSERVICE_CONSTRAINTS_SUGGEST_PATTERN,
   MICROSERVICE_PLANNER_ASSESS_PATTERN,
+  MICROSERVICE_PLANNER_IMPACT_APPLY_PATTERN,
   MICROSERVICE_PLANNER_TASK_REMOVE_PATTERN,
   MICROSERVICE_PLANNER_TASK_UPSERT_PATTERN,
 } from '../constants';
@@ -40,6 +42,16 @@ export class PlannerMutateController {
     @Payload('data') dto: PlannerTaskRemoveDto,
   ) {
     return this.plannerMutate.removeTask(userId, dto);
+  }
+
+  @MessagePattern(MICROSERVICE_PLANNER_IMPACT_APPLY_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async applyImpact(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: PlannerImpactApplyDto,
+  ) {
+    return this.plannerMutate.applyImpact(userId, dto);
   }
 
   @MessagePattern(MICROSERVICE_PLANNER_ASSESS_PATTERN)

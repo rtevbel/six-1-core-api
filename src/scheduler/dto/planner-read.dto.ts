@@ -5,7 +5,9 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export const PLANNER_SCALES = [
@@ -24,7 +26,7 @@ export const PLANNER_VIEWS = ['projects', 'people', 'both'] as const;
 export type PlannerView = (typeof PLANNER_VIEWS)[number];
 
 /**
- * Shared query for board / KPIs / conflicts reads (Epic D Week 4).
+ * Shared query for board / KPIs / conflicts reads.
  */
 export class PlannerReadQueryDto {
   @IsInt()
@@ -69,4 +71,56 @@ export class PlannerReadQueryDto {
   @IsOptional()
   @IsIn(PLANNER_VIEWS)
   view?: PlannerView;
+}
+
+export const PLANNER_QUEUE_REASONS = [
+  'unplanned',
+  'unassigned',
+  'no_date',
+] as const;
+export type PlannerQueueReason = (typeof PLANNER_QUEUE_REASONS)[number];
+
+/**
+ * Work queue: unplanned / unassigned items for the Impact → queue dock.
+ */
+export class PlannerQueueQueryDto {
+  @IsInt()
+  @Type(() => Number)
+  tenantId!: number;
+
+  @IsInt()
+  @Type(() => Number)
+  schedulingRequirementId!: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  scheduleScenarioId?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  projectId?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  q?: string;
+
+  @IsOptional()
+  @IsIn(PLANNER_QUEUE_REASONS)
+  reason?: PlannerQueueReason;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  page?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(1)
+  @Max(100)
+  limit?: number;
 }

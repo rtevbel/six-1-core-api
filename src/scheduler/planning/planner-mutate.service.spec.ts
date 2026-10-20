@@ -2,7 +2,7 @@ import { RpcException } from '@nestjs/microservices';
 import { PlannerMutateService } from './planner-mutate.service';
 import { ConstraintConflictCode } from '../constraints/constraint.codes';
 
-describe('PlannerMutateService Epic D Week 5', () => {
+describe('PlannerMutateService', () => {
   const tenantUsers = {
     assertTenantAccess: jest.fn().mockResolvedValue({ tenantId: 20 }),
   };
@@ -111,6 +111,14 @@ describe('PlannerMutateService Epic D Week 5', () => {
       ]),
     };
 
+    const constraintEventRepo = {
+      create: jest.fn((row: unknown) => row),
+      save: jest.fn().mockImplementation(async (row: Record<string, unknown>) => ({
+        ...row,
+        scheduleConstraintEventId: 77,
+      })),
+    };
+
     const service = new PlannerMutateService(
       tenantUsers as any,
       requirements as any,
@@ -118,6 +126,7 @@ describe('PlannerMutateService Epic D Week 5', () => {
       planning as any,
       constraints as any,
       taskRepo as any,
+      constraintEventRepo as any,
     );
 
     return {
@@ -127,6 +136,7 @@ describe('PlannerMutateService Epic D Week 5', () => {
       requirements,
       constraints,
       taskRepo,
+      constraintEventRepo,
     };
   }
 
@@ -320,5 +330,172 @@ describe('PlannerMutateService Epic D Week 5', () => {
         errorCode: 'version_conflict',
       });
     }
+  });
+
+  it('applyImpact upserts and appends resolved event when clean', async () => {
+    const { service, planning, constraintEventRepo } = buildService();
+
+    const result = await service.applyImpact(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      plannedStartUtc: '2026-10-09T08:00:00.000Z',
+      plannedEndUtc: '2026-10-09T12:00:00.000Z',
+      tenantUserId: 55,
+      expectedRevision: 4,
+    });
+
+    expect(planning.upsertPlannedTask).toHaveBeenCalled();
+    expect(constraintEventRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: 20,
+        scheduleScenarioId: 12,
+        schedulingRequirementId: 5,
+        action: 'resolved',
+        taskIds: [101],
+        actorId: 1,
+        actorType: 'human',
+      }),
+    );
+    expect(result.action).toBe('resolved');
+    expect(result.scheduleConstraintEventId).toBe(77);
+    expect(result.revision).toBe(5);
+  });
+
+  it('applyImpact records applied_with_issues when conflicts remain', async () => {
+    const { service, constraintEventRepo } = buildService({
+      upsertResult: {
+        revision: 5,
+        conflicts: [
+          {
+            code: ConstraintConflictCode.USER_OVERLAP,
+            severity: 'hard',
+            message: 'overlap',
+          },
+        ],
+        plannedTask: {
+          scenarioPlannedTaskId: 9,
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-09T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-09T12:00:00.000Z'),
+          tzUsed: 'UTC',
+          planningKind: 'task',
+          deadlineUtc: null,
+          notes: null,
+          isPlanned: true,
+          isReady: false,
+          isMilestone: false,
+          priority: 0,
+          taskStatusId: null,
+          shifts: [
+            {
+              sequenceNo: 1,
+              tenantUserId: 55,
+              resourceId: null,
+              plannedStartUtc: new Date('2026-10-09T08:00:00.000Z'),
+              plannedEndUtc: new Date('2026-10-09T12:00:00.000Z'),
+            },
+          ],
+          assignments: [],
+        },
+      },
+    });
+
+    const result = await service.applyImpact(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      plannedStartUtc: '2026-10-09T08:00:00.000Z',
+      plannedEndUtc: '2026-10-09T12:00:00.000Z',
+      tenantUserId: 55,
+    });
+
+    expect(result.action).toBe('applied_with_issues');
+    expect(constraintEventRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'applied_with_issues',
+        conflictCodes: [ConstraintConflictCode.USER_OVERLAP],
+      }),
+    );
+  });
+
+  it('applyImpact records overridden when acknowledgeOverride + hard', async () => {
+    const { service, constraintEventRepo } = buildService({
+      upsertResult: {
+        revision: 6,
+        conflicts: [
+          {
+            code: ConstraintConflictCode.USER_OVERLAP,
+            severity: 'hard',
+            message: 'overlap',
+          },
+        ],
+        plannedTask: {
+          scenarioPlannedTaskId: 9,
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-09T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-09T12:00:00.000Z'),
+          tzUsed: 'UTC',
+          planningKind: 'task',
+          deadlineUtc: null,
+          notes: null,
+          isPlanned: true,
+          isReady: false,
+          isMilestone: false,
+          priority: 0,
+          taskStatusId: null,
+          shifts: [
+            {
+              sequenceNo: 1,
+              tenantUserId: 55,
+              resourceId: null,
+              plannedStartUtc: new Date('2026-10-09T08:00:00.000Z'),
+              plannedEndUtc: new Date('2026-10-09T12:00:00.000Z'),
+            },
+          ],
+          assignments: [],
+        },
+      },
+    });
+
+    const result = await service.applyImpact(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      plannedStartUtc: '2026-10-09T08:00:00.000Z',
+      plannedEndUtc: '2026-10-09T12:00:00.000Z',
+      tenantUserId: 55,
+      acknowledgeOverride: true,
+      reason: 'Client deadline',
+    });
+
+    expect(result.action).toBe('overridden');
+    expect(constraintEventRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'overridden',
+        reason: 'Client deadline',
+      }),
+    );
+  });
+
+  it('applyImpact propagates tenant forbidden', async () => {
+    tenantUsers.assertTenantAccess.mockRejectedValue(
+      new RpcException({
+        statusCode: 403,
+        message: 'Tenant scope mismatch',
+      }),
+    );
+    const { service, constraintEventRepo } = buildService();
+
+    await expect(
+      service.applyImpact(1, {
+        tenantId: 99,
+        scheduleScenarioId: 12,
+        taskId: 101,
+        plannedStartUtc: '2026-10-09T08:00:00.000Z',
+        plannedEndUtc: '2026-10-09T12:00:00.000Z',
+      }),
+    ).rejects.toBeInstanceOf(RpcException);
+    expect(constraintEventRepo.save).not.toHaveBeenCalled();
   });
 });

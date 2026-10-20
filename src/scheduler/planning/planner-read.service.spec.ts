@@ -2,7 +2,7 @@ import { RpcException } from '@nestjs/microservices';
 import { PlannerReadService } from './planner-read.service';
 import { ConstraintConflictCode } from '../constraints/constraint.codes';
 
-describe('PlannerReadService Epic D Week 4', () => {
+describe('PlannerReadService', () => {
   const tenantUsers = {
     assertTenantAccess: jest.fn().mockResolvedValue({ tenantId: 20 }),
   };
@@ -267,5 +267,112 @@ describe('PlannerReadService Epic D Week 4', () => {
         schedulingRequirementId: 5,
       }),
     ).rejects.toBeInstanceOf(RpcException);
+  });
+
+  it('queue lists unplanned / unassigned / no_date with pagination', async () => {
+    const { service } = buildService({
+      plannedTasks: [
+        {
+          taskId: 501,
+          isPlanned: false,
+          isMilestone: false,
+          plannedStartUtc: null,
+          plannedEndUtc: null,
+          shifts: [],
+          assignments: [],
+        },
+        {
+          taskId: 502,
+          isPlanned: true,
+          isMilestone: false,
+          plannedStartUtc: new Date('2026-09-09T07:00:00.000Z'),
+          plannedEndUtc: new Date('2026-09-09T15:00:00.000Z'),
+          shifts: [],
+          assignments: [],
+        },
+      ],
+      tasks: [
+        { taskId: 501, projectId: 100, name: 'Install cable', tenantId: 20 },
+        { taskId: 502, projectId: 100, name: 'Pull cable', tenantId: 20 },
+        {
+          taskId: 503,
+          projectId: 100,
+          name: 'Missing from plan',
+          tenantId: 20,
+        },
+      ],
+    });
+
+    const queue = await service.getQueue(1, {
+      tenantId: 20,
+      schedulingRequirementId: 5,
+      scheduleScenarioId: 12,
+      page: 1,
+      limit: 50,
+    });
+
+    expect(queue.revision).toBe(3);
+    expect(queue.total).toBe(3);
+    expect(queue.items.map((i) => i.reason).sort()).toEqual([
+      'unassigned',
+      'unplanned',
+      'unplanned',
+    ]);
+    expect(queue.items.every((i) => typeof i.taskName === 'string')).toBe(true);
+    expect(queue).not.toHaveProperty('plannedTasks');
+  });
+
+  it('queue filters by reason and returns empty page without throw', async () => {
+    const { service } = buildService({
+      plannedTasks: [
+        {
+          taskId: 501,
+          isPlanned: true,
+          isMilestone: false,
+          plannedStartUtc: new Date('2026-09-08T07:00:00.000Z'),
+          plannedEndUtc: new Date('2026-09-08T15:00:00.000Z'),
+          shifts: [
+            {
+              sequenceNo: 1,
+              tenantUserId: 7,
+              resourceId: null,
+              plannedStartUtc: new Date('2026-09-08T07:00:00.000Z'),
+              plannedEndUtc: new Date('2026-09-08T15:00:00.000Z'),
+            },
+          ],
+          assignments: [],
+        },
+      ],
+      tasks: [
+        { taskId: 501, projectId: 100, name: 'Install cable', tenantId: 20 },
+      ],
+    });
+
+    const queue = await service.getQueue(1, {
+      tenantId: 20,
+      schedulingRequirementId: 5,
+      reason: 'unplanned',
+    });
+
+    expect(queue.items).toEqual([]);
+    expect(queue.total).toBe(0);
+    expect(queue.totalPages).toBe(0);
+  });
+
+  it('queue empty when no scenario', async () => {
+    const { service, requirements } = buildService();
+    requirements.findOneOrFail.mockResolvedValue({
+      ...requirement,
+      activeScenarioId: null,
+      definitiveScenarioId: null,
+    });
+
+    const queue = await service.getQueue(1, {
+      tenantId: 20,
+      schedulingRequirementId: 5,
+    });
+
+    expect(queue.scheduleScenarioId).toBeNull();
+    expect(queue.items).toEqual([]);
   });
 });

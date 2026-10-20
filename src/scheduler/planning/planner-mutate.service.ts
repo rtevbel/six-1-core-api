@@ -10,10 +10,12 @@ import { ConstraintCapacityEngine } from '../constraints/constraint-capacity.eng
 import { ConstraintConflictCode } from '../constraints/constraint.codes';
 import { ConstraintConflict } from '../constraints/constraint.types';
 import { ScenarioPlannedTaskEntity } from '../entities/scenario_planned_task.entity';
+import { ScheduleConstraintEventEntity } from '../entities/schedule_constraint_event.entity';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
 import { toIso } from '../scenarios/scenario-lifecycle.mapper';
 import {
   PlannerAssessDto,
+  PlannerImpactApplyDto,
   PlannerSuggestDto,
   PlannerTaskRemoveDto,
   PlannerTaskUpsertDto,
@@ -21,6 +23,8 @@ import {
 import {
   PlannerAssessView,
   PlannerConflictSummary,
+  PlannerImpactApplyAction,
+  PlannerImpactApplyView,
   PlannerPlannedTaskView,
   PlannerSuggestSlotView,
   PlannerSuggestView,
@@ -34,7 +38,7 @@ const DEFAULT_DURATION_MS = 4 * 60 * 60 * 1000;
 const SLOT_HOURS_UTC = [8, 9, 10, 13, 14];
 
 /**
- * Planner mutate APIs for task sheet (Week 5): upsert, assess, suggest.
+ * Planner mutate APIs: task sheet upsert/assess/suggest and Impact Apply.
  */
 @Injectable()
 export class PlannerMutateService {
@@ -46,6 +50,8 @@ export class PlannerMutateService {
     private readonly constraints: ConstraintCapacityEngine,
     @InjectRepository(TaskEntity)
     private readonly taskRepo: Repository<TaskEntity>,
+    @InjectRepository(ScheduleConstraintEventEntity)
+    private readonly constraintEventRepo: Repository<ScheduleConstraintEventEntity>,
   ) {}
 
   async upsertTask(
@@ -119,6 +125,105 @@ export class PlannerMutateService {
       scheduleScenarioId: dto.scheduleScenarioId,
       taskId: dto.taskId,
     };
+  }
+
+  /**
+   * Impact Apply: upsert overlay + append schedule_constraint_events.
+   * Needs-attention KPI stays live-assess driven — events are audit only.
+   */
+  async applyImpact(
+    userId: number,
+    dto: PlannerImpactApplyDto,
+  ): Promise<PlannerImpactApplyView> {
+    await this.tenantUsers.assertTenantAccess(userId, dto.tenantId);
+    const scenario = await this.scenarios.findOne(
+      userId,
+      dto.scheduleScenarioId,
+      dto.tenantId,
+    );
+
+    const existing = (
+      await this.planning.findPlannedTasks(userId, {
+        tenantId: dto.tenantId,
+        scheduleScenarioId: dto.scheduleScenarioId,
+      })
+    ).find((p) => p.taskId === dto.taskId);
+
+    const beforeWindows = existing
+      ? {
+          [String(dto.taskId)]: {
+            plannedStartUtc: toIso(existing.plannedStartUtc),
+            plannedEndUtc: toIso(existing.plannedEndUtc),
+            tenantUserId: existing.shifts?.[0]?.tenantUserId ?? null,
+            resourceId: existing.shifts?.[0]?.resourceId ?? null,
+          },
+        }
+      : null;
+
+    const upserted = await this.upsertTask(userId, dto);
+    const action = this.resolveImpactAction(
+      upserted.conflictSummary,
+      !!dto.acknowledgeOverride,
+    );
+
+    const afterWindows = {
+      [String(dto.taskId)]: {
+        plannedStartUtc: upserted.plannedTask.plannedStartUtc,
+        plannedEndUtc: upserted.plannedTask.plannedEndUtc,
+        tenantUserId: upserted.plannedTask.tenantUserId,
+        resourceId: upserted.plannedTask.resourceId,
+      },
+    };
+
+    const resourceIds = [
+      ...new Set(
+        [
+          upserted.plannedTask.resourceId,
+          ...(upserted.conflicts
+            .map((c) =>
+              typeof c.details?.resourceId === 'number'
+                ? c.details.resourceId
+                : null,
+            )
+            .filter((id): id is number => id != null)),
+        ].filter((id): id is number => id != null),
+      ),
+    ];
+
+    const event = this.constraintEventRepo.create({
+      tenantId: dto.tenantId,
+      schedulingRequirementId: scenario.schedulingRequirementId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      action,
+      conflictCodes: upserted.conflicts.map((c) => c.code),
+      taskIds: [dto.taskId],
+      resourceIds: resourceIds.length ? resourceIds : null,
+      beforeWindows,
+      afterWindows,
+      actorId: userId,
+      actorType: 'human',
+      reason: dto.reason ?? null,
+    });
+    const saved = await this.constraintEventRepo.save(event);
+
+    return {
+      ...upserted,
+      action,
+      scheduleConstraintEventId: saved.scheduleConstraintEventId,
+    };
+  }
+
+  private resolveImpactAction(
+    summary: PlannerConflictSummary,
+    acknowledgeOverride: boolean,
+  ): PlannerImpactApplyAction {
+    if (summary.hard === 0 && summary.soft === 0) {
+      return 'resolved';
+    }
+    if (acknowledgeOverride && summary.hard > 0) {
+      return 'overridden';
+    }
+    return 'applied_with_issues';
   }
 
   async assess(
