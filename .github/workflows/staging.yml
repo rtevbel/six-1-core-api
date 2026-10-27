@@ -61,9 +61,9 @@ jobs:
     name: Deploy to staging VPS
     needs: build-and-push
     runs-on: ubuntu-latest
-    environment: staging
-    # Set repository/environment variable STAGING_DEPLOY_ENABLED=true after SSH secrets exist.
-    if: ${{ vars.STAGING_DEPLOY_ENABLED == 'true' }}
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Resolve image ref
         id: ref
@@ -72,16 +72,22 @@ jobs:
           SHA_TAG="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
           echo "image_ref=ghcr.io/${NAME}:${SHA_TAG}" >> "$GITHUB_OUTPUT"
 
-      - name: Pull and restart core on VPS
-        uses: appleboy/ssh-action@v1.2.0
-        with:
-          host: ${{ secrets.STAGING_HOST }}
-          username: ${{ secrets.STAGING_USER }}
-          key: ${{ secrets.STAGING_SSH_KEY }}
-          script_stop: true
-          script: |
-            set -euo pipefail
-            if [ -x /usr/local/bin/six1-ghcr-login ]; then
-              /usr/local/bin/six1-ghcr-login
-            fi
-            /usr/local/bin/six1-pull-up core "${{ steps.ref.outputs.image_ref }}"
+      - name: Trigger VPS deploy hook
+        env:
+          HOOK_URL: https://s2api.guoah.com/__six1-deploy
+          HOOK_TOKEN: ${{ secrets.STAGING_DEPLOY_HOOK_TOKEN }}
+          IMAGE_REF: ${{ steps.ref.outputs.image_ref }}
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${HOOK_TOKEN:?STAGING_DEPLOY_HOOK_TOKEN secret is required}"
+          curl -fsS --retry 3 --retry-delay 5 -X POST "$HOOK_URL" \
+            -H "Authorization: Bearer ${HOOK_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$(jq -n \
+              --arg stack core \
+              --arg image_ref "$IMAGE_REF" \
+              --arg ghcr_user "$GHCR_USER" \
+              --arg ghcr_token "$GHCR_TOKEN" \
+              '{stack:$stack,image_ref:$image_ref,ghcr_user:$ghcr_user,ghcr_token:$ghcr_token}')"
