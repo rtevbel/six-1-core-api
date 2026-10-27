@@ -46,6 +46,7 @@
     "handlebars": "^4.7.10",
     "ioredis": "^5.6.1",
     "joi": "^18.3.0",
+    "json-logic-js": "^2.0.5",
     "luxon": "^3.7.2",
     "mysql2": "^3.11.0",
     "openid-client": "^5.7.1",
