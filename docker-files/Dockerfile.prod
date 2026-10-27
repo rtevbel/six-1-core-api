@@ -1,7 +1,7 @@
 # six1-core-api/Dockerfile.prod
 # ---- Stage 1: Build ----
 # (Node 16 kept per your request; swap to node:20-bookworm-slim when ready)
-FROM node:16-bullseye AS builder
+FROM node:18-bookworm AS builder
 
 ENV NODE_ENV=development
 ENV APP_DIR=/src/local/app
@@ -18,7 +18,7 @@ COPY . .
 RUN npm run build
 
 # ---- Stage 2: Runtime (no extra apt packages) ----
-FROM node:16-bullseye-slim
+FROM node:18-bookworm-slim
 
 ENV NODE_ENV=production
 ENV APP_USER=appuser
@@ -42,5 +42,5 @@ USER $APP_USER
 # If your app listens on a port, you can expose it (optional)
 # EXPOSE 3000
 
-# Start (uses your package.json "start:prod": "node dist/main.js")
-CMD ["sh", "-c", "npm run migration:run:dist && npm run start:prod"]
+# Migrations are run as a controlled release step, not on every container start.
+CMD ["npm", "run", "start:prod"]
