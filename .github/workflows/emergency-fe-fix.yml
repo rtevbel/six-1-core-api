@@ -1,0 +1,42 @@
+name: Emergency FE fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_ref:
+        description: Frontend image ref
+        required: true
+        default: ghcr.io/rtevbel/six-1-front-end:sha-b50d8d4
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH diagnose and recreate frontend
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USER }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          command_timeout: 10m
+          script: |
+            set -euxo pipefail
+            echo "=== before ==="
+            docker ps -a --filter name=frontend --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}' || true
+            docker logs --tail 50 six1-frontend-staging 2>&1 || true
+            docker logs --tail 80 six1-deploy-hook 2>&1 || true
+            echo "=== pull-up ==="
+            if command -v six1-pull-up >/dev/null; then
+              six1-pull-up frontend "${{ inputs.image_ref }}" || true
+            fi
+            cd /home/a529345/public_html/dynerto
+            export IMAGE_REF="${{ inputs.image_ref }}"
+            printf 'IMAGE_REF=%s\n' "$IMAGE_REF" > .env.image
+            # Prefer host compose recreate with visible error
+            docker compose -p dynerto -f docker-compose.yml pull six1-frontend
+            docker compose -p dynerto -f docker-compose.yml up -d --force-recreate --no-deps six1-frontend
+            sleep 3
+            docker compose -p dynerto -f docker-compose.yml ps six1-frontend
+            docker logs --tail 40 six1-frontend-staging 2>&1 || true
+            curl -sS -o /dev/null -w 'local:%{http_code}\n' --max-time 5 http://127.0.0.1:3000/ || true
+            curl -sS -o /dev/null -w 'via_proxy_port:%{http_code}\n' --max-time 5 http://127.0.0.1:50009/ || true
