@@ -19,6 +19,8 @@ import { ScenarioPlanningKind } from '../constants';
 import { NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
 import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
+import { PlannerSheetExtras } from '../interfaces/planner-sheet-extras.interface';
+import { normalizeSheetExtras } from './planner-sheet-extras.util';
 
 @Injectable()
 export class ScenarioPlanningService {
@@ -61,6 +63,8 @@ export class ScenarioPlanningService {
       isMilestone?: boolean;
       taskName?: string;
       expectedRevision?: number;
+      /** When set (including empty), replaces stored sheet extras. */
+      sheetExtras?: PlannerSheetExtras | null;
       shifts?: Array<{
         sequenceNo: number;
         tenantUserId?: number | null;
@@ -167,6 +171,15 @@ export class ScenarioPlanningService {
         row.isMilestone = input.isMilestone;
       } else if (input.planningKind === 'milestone') {
         row.isMilestone = true;
+      }
+      if (input.sheetExtras !== undefined) {
+        row.sheetExtras =
+          input.sheetExtras == null
+            ? null
+            : (normalizeSheetExtras(input.sheetExtras) as unknown as Record<
+                string,
+                unknown
+              >);
       }
       row.conflictSummary = {
         hard: conflicts.filter((c) => c.severity === 'hard'),

@@ -44,6 +44,16 @@ describe('PlannerReadService', () => {
             taskId: 501,
             isPlanned: true,
             isMilestone: false,
+            planningKind: 'external',
+            deadlineUtc: new Date('2026-09-15T12:00:00.000Z'),
+            sheetExtras: {
+              requiredSkills: ['electrical'],
+              partnerRecordKeys: ['partner-1'],
+              requiredMaterials: [],
+              requiredEquipmentRecordKeys: [],
+              assignedEquipmentRecordKeys: [],
+              predecessors: [],
+            },
             plannedStartUtc: new Date('2026-09-08T07:00:00.000Z'),
             plannedEndUtc: new Date('2026-09-08T15:00:00.000Z'),
             baselineStartUtc: null,
@@ -62,6 +72,9 @@ describe('PlannerReadService', () => {
             taskId: 502,
             isPlanned: true,
             isMilestone: false,
+            planningKind: 'task',
+            deadlineUtc: null,
+            sheetExtras: null,
             plannedStartUtc: new Date('2026-09-09T07:00:00.000Z'),
             plannedEndUtc: new Date('2026-09-09T15:00:00.000Z'),
             baselineStartUtc: new Date('2026-09-08T07:00:00.000Z'),
@@ -156,8 +169,32 @@ describe('PlannerReadService', () => {
     ]);
     expect(board.resourceLanes.some((l) => l.laneKey === 'user:7')).toBe(true);
     expect(board.bars).toHaveLength(2);
+    const bar501 = board.bars.find((b) => b.taskId === 501);
+    expect(bar501).toEqual(
+      expect.objectContaining({
+        planningKind: 'external',
+        deadlineUtc: '2026-09-15T12:00:00.000Z',
+        sheetExtras: expect.objectContaining({
+          requiredSkills: ['electrical'],
+          partnerRecordKeys: ['partner-1'],
+        }),
+      }),
+    );
+    const bar502 = board.bars.find((b) => b.taskId === 502);
+    expect(bar502).toEqual(
+      expect.objectContaining({
+        planningKind: 'task',
+        deadlineUtc: null,
+        sheetExtras: null,
+      }),
+    );
     expect(board.deps).toEqual([
-      { fromTaskId: 501, toTaskId: 502, dependencyType: 'FS' },
+      {
+        fromTaskId: 501,
+        toTaskId: 502,
+        dependencyType: 'FS',
+        lagDays: 0,
+      },
     ]);
     expect(board.revision).toBe(3);
     expect(board.conflictSummary.hard).toBe(1);

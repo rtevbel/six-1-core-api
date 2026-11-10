@@ -89,6 +89,8 @@ export interface ScenarioOverlayPlannedTask {
   baselineStartUtc?: string | null;
   baselineEndUtc?: string | null;
   deadlineUtc?: string | null;
+  /** Rich sheet extras (Week 8). */
+  sheetExtras?: Record<string, unknown> | null;
   shifts?: Array<{
     sequenceNo: number;
     tenantUserId?: number | null;

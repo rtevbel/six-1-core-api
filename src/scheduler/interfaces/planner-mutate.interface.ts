@@ -1,5 +1,6 @@
 import { ConstraintConflict } from '../constraints/constraint.types';
 import { ScenarioPlanningKind } from '../constants';
+import { PlannerSheetExtras } from './planner-sheet-extras.interface';
 
 export interface PlannerPlannedTaskView {
   scenarioPlannedTaskId: number;
@@ -17,6 +18,7 @@ export interface PlannerPlannedTaskView {
   isMilestone: boolean;
   priority: number;
   taskStatusId: number | null;
+  sheetExtras: PlannerSheetExtras | null;
 }
 
 export interface PlannerConflictSummary {

@@ -946,6 +946,7 @@ export class ScheduleScenariosService {
             ? new Date(pt.baselineEndUtc)
             : null,
           deadlineUtc: pt.deadlineUtc ? new Date(pt.deadlineUtc) : null,
+          sheetExtras: pt.sheetExtras ?? null,
         }),
       );
       for (const s of pt.shifts ?? []) {
@@ -1089,6 +1090,14 @@ export class ScheduleScenariosService {
           notes: pt.notes,
           conflictSummary: pt.conflictSummary,
           constraintSnapshot: pt.constraintSnapshot,
+          isPlanned: pt.isPlanned,
+          isReady: pt.isReady,
+          isMilestone: pt.isMilestone,
+          planningKind: pt.planningKind,
+          baselineStartUtc: pt.baselineStartUtc,
+          baselineEndUtc: pt.baselineEndUtc,
+          deadlineUtc: pt.deadlineUtc,
+          sheetExtras: pt.sheetExtras,
         }),
       );
       for (const s of pt.shifts ?? []) {

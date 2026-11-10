@@ -1,14 +1,18 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
   IsDateString,
   IsIn,
   IsInt,
+  IsNumber,
   IsOptional,
   IsString,
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { ScenarioPlanningKind } from '../constants';
 
@@ -18,8 +22,80 @@ const PLANNING_KINDS: ScenarioPlanningKind[] = [
   'milestone',
 ];
 
+const DEP_TYPES = ['FS', 'SS', 'FF', 'SF'] as const;
+
+export class PlannerSheetMaterialRefDto {
+  @IsString()
+  @MaxLength(64)
+  recordKey!: string;
+
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  qty!: number;
+}
+
+export class PlannerSheetPredecessorDto {
+  @IsInt()
+  @Type(() => Number)
+  dependsOnTaskId!: number;
+
+  @IsIn(DEP_TYPES)
+  dependencyType!: (typeof DEP_TYPES)[number];
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  lagDays?: number;
+}
+
+/** Rich task sheet extras (Week 8). */
+export class PlannerSheetExtrasDto {
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(32)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  requiredSkills?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(64)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  partnerRecordKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(64)
+  @ValidateNested({ each: true })
+  @Type(() => PlannerSheetMaterialRefDto)
+  requiredMaterials?: PlannerSheetMaterialRefDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(64)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  requiredEquipmentRecordKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(64)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  assignedEquipmentRecordKeys?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(64)
+  @ValidateNested({ each: true })
+  @Type(() => PlannerSheetPredecessorDto)
+  predecessors?: PlannerSheetPredecessorDto[];
+}
+
 /**
- * Upsert a planned task from the Planner task sheet (core fields).
+ * Upsert a planned task from the Planner task sheet (core + rich extras).
  */
 export class PlannerTaskUpsertDto {
   @IsInt()
@@ -103,6 +179,12 @@ export class PlannerTaskUpsertDto {
   @Type(() => Number)
   @Min(0)
   expectedRevision?: number;
+
+  /** Omit to leave stored extras unchanged; send object to replace. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PlannerSheetExtrasDto)
+  sheetExtras?: PlannerSheetExtrasDto;
 }
 
 /**
@@ -159,6 +241,16 @@ export class PlannerAssessDto {
   @IsInt()
   @Type(() => Number)
   resourceId?: number | null;
+
+  @IsOptional()
+  @IsIn(PLANNING_KINDS)
+  planningKind?: ScenarioPlanningKind;
+
+  /** Optional extras for PARTNER_MISSING preview before save. */
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => PlannerSheetExtrasDto)
+  sheetExtras?: PlannerSheetExtrasDto;
 }
 
 /**
