@@ -23,6 +23,7 @@ import {
   ensureSystemTenantRow,
 } from '../tenants/system-tenant.bootstrap';
 import { isGlobalSystemTenantId } from '../common/utils/tenant-scope.util';
+import { resolveTenantUserActorId } from '../common/utils/resolve-tenant-user-actor.util';
 
 export type StepObjectBindingRow = {
   step_object_instance_id: number;
@@ -965,11 +966,17 @@ export class ConfigObjectStepExecutor {
       throw new Error('Config object must use standalone binding mode');
     }
 
+    const actorTenantUserId = await resolveTenantUserActorId(
+      em,
+      tenantId,
+      createdBy,
+    );
+
     const res: { insertId?: number } = await em.query(
       `INSERT INTO config_custom_object_instances
          (tenant_id, config_object_id, payload, status, created_by, created_at, updated_at)
        VALUES (?, ?, ?, 'DRAFT', ?, NOW(), NOW())`,
-      [tenantId, configObjectId, JSON.stringify({}), createdBy],
+      [tenantId, configObjectId, JSON.stringify({}), actorTenantUserId],
     );
 
     const instanceId = Number(res?.insertId);

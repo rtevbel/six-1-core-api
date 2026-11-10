@@ -143,6 +143,7 @@ describe('ConfigObjectStepExecutor', () => {
             .mockResolvedValueOnce([
               { config_object_id: 99, binding_mode: 'standalone' },
             ])
+            .mockResolvedValueOnce([{ tenant_user_id: 2 }])
             .mockResolvedValueOnce({ insertId: 77 })
             .mockResolvedValueOnce(undefined),
         },
@@ -159,6 +160,54 @@ describe('ConfigObjectStepExecutor', () => {
             configCustomObjectInstanceId: 77,
           }),
         }),
+      );
+      expect(qr.manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO config_custom_object_instances'),
+        expect.arrayContaining([1, 99, expect.any(String), 2]),
+      );
+    });
+
+    it('maps process created_by user_id to tenant_user_id before standalone insert', async () => {
+      const qr = {
+        manager: {
+          query: jest
+            .fn()
+            .mockResolvedValueOnce([
+              { tenant_id: 20, created_by: 20, process_instance_id: 78 },
+            ])
+            .mockResolvedValueOnce([
+              {
+                step_object_instance_id: 10,
+                step_instance_id: 5,
+                binding_id: 11,
+                config_object_id: 99,
+                config_custom_object_instance_id: null,
+                core_id: null,
+                status: PROCESS_INSTANCE_STEP_OBJECT_STATUS_PENDING,
+                binding_mode: 'create_on_enter',
+                is_mandatory: 1,
+                completion_rule: { type: 'payload_valid' },
+                object_type: 'planner_manage_project',
+                config_binding_mode: 'standalone',
+              },
+            ])
+            .mockResolvedValueOnce([
+              { config_object_id: 99, binding_mode: 'standalone' },
+            ])
+            .mockResolvedValueOnce([]) // no tenant_user_id=20
+            .mockResolvedValueOnce([{ tenant_user_id: 9 }]) // user_id=20 → 9
+            .mockResolvedValueOnce({ insertId: 77 })
+            .mockResolvedValueOnce(undefined),
+        },
+      };
+
+      await executor.provisionBindingsOnStepReady(qr as never, {
+        stepInstanceId: 5,
+      });
+
+      expect(qr.manager.query).toHaveBeenCalledWith(
+        expect.stringContaining('INSERT INTO config_custom_object_instances'),
+        expect.arrayContaining([20, 99, expect.any(String), 9]),
       );
     });
 
@@ -189,6 +238,7 @@ describe('ConfigObjectStepExecutor', () => {
             .mockResolvedValueOnce([
               { config_object_id: 6, binding_mode: 'standalone' },
             ])
+            .mockResolvedValueOnce([{ tenant_user_id: 1 }])
             .mockResolvedValueOnce({ insertId: 88 })
             .mockResolvedValueOnce(undefined),
         },

@@ -38,6 +38,7 @@ import type {
   ConfigAuditLogListResult,
 } from './interfaces/config-audit-log-list.interface';
 import { buildRuntimeV2ListPagination } from '../common/runtime-v2-list-pagination';
+import { resolveTenantUserActorId } from '../common/utils/resolve-tenant-user-actor.util';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { ProjectMetaEntity } from '../projects/entities/project_meta.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
@@ -3711,12 +3712,18 @@ export class ConfigObjectsService {
     const nextStatus: ConfigCustomObjectInstanceStatus =
       typeof status === 'string' ? status : 'DRAFT';
 
+    const actorTenantUserId = await resolveTenantUserActorId(
+      this.dataSource.manager,
+      storedTenantId,
+      createdBy,
+    );
+
     const entity = this.customObjectInstanceRepository.create({
       tenantId: storedTenantId,
       configObjectId: configObject.configObjectId,
       payload: nextPayload,
       status: nextStatus,
-      createdBy,
+      createdBy: actorTenantUserId,
       updatedBy: null,
     });
 
@@ -3727,7 +3734,7 @@ export class ConfigObjectsService {
       'custom_object_instance',
       saved.configCustomObjectInstanceId,
       'create',
-      createdBy,
+      actorTenantUserId,
       null,
       {
         configObjectId: saved.configObjectId,
@@ -3744,7 +3751,7 @@ export class ConfigObjectsService {
         configObjectId: saved.configObjectId,
         objectType: configObject.objectType,
         tenantId: saved.tenantId,
-        actorUserId: createdBy,
+        actorUserId: actorTenantUserId,
         status: saved.status,
       }),
     );
@@ -3784,6 +3791,17 @@ export class ConfigObjectsService {
       throw new RpcException('Custom object instance not found.');
     }
 
+    const actorTenantUserId =
+      tenantUserId != null &&
+      Number.isInteger(tenantUserId) &&
+      tenantUserId >= 1
+        ? tenantUserId
+        : await resolveTenantUserActorId(
+            this.dataSource.manager,
+            storedTenantId,
+            updatedBy,
+          );
+
     // G3: when this instance is bound to a process step, require the caller to hold the step lock.
     // Super-admin / platform actors may omit tenantUserId; locks are acquired with userId in that case.
     const boundStepId = await this.stepLocks.resolveStepIdForCustomObjectInstance(
@@ -3792,7 +3810,7 @@ export class ConfigObjectsService {
     if (boundStepId) {
       await this.stepLocks.assertCanMutateStep({
         stepInstanceId: boundStepId,
-        tenantUserId: tenantUserId ?? updatedBy,
+        tenantUserId: actorTenantUserId,
       });
     }
 
@@ -3824,7 +3842,7 @@ export class ConfigObjectsService {
       row.status = status;
     }
 
-    row.updatedBy = updatedBy;
+    row.updatedBy = actorTenantUserId;
 
     const changedFields: string[] = [];
     if (typeof payload !== 'undefined') {
@@ -3848,7 +3866,7 @@ export class ConfigObjectsService {
       'custom_object_instance',
       saved.configCustomObjectInstanceId,
       'update',
-      updatedBy,
+      actorTenantUserId,
       oldValue,
       {
         status: saved.status,
@@ -3863,7 +3881,7 @@ export class ConfigObjectsService {
         configObjectId: saved.configObjectId,
         objectType: configObject.objectType,
         tenantId: saved.tenantId,
-        actorUserId: updatedBy,
+        actorUserId: actorTenantUserId,
         status: saved.status,
         changedFields,
       }),

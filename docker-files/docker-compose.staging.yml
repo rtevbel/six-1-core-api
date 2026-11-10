@@ -14,9 +14,13 @@ services:
       - "50004:3000"
     environment:
       - NODE_ENV=${NODE_ENV:-production}
+    # Prefer unique container DNS on the shared external network (not "mysql").
+    # SIX1_CORE_API_DB_HOST should be six1-core-api-uat-mysql in /etc/six1/core-api.env.
     depends_on:
-      - mysql
-      - redis-six1-core-api-uat
+      mysql:
+        condition: service_healthy
+      redis-six1-core-api-uat:
+        condition: service_started
     networks:
       - six1-microservices-network
 
@@ -36,13 +40,14 @@ services:
     image: phpmyadmin/phpmyadmin:5.2.1
     container_name: six1-phpmyadmin
     environment:
-      PMA_HOST: mysql
+      PMA_HOST: six1-core-api-uat-mysql
       PMA_PORT: 3306
       PMA_ARBITRARY: 1
     ports:
       - "8088:80"
     depends_on:
-      - mysql
+      mysql:
+        condition: service_healthy
     networks:
       - six1-microservices-network
 
@@ -60,6 +65,12 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
       - /home/a529345/api.core.six1.guoah.com/db:/docker-entrypoint-initdb.d/
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
     networks:
       - six1-microservices-network
 

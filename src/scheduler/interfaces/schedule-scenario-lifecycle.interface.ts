@@ -1,4 +1,8 @@
-import { ScheduleScenarioStatus, ScenarioPlanningKind } from '../constants';
+import {
+  ManageRecordCategory,
+  ScheduleScenarioStatus,
+  ScenarioPlanningKind,
+} from '../constants';
 import type { RuntimeV2ListPagination } from '../../common/runtime-v2-list-pagination';
 
 /** Public scenario view over RMQ (never raw TypeORM entity). */
@@ -55,6 +59,17 @@ export interface ListScheduleScenarioVersionsResult {
 /** Overlay blob stored in schedule_scenario_versions.overlay_json */
 export interface ScenarioOverlayJson {
   plannedTasks: ScenarioOverlayPlannedTask[];
+  /** Option A — scenario-owned Manage draft snapshot */
+  manageRecords?: ScenarioOverlayManageRecord[];
+}
+
+export interface ScenarioOverlayManageRecord {
+  recordKey: string;
+  category: ManageRecordCategory;
+  name: string;
+  parentRecordKey?: string | null;
+  linkedMasterId?: number | null;
+  attrs?: Record<string, unknown>;
 }
 
 export interface ScenarioOverlayPlannedTask {
