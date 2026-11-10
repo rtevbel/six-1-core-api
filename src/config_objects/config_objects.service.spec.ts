@@ -158,6 +158,18 @@ describe('ConfigObjectsService', () => {
           provide: DataSource,
           useValue: {
             transaction: jest.fn(),
+            manager: {
+              // Prefer exact tenant_user_id match so unit tests keep their actor ids.
+              query: jest
+                .fn()
+                .mockImplementation(async (_sql: string, params?: unknown[]) => {
+                  const actorId = Array.isArray(params) ? Number(params[1]) : NaN;
+                  if (Number.isInteger(actorId) && actorId >= 1) {
+                    return [{ tenant_user_id: actorId }];
+                  }
+                  return [];
+                }),
+            },
             getMetadata: jest.fn().mockReturnValue({
               primaryColumns: [{ propertyName: 'id' }],
               relations: [],

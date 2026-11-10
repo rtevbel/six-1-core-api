@@ -86,8 +86,9 @@ export function mapVersionDetail(
 
 export function buildOverlayFromPlannedTasks(
   plannedTasks: ScenarioPlannedTaskEntity[],
+  manageRecords?: ScenarioOverlayJson['manageRecords'],
 ): ScenarioOverlayJson {
-  return {
+  const overlay: ScenarioOverlayJson = {
     plannedTasks: plannedTasks.map((t) => ({
       taskId: t.taskId,
       plannedStartUtc: t.plannedStartUtc.toISOString(),
@@ -120,6 +121,10 @@ export function buildOverlayFromPlannedTasks(
       })),
     })),
   };
+  if (manageRecords && manageRecords.length > 0) {
+    overlay.manageRecords = manageRecords;
+  }
+  return overlay;
 }
 
 export function hashOverlay(overlay: ScenarioOverlayJson): string {
@@ -137,5 +142,12 @@ export function parseOverlayJson(
   const plannedTasks = Array.isArray((raw as ScenarioOverlayJson).plannedTasks)
     ? (raw as ScenarioOverlayJson).plannedTasks
     : [];
-  return { plannedTasks };
+  const manageRecords = Array.isArray(
+    (raw as ScenarioOverlayJson).manageRecords,
+  )
+    ? (raw as ScenarioOverlayJson).manageRecords
+    : undefined;
+  return manageRecords?.length
+    ? { plannedTasks, manageRecords }
+    : { plannedTasks };
 }

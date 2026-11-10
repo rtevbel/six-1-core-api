@@ -11,18 +11,23 @@ services:
            - ..:/src/local/app/
            # Named volume keeps image deps; bind-mount would otherwise hide them.
            - six1_core_api_dev_node_modules:/src/local/app/node_modules
+        # Use the unique MySQL container_name as DB host. The generic Compose
+        # service name "mysql" collides on the shared external network and
+        # yields getaddrinfo EAI_AGAIN during migration:run.
         command: >
           sh -c "npm install && npm run migration:run && npm run start:dev"
         environment:
           - NODE_ENV=${NODE_ENV}
-          - SIX1_CORE_API_DB_HOST=mysql
+          - SIX1_CORE_API_DB_HOST=six1-core-api-dev-mysql
           - SIX1_CORE_API_DB_PORT=3306
           - SIX1_CORE_API_DB_USERNAME=${SIX1_CORE_API_DB_USERNAME}
           - SIX1_CORE_API_DB_PASSWORD=${SIX1_CORE_API_DB_PASSWORD}
           - SIX1_CORE_API_DB_DATABASE=${SIX1_CORE_API_DB_DATABASE}
         depends_on:
-          - mysql
-          - redis-six1-core-api-dev
+          mysql:
+            condition: service_healthy
+          redis-six1-core-api-dev:
+            condition: service_started
         networks:
           - six1-microservices-network
 
@@ -43,13 +48,14 @@ services:
            image: phpmyadmin/phpmyadmin:latest
            container_name: six1-phpmyadmin
            environment:
-                PMA_HOST: mysql
+                PMA_HOST: six1-core-api-dev-mysql
                 PMA_PORT: 3306
                 PMA_ARBITRARY: 1
            ports:
               - "8088:80"
            depends_on:
-              - mysql
+              mysql:
+                condition: service_healthy
            networks:
              - six1-microservices-network          
 
@@ -67,7 +73,12 @@ services:
        volumes:
         - mysql-data:/var/lib/mysql
         - ../db:/docker-entrypoint-initdb.d/
-
+       healthcheck:
+         test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-p$$MYSQL_ROOT_PASSWORD"]
+         interval: 5s
+         timeout: 5s
+         retries: 30
+         start_period: 20s
        networks:
         - six1-microservices-network  
      

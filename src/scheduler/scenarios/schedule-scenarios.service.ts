@@ -13,6 +13,7 @@ import { ResourceAssignmentEntity } from '../entities/resource_assignment.entity
 import { ResourceAssignmentShiftEntity } from '../entities/resource_assignment_shifts.entity';
 import { SchedulingRequirementsService } from '../requirements/scheduling-requirements.service';
 import { ScenarioPlanningService } from '../planning/scenario-planning.service';
+import { PlannerManageService } from '../planning/planner-manage.service';
 import {
   ScenarioAuditService,
   assertRequirementOpen,
@@ -68,6 +69,7 @@ export class ScheduleScenariosService {
     private readonly liveShiftRepo: Repository<ResourceAssignmentShiftEntity>,
     private readonly requirements: SchedulingRequirementsService,
     private readonly planning: ScenarioPlanningService,
+    private readonly plannerManage: PlannerManageService,
     private readonly audit: ScenarioAuditService,
     private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
@@ -543,7 +545,14 @@ export class ScheduleScenariosService {
       const graph = await this.planning.loadScenarioGraph(
         locked.scheduleScenarioId,
       );
-      const overlay = buildOverlayFromPlannedTasks(graph.plannedTasks);
+      const manageRecords = await this.plannerManage.listForOverlay(
+        locked.scheduleScenarioId,
+        input.tenantId,
+      );
+      const overlay = buildOverlayFromPlannedTasks(
+        graph.plannedTasks,
+        manageRecords,
+      );
       const nextVersion = await this.nextVersionNumber(
         versionRepo,
         locked.scheduleScenarioId,
@@ -611,7 +620,14 @@ export class ScheduleScenariosService {
     const graph = await this.planning.loadScenarioGraph(
       scenario.scheduleScenarioId,
     );
-    const overlay = buildOverlayFromPlannedTasks(graph.plannedTasks);
+    const manageRecords = await this.plannerManage.listForOverlay(
+      scenario.scheduleScenarioId,
+      input.tenantId,
+    );
+    const overlay = buildOverlayFromPlannedTasks(
+      graph.plannedTasks,
+      manageRecords,
+    );
 
     return this.dataSource.transaction(async (manager) => {
       const scenarioRepo = manager.getRepository(ScheduleScenarioEntity);
@@ -807,10 +823,21 @@ export class ScheduleScenariosService {
       }
 
       await this.applyOverlay(ptRepo, shRepo, asRepo, locked.scheduleScenarioId, overlay);
+      await this.plannerManage.replaceFromOverlay(
+        locked.scheduleScenarioId,
+        input.tenantId,
+        overlay.manageRecords ?? [],
+        userId,
+        manager,
+      );
 
       locked.revision += 1;
       await scenarioRepo.save(locked);
 
+      const restoredManage = await this.plannerManage.listForOverlay(
+        locked.scheduleScenarioId,
+        input.tenantId,
+      );
       const restoredOverlay = buildOverlayFromPlannedTasks(
         (
           await ptRepo.find({
@@ -819,6 +846,7 @@ export class ScheduleScenariosService {
             order: { plannedStartUtc: 'ASC' },
           })
         ),
+        restoredManage,
       );
       const nextVersion = await this.nextVersionNumber(
         versionRepo,
@@ -1087,5 +1115,11 @@ export class ScheduleScenariosService {
         );
       }
     }
+    await this.plannerManage.copyBetweenScenarios(
+      sourceScenarioId,
+      target.scheduleScenarioId,
+      target.tenantId,
+      target.createdBy,
+    );
   }
 }

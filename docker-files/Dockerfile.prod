@@ -42,5 +42,5 @@ USER $APP_USER
 # If your app listens on a port, you can expose it (optional)
 # EXPOSE 3000
 
-# Start (uses your package.json "start:prod": "node dist/main.js")
-CMD ["sh", "-c", "npm run migration:run:dist && npm run start:prod"]
+# Migrations are run as a controlled release step, not on every container start.
+CMD ["npm", "run", "start:prod"]

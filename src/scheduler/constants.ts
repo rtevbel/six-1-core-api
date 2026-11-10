@@ -93,6 +93,21 @@ export const MICROSERVICE_PLANNER_IMPACT_APPLY_PATTERN =
 export const MICROSERVICE_CONSTRAINTS_SUGGEST_PATTERN =
   'v0.1_scheduler_constraints_suggest';
 
+/** Planner Manage (Option A draft master) */
+export const MICROSERVICE_PLANNER_MANAGE_LIST_PATTERN =
+  'v0.1_scheduler_planner_manage_list';
+export const MICROSERVICE_PLANNER_MANAGE_UPSERT_PATTERN =
+  'v0.1_scheduler_planner_manage_upsert';
+export const MICROSERVICE_PLANNER_MANAGE_REMOVE_PATTERN =
+  'v0.1_scheduler_planner_manage_remove';
+/** Phase 2 — process / Object Runner catalog + schema + resolve */
+export const MICROSERVICE_PLANNER_MANAGE_CATALOG_PATTERN =
+  'v0.1_scheduler_planner_manage_catalog';
+export const MICROSERVICE_PLANNER_MANAGE_SCHEMA_PATTERN =
+  'v0.1_scheduler_planner_manage_schema';
+export const MICROSERVICE_PLANNER_MANAGE_RESOLVE_PATTERN =
+  'v0.1_scheduler_planner_manage_resolve';
+
 export type SchedulingRequirementScopeType = 'project' | 'board';
 export type SchedulingRequirementStatus = 'open' | 'locked' | 'closed';
 export type ScheduleScenarioStatus =
@@ -103,6 +118,24 @@ export type ScheduleScenarioStatus =
 
 /** Planner task planning type (overlay / sheet) — UAT v0.5 */
 export type ScenarioPlanningKind = 'task' | 'external' | 'milestone';
+
+/** Manage planning categories (scenario draft master — Option A) */
+export type ManageRecordCategory =
+  | 'project'
+  | 'person'
+  | 'team'
+  | 'partner'
+  | 'equipment'
+  | 'material';
+
+export const MANAGE_RECORD_CATEGORIES: ManageRecordCategory[] = [
+  'project',
+  'person',
+  'team',
+  'partner',
+  'equipment',
+  'material',
+];
 export type SchedulingRequirementMemberType = 'project' | 'task';
 export type ScheduleScenarioEventKind =
   | 'created'

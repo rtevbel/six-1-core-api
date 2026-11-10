@@ -53,6 +53,11 @@ describe('ScheduleScenariosService Epic C lifecycle', () => {
     const planning = {
       loadScenarioGraph: jest.fn().mockResolvedValue({ plannedTasks: [] }),
     };
+    const plannerManage = {
+      listForOverlay: jest.fn().mockResolvedValue([]),
+      replaceFromOverlay: jest.fn().mockResolvedValue(undefined),
+      copyBetweenScenarios: jest.fn().mockResolvedValue(undefined),
+    };
     const audit = {
       appendEvent: jest.fn().mockResolvedValue({}),
     };
@@ -87,6 +92,7 @@ describe('ScheduleScenariosService Epic C lifecycle', () => {
       {} as any,
       requirements as any,
       planning as any,
+      plannerManage as any,
       audit as any,
       tenantUsers as any,
       dataSource as any,

@@ -22,6 +22,7 @@ import { ScheduleScenarioEventEntity } from './entities/schedule_scenario_event.
 import { ScheduleScenarioSnapshotEntity } from './entities/schedule_scenario_snapshot.entity';
 import { ScheduleScenarioVersionEntity } from './entities/schedule_scenario_version.entity';
 import { ScheduleConstraintEventEntity } from './entities/schedule_constraint_event.entity';
+import { ScheduleScenarioManageRecordEntity } from './entities/schedule_scenario_manage_record.entity';
 import { TaskEntity } from '../projects/tasks/entities/task.entity';
 import { ProjectEntity } from '../projects/entities/project.entity';
 import { TenantConfigurationsEntity } from '../tenants/tenant_configurations/entities/tenant_configuration.entity';
@@ -69,6 +70,8 @@ import { PlannerReadService } from './planning/planner-read.service';
 import { PlannerReadController } from './planning/planner-read.controller';
 import { PlannerMutateService } from './planning/planner-mutate.service';
 import { PlannerMutateController } from './planning/planner-mutate.controller';
+import { PlannerManageService } from './planning/planner-manage.service';
+import { PlannerManageController } from './planning/planner-manage.controller';
 import { TenantUsersModule } from '../tenants/tenant_users/tenant_users.module';
 
 import {
@@ -102,6 +105,7 @@ import {
       ScheduleScenarioSnapshotEntity,
       ScheduleScenarioVersionEntity,
       ScheduleConstraintEventEntity,
+      ScheduleScenarioManageRecordEntity,
       TaskEntity,
       ProjectEntity,
       TenantConfigurationsEntity,
@@ -139,6 +143,7 @@ import {
     ScenarioPlanningController,
     PlannerReadController,
     PlannerMutateController,
+    PlannerManageController,
   ],
   providers: [
     SchedulerService,
@@ -159,6 +164,7 @@ import {
     ScenarioAuditService,
     PlannerReadService,
     PlannerMutateService,
+    PlannerManageService,
     TaskProcessor,
     CalendarAdapter,
     { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },
