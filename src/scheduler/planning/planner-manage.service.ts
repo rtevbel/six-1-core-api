@@ -577,26 +577,32 @@ export class PlannerManageService {
     switch (category) {
       case 'project':
         return {
+          code: this.asString(src.code, 64),
           customer: this.asString(src.customer, 255),
           location: this.asString(src.location, 255),
           buildingArea: this.asString(src.buildingArea, 255),
+          notes: this.asString(src.notes, 2000),
         };
       case 'person':
         return {
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           skills: this.asStringArray(src.skills, 32, 64),
           region: this.asString(src.region, 64),
+          email: this.asString(src.email, 255),
+          phone: this.asString(src.phone, 64),
           absent: Boolean(src.absent),
           tenantUserId:
             src.tenantUserId == null
               ? null
               : this.asInt(src.tenantUserId),
+          notes: this.asString(src.notes, 2000),
         };
       case 'team':
         return {
           memberRecordKeys: this.asUuidArray(src.memberRecordKeys, 64),
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           region: this.asString(src.region, 64),
+          notes: this.asString(src.notes, 2000),
         };
       case 'partner': {
         const status = this.asString(src.status, 32)?.toLowerCase() ?? 'ready';
@@ -604,6 +610,8 @@ export class PlannerManageService {
           discipline: this.asString(src.discipline, 128),
           crews: this.asNumber(src.crews, 0, 10000) ?? 0,
           status: PARTNER_STATUSES.has(status) ? status : 'ready',
+          contactEmail: this.asString(src.contactEmail, 255),
+          notes: this.asString(src.notes, 2000),
         };
       }
       case 'equipment': {
@@ -611,15 +619,19 @@ export class PlannerManageService {
           this.asString(src.status, 32)?.toLowerCase() ?? 'available';
         return {
           status: EQUIPMENT_STATUSES.has(status) ? status : 'available',
+          skills: this.asStringArray(src.skills, 32, 64),
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
+          notes: this.asString(src.notes, 2000),
         };
       }
       case 'material':
         return {
           stock: this.asNumber(src.stock, 0, 1_000_000_000) ?? 0,
           reserved: this.asNumber(src.reserved, 0, 1_000_000_000) ?? 0,
+          unit: this.asString(src.unit, 32),
           etaUtc: this.asIsoOrNull(src.etaUtc),
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
+          notes: this.asString(src.notes, 2000),
         };
       default:
         return {};

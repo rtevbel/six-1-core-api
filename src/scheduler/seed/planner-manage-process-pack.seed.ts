@@ -100,6 +100,12 @@ export async function seedPlannerManageProcessPack(
       pack.category,
       creatorTenantUserId,
     );
+    await ensureDefaultFormView(
+      queryRunner,
+      configObjectId,
+      pack,
+      creatorTenantUserId,
+    );
     const templateId = await ensureProcessTemplate(
       queryRunner,
       creatorTenantUserId,
@@ -311,6 +317,139 @@ async function ensureFields(
     );
     order += 10;
   }
+}
+
+async function ensureDefaultFormView(
+  queryRunner: QueryRunner,
+  configObjectId: number,
+  pack: PlannerManagePackCategory,
+  creatorTenantUserId: number,
+): Promise<void> {
+  const viewKey = 'form_default';
+  const panelKey = 'manage_main';
+  const fieldKeys = getManageCategoryFields(pack.category).map((f) => f.fieldKey);
+  const layoutConfig = {
+    schemaVersion: 1,
+    displayMode: 'form-section',
+    dataBinding: 'main',
+    layout: {
+      sections: [
+        {
+          title: pack.displayName,
+          fields: fieldKeys,
+        },
+      ],
+    },
+  };
+  const configJson = {
+    schemaVersion: 1,
+    panels: [panelKey],
+  };
+
+  const existing: Array<{ config_object_view_id: number }> =
+    await queryRunner.query(
+      `
+      SELECT config_object_view_id
+        FROM config_object_views
+       WHERE config_object_id = ?
+         AND view_key = ?
+       LIMIT 1
+      `,
+      [configObjectId, viewKey],
+    );
+
+  let viewId: number;
+  if (existing[0]?.config_object_view_id) {
+    viewId = Number(existing[0].config_object_view_id);
+    await queryRunner.query(
+      `
+      UPDATE config_object_views
+         SET name = ?,
+             description = ?,
+             view_type = 'form',
+             is_default = 1,
+             is_active = 1,
+             config_json = CAST(? AS JSON),
+             updated_by = ?,
+             updated_at = NOW(6)
+       WHERE config_object_view_id = ?
+      `,
+      [
+        `${pack.displayName} form`,
+        `Default Manage Planning form for ${pack.objectType}.`,
+        JSON.stringify(configJson),
+        creatorTenantUserId,
+        viewId,
+      ],
+    );
+  } else {
+    await queryRunner.query(
+      `
+      INSERT INTO config_object_views (
+        config_object_id, view_key, view_type, name, description,
+        role_key, is_default, tenant_id, is_active, config_json,
+        created_by, updated_by, created_at, updated_at
+      ) VALUES (
+        ?, ?, 'form', ?, ?, NULL, 1, NULL, 1, CAST(? AS JSON),
+        ?, ?, NOW(6), NOW(6)
+      )
+      `,
+      [
+        configObjectId,
+        viewKey,
+        `${pack.displayName} form`,
+        `Default Manage Planning form for ${pack.objectType}.`,
+        JSON.stringify(configJson),
+        creatorTenantUserId,
+        creatorTenantUserId,
+      ],
+    );
+    const inserted: Array<{ id: number }> = await queryRunner.query(
+      `SELECT LAST_INSERT_ID() AS id`,
+    );
+    viewId = Number(inserted[0].id);
+  }
+
+  const panelExisting: Array<{ config_object_view_panel_id: number }> =
+    await queryRunner.query(
+      `
+      SELECT config_object_view_panel_id
+        FROM config_object_view_panels
+       WHERE config_object_view_id = ?
+         AND panel_key = ?
+       LIMIT 1
+      `,
+      [viewId, panelKey],
+    );
+
+  if (panelExisting[0]?.config_object_view_panel_id) {
+    await queryRunner.query(
+      `
+      UPDATE config_object_view_panels
+         SET title = ?,
+             panel_type = 'form-section',
+             layout_config = CAST(? AS JSON),
+             order_index = 0
+       WHERE config_object_view_panel_id = ?
+      `,
+      [
+        'Details',
+        JSON.stringify(layoutConfig),
+        Number(panelExisting[0].config_object_view_panel_id),
+      ],
+    );
+    return;
+  }
+
+  await queryRunner.query(
+    `
+    INSERT INTO config_object_view_panels (
+      config_object_view_id, panel_key, title, panel_type,
+      layout_config, order_index
+    ) VALUES (?, ?, 'Details', 'form-section', CAST(? AS JSON), 0)
+    `,
+    [viewId, panelKey, JSON.stringify(layoutConfig)],
+  );
 }
 
 async function findTemplateIdByName(

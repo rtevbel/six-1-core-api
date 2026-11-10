@@ -48,9 +48,11 @@ export const PLANNER_MANAGE_CATEGORY_FIELDS: Record<
   project: [
     CORE.name,
     CORE.parentRecordKey,
+    field('code', 'Project code', 'string', { maxLength: 64 }),
     field('customer', 'Customer', 'string', { maxLength: 255 }),
     field('location', 'Location', 'string', { maxLength: 255 }),
     field('buildingArea', 'Building / area', 'string', { maxLength: 255 }),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
   person: [
@@ -58,8 +60,11 @@ export const PLANNER_MANAGE_CATEGORY_FIELDS: Record<
     field('hoursPerDay', 'Hours per day', 'number'),
     field('region', 'Region', 'string', { maxLength: 64 }),
     field('skills', 'Skills', 'string_array', { maxLength: 64 }),
+    field('email', 'Email', 'string', { maxLength: 255 }),
+    field('phone', 'Phone', 'string', { maxLength: 64 }),
     field('absent', 'Absent', 'boolean'),
     field('tenantUserId', 'Tenant user id', 'integer'),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
   team: [
@@ -67,6 +72,7 @@ export const PLANNER_MANAGE_CATEGORY_FIELDS: Record<
     field('memberRecordKeys', 'Members', 'uuid_array'),
     field('hoursPerDay', 'Hours per day', 'number'),
     field('region', 'Region', 'string', { maxLength: 64 }),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
   partner: [
@@ -76,6 +82,8 @@ export const PLANNER_MANAGE_CATEGORY_FIELDS: Record<
     field('status', 'Status', 'enum', {
       enumValues: ['ready', 'committed', 'at_risk'],
     }),
+    field('contactEmail', 'Contact email', 'string', { maxLength: 255 }),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
   equipment: [
@@ -83,15 +91,19 @@ export const PLANNER_MANAGE_CATEGORY_FIELDS: Record<
     field('status', 'Status', 'enum', {
       enumValues: ['available', 'reserved', 'maintenance'],
     }),
+    field('skills', 'Skills', 'string_array', { maxLength: 64 }),
     field('projectRecordKey', 'Project', 'uuid'),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
   material: [
     CORE.name,
     field('stock', 'Stock', 'number'),
     field('reserved', 'Reserved', 'number'),
+    field('unit', 'Unit', 'string', { maxLength: 32 }),
     field('etaUtc', 'Delivery date', 'datetime'),
     field('projectRecordKey', 'Project', 'uuid'),
+    field('notes', 'Notes', 'string', { maxLength: 2000 }),
     CORE.linkedMasterId,
   ],
 };
