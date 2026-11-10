@@ -123,6 +123,10 @@ export class ScenarioPlannedTaskEntity {
   })
   deadlineUtc!: Date | null;
 
+  /** Rich sheet extras (skills / partners / eq / mat / predecessors). */
+  @Column({ name: 'sheet_extras', type: 'json', nullable: true })
+  sheetExtras!: Record<string, unknown> | null;
+
   @ManyToOne(() => ScheduleScenarioEntity, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'schedule_scenario_id' })
   scenario!: ScheduleScenarioEntity;

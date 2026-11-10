@@ -106,6 +106,7 @@ export function buildOverlayFromPlannedTasks(
       baselineStartUtc: toIso(t.baselineStartUtc),
       baselineEndUtc: toIso(t.baselineEndUtc),
       deadlineUtc: toIso(t.deadlineUtc),
+      sheetExtras: t.sheetExtras ?? null,
       shifts: (t.shifts ?? []).map((s) => ({
         sequenceNo: s.sequenceNo,
         tenantUserId: s.tenantUserId,

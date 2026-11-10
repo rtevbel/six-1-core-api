@@ -1,9 +1,11 @@
+import { ScenarioPlanningKind } from '../constants';
 import { ConstraintConflict } from '../constraints/constraint.types';
 import {
   PlannerAttention,
   PlannerScale,
   PlannerView,
 } from '../dto/planner-read.dto';
+import { PlannerSheetExtras } from './planner-sheet-extras.interface';
 
 export interface PlannerBoardProjectChildView {
   taskId: number;
@@ -38,6 +40,12 @@ export interface PlannerBoardBarView {
   endUtc: string | null;
   isPlanned: boolean;
   isMilestone: boolean;
+  /** Overlay planning kind for task-sheet hydrate (Week 8+). */
+  planningKind: ScenarioPlanningKind;
+  /** ISO deadline or null. */
+  deadlineUtc: string | null;
+  /** Rich sheet extras for reopen without session cache; null when unset. */
+  sheetExtras: PlannerSheetExtras | null;
   issues: string[];
   attention: PlannerAttention | 'ok';
 }
@@ -46,6 +54,8 @@ export interface PlannerBoardDepView {
   fromTaskId: number;
   toTaskId: number;
   dependencyType: string;
+  /** Overlay lag days when from sheet extras; else 0. */
+  lagDays?: number;
 }
 
 export interface PlannerBoardView {

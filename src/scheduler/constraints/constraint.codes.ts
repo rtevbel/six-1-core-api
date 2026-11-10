@@ -19,6 +19,8 @@ export const ConstraintConflictCode = {
   UNASSIGNED: 'UNASSIGNED',
   /** Subject utilization exceeds available capacity in the window. */
   CAPACITY_EXCEEDED: 'CAPACITY_EXCEEDED',
+  /** Work block (external) has no responsible partners. */
+  PARTNER_MISSING: 'PARTNER_MISSING',
 } as const;
 
 export type ConstraintConflictCode =

@@ -40,6 +40,7 @@ describe('PlannerMutateService', () => {
             isMilestone: false,
             priority: 0,
             taskStatusId: null,
+            sheetExtras: null,
             shifts: [
               {
                 sequenceNo: 1,
@@ -177,8 +178,132 @@ describe('PlannerMutateService', () => {
     expect(result.revision).toBe(5);
     expect(result.plannedTask.tenantUserId).toBe(55);
     expect(result.plannedTask.notes).toBe('Cable pull');
+    expect(result.plannedTask.sheetExtras).toBeNull();
     expect(result.conflictSummary).toEqual({ hard: 0, soft: 0 });
     expect(result).not.toHaveProperty('shifts');
+  });
+
+  it('upserts rich sheet extras and returns them on plannedTask', async () => {
+    const extras = {
+      requiredSkills: ['electrical'],
+      partnerRecordKeys: ['partner-1'],
+      requiredMaterials: [{ recordKey: 'mat-1', qty: 4 }],
+      requiredEquipmentRecordKeys: ['eq-1'],
+      assignedEquipmentRecordKeys: [],
+      predecessors: [
+        { dependsOnTaskId: 501, dependencyType: 'FS' as const, lagDays: 1 },
+      ],
+    };
+    const { service, planning } = buildService({
+      upsertResult: {
+        revision: 6,
+        conflicts: [],
+        plannedTask: {
+          scenarioPlannedTaskId: 9,
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-08T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-08T12:00:00.000Z'),
+          tzUsed: 'UTC',
+          planningKind: 'external',
+          deadlineUtc: null,
+          notes: null,
+          isPlanned: true,
+          isReady: false,
+          isMilestone: false,
+          priority: 0,
+          taskStatusId: null,
+          sheetExtras: extras,
+          shifts: [],
+          assignments: [],
+        },
+      },
+    });
+
+    const result = await service.upsertTask(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      plannedStartUtc: '2026-10-08T08:00:00.000Z',
+      plannedEndUtc: '2026-10-08T12:00:00.000Z',
+      planningKind: 'external',
+      sheetExtras: extras,
+      expectedRevision: 5,
+    });
+
+    expect(planning.upsertPlannedTask).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        planningKind: 'external',
+        sheetExtras: expect.objectContaining({
+          partnerRecordKeys: ['partner-1'],
+          predecessors: [
+            expect.objectContaining({ dependsOnTaskId: 501, lagDays: 1 }),
+          ],
+        }),
+      }),
+    );
+    expect(result.plannedTask.sheetExtras?.partnerRecordKeys).toEqual([
+      'partner-1',
+    ]);
+    expect(result.conflictSummary.hard).toBe(0);
+  });
+
+  it('adds PARTNER_MISSING when external work block has no partners', async () => {
+    const { service } = buildService({
+      upsertResult: {
+        revision: 7,
+        conflicts: [],
+        plannedTask: {
+          scenarioPlannedTaskId: 9,
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-08T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-08T12:00:00.000Z'),
+          tzUsed: 'UTC',
+          planningKind: 'external',
+          deadlineUtc: null,
+          notes: null,
+          isPlanned: true,
+          isReady: false,
+          isMilestone: false,
+          priority: 0,
+          taskStatusId: null,
+          sheetExtras: {
+            requiredSkills: [],
+            partnerRecordKeys: [],
+            requiredMaterials: [],
+            requiredEquipmentRecordKeys: [],
+            assignedEquipmentRecordKeys: [],
+            predecessors: [],
+          },
+          shifts: [],
+          assignments: [],
+        },
+      },
+    });
+
+    const result = await service.upsertTask(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      plannedStartUtc: '2026-10-08T08:00:00.000Z',
+      plannedEndUtc: '2026-10-08T12:00:00.000Z',
+      planningKind: 'external',
+      sheetExtras: {
+        partnerRecordKeys: [],
+      },
+      expectedRevision: 6,
+    });
+
+    expect(result.conflicts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: ConstraintConflictCode.PARTNER_MISSING,
+          severity: 'hard',
+        }),
+      ]),
+    );
+    expect(result.conflictSummary.hard).toBeGreaterThanOrEqual(1);
+    expect(result.revision).toBe(7);
   });
 
   it('remove returns new revision', async () => {

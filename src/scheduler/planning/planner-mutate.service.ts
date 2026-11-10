@@ -31,6 +31,12 @@ import {
   PlannerTaskRemoveView,
   PlannerTaskUpsertView,
 } from '../interfaces/planner-mutate.interface';
+import { PlannerSheetExtras } from '../interfaces/planner-sheet-extras.interface';
+import {
+  normalizeSheetExtras,
+  sheetExtrasFromEntity,
+} from './planner-sheet-extras.util';
+import { ScenarioPlanningKind } from '../constants';
 
 const DEFAULT_SEARCH_DAYS = 14;
 const DEFAULT_SLOT_LIMIT = 10;
@@ -73,6 +79,11 @@ export class PlannerMutateService {
           ]
         : undefined;
 
+    const sheetExtras =
+      dto.sheetExtras === undefined
+        ? undefined
+        : normalizeSheetExtras(dto.sheetExtras);
+
     const result = await this.planning.upsertPlannedTask(userId, {
       tenantId: dto.tenantId,
       scheduleScenarioId: dto.scheduleScenarioId,
@@ -95,8 +106,22 @@ export class PlannerMutateService {
       isMilestone: dto.isMilestone,
       taskName: dto.taskName,
       expectedRevision: dto.expectedRevision,
+      sheetExtras,
       shifts,
     });
+
+    const extrasForConflict =
+      sheetExtras ??
+      sheetExtrasFromEntity(result.plannedTask.sheetExtras) ??
+      normalizeSheetExtras({});
+    const conflicts = [
+      ...result.conflicts,
+      ...this.sheetExtraConflicts(
+        dto.taskId,
+        result.plannedTask.planningKind,
+        extrasForConflict,
+      ),
+    ];
 
     return {
       tenantId: dto.tenantId,
@@ -104,8 +129,8 @@ export class PlannerMutateService {
       taskId: dto.taskId,
       revision: result.revision,
       plannedTask: this.mapPlannedTaskView(result.plannedTask),
-      conflicts: result.conflicts,
-      conflictSummary: this.summarize(result.conflicts),
+      conflicts,
+      conflictSummary: this.summarize(conflicts),
     };
   }
 
@@ -259,6 +284,18 @@ export class PlannerMutateService {
       plannedTasks,
       excludeTaskId: dto.taskId,
     });
+
+    const existing = plannedTasks.find((p) => p.taskId === dto.taskId);
+    const planningKind: ScenarioPlanningKind =
+      dto.planningKind ?? existing?.planningKind ?? 'task';
+    const extras =
+      dto.sheetExtras !== undefined
+        ? normalizeSheetExtras(dto.sheetExtras)
+        : sheetExtrasFromEntity(existing?.sheetExtras) ??
+          normalizeSheetExtras({});
+    conflicts.push(
+      ...this.sheetExtraConflicts(dto.taskId, planningKind, extras),
+    );
 
     const summary = this.summarize(conflicts);
     return {
@@ -564,7 +601,29 @@ export class PlannerMutateService {
       isMilestone: !!row.isMilestone,
       priority: row.priority,
       taskStatusId: row.taskStatusId,
+      sheetExtras: sheetExtrasFromEntity(row.sheetExtras),
     };
+  }
+
+  private sheetExtraConflicts(
+    taskId: number,
+    planningKind: ScenarioPlanningKind,
+    extras: PlannerSheetExtras,
+  ): ConstraintConflict[] {
+    if (
+      planningKind === 'external' &&
+      (!extras.partnerRecordKeys || extras.partnerRecordKeys.length === 0)
+    ) {
+      return [
+        {
+          code: ConstraintConflictCode.PARTNER_MISSING,
+          severity: 'hard',
+          message: 'Work block requires at least one responsible partner',
+          details: { taskId },
+        },
+      ];
+    }
+    return [];
   }
 
   private summarize(conflicts: ConstraintConflict[]): PlannerConflictSummary {

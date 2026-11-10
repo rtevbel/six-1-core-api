@@ -33,6 +33,9 @@ import {
   PlannerQueueView,
 } from '../interfaces/planner-read.interface';
 import { busyMsWithinRange } from '../constraints/interval.utils';
+import { ScenarioPlanningKind } from '../constants';
+import { toIso } from '../scenarios/scenario-lifecycle.mapper';
+import { sheetExtrasFromEntity } from './planner-sheet-extras.util';
 
 type ResolvedRange = {
   rangeStart: Date;
@@ -124,6 +127,7 @@ export class PlannerReadService {
       Array.from(taskById.keys()),
       input.attention ?? 'all',
       issuesByTask,
+      ctx.plannedTasks,
     );
 
     let hard = 0;
@@ -744,6 +748,11 @@ export class PlannerReadService {
           : null,
         isPlanned: planned ? !!planned.isPlanned : false,
         isMilestone: !!planned?.isMilestone,
+        planningKind: this.planningKindFromPlanned(planned),
+        deadlineUtc: toIso(planned?.deadlineUtc),
+        sheetExtras: sheetExtrasFromEntity(
+          planned?.sheetExtras as Record<string, unknown> | null | undefined,
+        ),
         issues,
         attention: this.attentionFromIssues(issues),
       });
@@ -775,8 +784,14 @@ export class PlannerReadService {
     taskIds: number[],
     attention: PlannerAttention,
     issuesByTask: Map<number, string[]>,
+    plannedTasks: ScenarioPlannedTaskEntity[],
   ): Promise<
-    Array<{ fromTaskId: number; toTaskId: number; dependencyType: string }>
+    Array<{
+      fromTaskId: number;
+      toTaskId: number;
+      dependencyType: string;
+      lagDays?: number;
+    }>
   > {
     if (!taskIds.length) return [];
     const deps = await this.depRepo.find({
@@ -786,23 +801,71 @@ export class PlannerReadService {
       ],
     });
     const idSet = new Set(taskIds);
-    return deps
+
+    /** Tasks that defined overlay predecessors replace master deps to that task. */
+    const overlayByTo = new Map<
+      number,
+      Array<{
+        fromTaskId: number;
+        toTaskId: number;
+        dependencyType: string;
+        lagDays: number;
+      }>
+    >();
+    for (const pt of plannedTasks) {
+      const extras = pt.sheetExtras as
+        | { predecessors?: unknown }
+        | null
+        | undefined;
+      if (!extras || !Object.prototype.hasOwnProperty.call(extras, 'predecessors')) {
+        continue;
+      }
+      const preds = Array.isArray(extras.predecessors)
+        ? extras.predecessors
+        : [];
+      const mapped = preds
+        .map((p) => {
+          if (!p || typeof p !== 'object') return null;
+          const dependsOnTaskId = Number(
+            (p as { dependsOnTaskId?: unknown }).dependsOnTaskId,
+          );
+          if (!idSet.has(dependsOnTaskId) || !idSet.has(pt.taskId)) return null;
+          const dependencyType = String(
+            (p as { dependencyType?: unknown }).dependencyType ?? 'FS',
+          );
+          const lagDays = Number((p as { lagDays?: unknown }).lagDays ?? 0);
+          return {
+            fromTaskId: dependsOnTaskId,
+            toTaskId: pt.taskId,
+            dependencyType,
+            lagDays: Number.isFinite(lagDays) ? lagDays : 0,
+          };
+        })
+        .filter((d): d is NonNullable<typeof d> => d != null);
+      overlayByTo.set(pt.taskId, mapped);
+    }
+
+    const master = deps
       .filter(
         (d) => idSet.has(d.taskId) && idSet.has(d.dependsOnTaskId),
       )
-      .filter((d) => {
-        if (attention === 'all') return true;
-        const issues = [
-          ...(issuesByTask.get(d.taskId) ?? []),
-          ...(issuesByTask.get(d.dependsOnTaskId) ?? []),
-        ];
-        return this.matchesAttention(issues, attention);
-      })
+      .filter((d) => !overlayByTo.has(d.taskId))
       .map((d) => ({
         fromTaskId: d.dependsOnTaskId,
         toTaskId: d.taskId,
         dependencyType: d.dependencyType,
+        lagDays: 0,
       }));
+
+    const overlay = Array.from(overlayByTo.values()).flat();
+    return [...master, ...overlay].filter((d) => {
+      if (attention === 'all') return true;
+      const issues = [
+        ...(issuesByTask.get(d.toTaskId) ?? []),
+        ...(issuesByTask.get(d.fromTaskId) ?? []),
+      ];
+      return this.matchesAttention(issues, attention);
+    });
   }
 
   private computeCapacityPressure(
@@ -850,6 +913,20 @@ export class PlannerReadService {
       peakUtil: Math.round(peakUtil * 100),
       overloadedResourceCount,
     };
+  }
+
+  private planningKindFromPlanned(
+    planned?: ScenarioPlannedTaskEntity | null,
+  ): ScenarioPlanningKind {
+    if (!planned) return 'task';
+    if (
+      planned.planningKind === 'task' ||
+      planned.planningKind === 'external' ||
+      planned.planningKind === 'milestone'
+    ) {
+      return planned.planningKind;
+    }
+    return planned.isMilestone ? 'milestone' : 'task';
   }
 
   private hasAssignee(planned?: ScenarioPlannedTaskEntity | null): boolean {
