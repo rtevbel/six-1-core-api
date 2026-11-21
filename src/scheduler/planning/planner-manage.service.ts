@@ -379,6 +379,38 @@ export class PlannerManageService {
     }));
   }
 
+  /**
+   * Week 9 Commit — stamp Manage drafts as committed on the definitive scenario.
+   * Does not invent live SoR rows; Option A “as applicable”.
+   */
+  async stampCommittedForPromote(
+    scheduleScenarioId: number,
+    tenantId: number,
+    revision: number,
+    committedAt: Date = new Date(),
+  ): Promise<{ committedCount: number; recordKeys: string[] }> {
+    const rows = await this.manageRepo.find({
+      where: { scheduleScenarioId, tenantId },
+      order: { name: 'ASC', scheduleScenarioManageRecordId: 'ASC' },
+    });
+    if (!rows.length) {
+      return { committedCount: 0, recordKeys: [] };
+    }
+    const iso = committedAt.toISOString();
+    const recordKeys: string[] = [];
+    for (const row of rows) {
+      const attrs = {
+        ...(row.attrs && typeof row.attrs === 'object' ? row.attrs : {}),
+        committedAt: iso,
+        committedRevision: revision,
+      };
+      row.attrs = attrs;
+      recordKeys.push(row.recordKey);
+    }
+    await this.manageRepo.save(rows);
+    return { committedCount: rows.length, recordKeys };
+  }
+
   async replaceFromOverlay(
     scheduleScenarioId: number,
     tenantId: number,
@@ -574,17 +606,19 @@ export class PlannerManageService {
     raw: Record<string, unknown>,
   ): Record<string, unknown> {
     const src = raw && typeof raw === 'object' ? raw : {};
+    let base: Record<string, unknown>;
     switch (category) {
       case 'project':
-        return {
+        base = {
           code: this.asString(src.code, 64),
           customer: this.asString(src.customer, 255),
           location: this.asString(src.location, 255),
           buildingArea: this.asString(src.buildingArea, 255),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'person':
-        return {
+        base = {
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           skills: this.asStringArray(src.skills, 32, 64),
           region: this.asString(src.region, 64),
@@ -597,35 +631,39 @@ export class PlannerManageService {
               : this.asInt(src.tenantUserId),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'team':
-        return {
+        base = {
           memberRecordKeys: this.asUuidArray(src.memberRecordKeys, 64),
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           region: this.asString(src.region, 64),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'partner': {
         const status = this.asString(src.status, 32)?.toLowerCase() ?? 'ready';
-        return {
+        base = {
           discipline: this.asString(src.discipline, 128),
           crews: this.asNumber(src.crews, 0, 10000) ?? 0,
           status: PARTNER_STATUSES.has(status) ? status : 'ready',
           contactEmail: this.asString(src.contactEmail, 255),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       }
       case 'equipment': {
         const status =
           this.asString(src.status, 32)?.toLowerCase() ?? 'available';
-        return {
+        base = {
           status: EQUIPMENT_STATUSES.has(status) ? status : 'available',
           skills: this.asStringArray(src.skills, 32, 64),
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       }
       case 'material':
-        return {
+        base = {
           stock: this.asNumber(src.stock, 0, 1_000_000_000) ?? 0,
           reserved: this.asNumber(src.reserved, 0, 1_000_000_000) ?? 0,
           unit: this.asString(src.unit, 32),
@@ -633,9 +671,23 @@ export class PlannerManageService {
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       default:
-        return {};
+        base = {};
     }
+    return this.withCommitStamp(src, base);
+  }
+
+  /** Preserve Commit stamps across Manage upserts. */
+  private withCommitStamp(
+    src: Record<string, unknown>,
+    base: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const committedAt = this.asIsoOrNull(src.committedAt);
+    const committedRevision = this.asInt(src.committedRevision);
+    if (committedAt) base.committedAt = committedAt;
+    if (committedRevision != null) base.committedRevision = committedRevision;
+    return base;
   }
 
   private toView(

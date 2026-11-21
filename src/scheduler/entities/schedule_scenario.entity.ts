@@ -38,6 +38,10 @@ export class ScheduleScenarioEntity {
   @Column({ name: 'notes', type: 'text', nullable: true })
   notes!: string | null;
 
+  /** Closed-envelope Planner UI prefs (lens, panels, …). */
+  @Column({ name: 'ui_prefs', type: 'json', nullable: true })
+  uiPrefs!: Record<string, unknown> | null;
+
   @Index('idx_scenario_status')
   @Column({
     name: 'status',

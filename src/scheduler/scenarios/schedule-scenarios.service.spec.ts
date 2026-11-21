@@ -80,6 +80,8 @@ describe('ScheduleScenariosService Epic C lifecycle', () => {
       ),
     };
 
+    const events = { emit: jest.fn() };
+
     const service = new ScheduleScenariosService(
       scenarioRepo as any,
       reqRepo as any,
@@ -96,6 +98,7 @@ describe('ScheduleScenariosService Epic C lifecycle', () => {
       audit as any,
       tenantUsers as any,
       dataSource as any,
+      events as any,
     );
 
     return {
@@ -574,6 +577,7 @@ describe('PromoteOrchestratorService definitive_only', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       tenantUsers as any,
       {} as any,
       {} as any,
@@ -615,6 +619,7 @@ describe('PromoteOrchestratorService definitive_only', () => {
       {} as any,
       scenarios as any,
       requirements as any,
+      {} as any,
       {} as any,
       {} as any,
       {} as any,

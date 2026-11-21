@@ -23,11 +23,16 @@ import {
   SaveScheduleScenarioDto,
 } from '../dto/schedule-scenario-lifecycle.dto';
 import {
+  GetScheduleScenarioUiPrefsDto,
+  SetScheduleScenarioUiPrefsDto,
+} from '../dto/scenario-ui-prefs.dto';
+import {
   MICROSERVICE_COMPARE_SCHEDULE_SCENARIOS_PATTERN,
   MICROSERVICE_CREATE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_FIND_ALL_SCHEDULE_SCENARIOS_PATTERN,
   MICROSERVICE_FIND_ONE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_FORK_SCHEDULE_SCENARIO_PATTERN,
+  MICROSERVICE_GET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN,
   MICROSERVICE_GET_SCHEDULE_SCENARIO_VERSION_PATTERN,
   MICROSERVICE_LIST_SCHEDULE_SCENARIO_VERSIONS_PATTERN,
   MICROSERVICE_MARK_SCHEDULE_SCENARIO_DEFINITIVE_PATTERN,
@@ -35,6 +40,7 @@ import {
   MICROSERVICE_RESTORE_SCHEDULE_SCENARIO_VERSION_PATTERN,
   MICROSERVICE_SAVE_SCHEDULE_SCENARIO_PATTERN,
   MICROSERVICE_SET_SCHEDULE_SCENARIO_STATUS_PATTERN,
+  MICROSERVICE_SET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN,
   MICROSERVICE_UPDATE_SCHEDULE_SCENARIO_PATTERN,
 } from '../constants';
 
@@ -241,6 +247,35 @@ export class ScheduleScenariosController {
       scheduleScenarioId: dto.scheduleScenarioId,
       expectedRevision: dto.expectedRevision,
       overrideHardConflicts: dto.overrideHardConflicts,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_GET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN)
+  @RequirePermissions('scheduler.read')
+  @UsePipes(AppRpcValidationPipe)
+  async getUiPrefs(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: GetScheduleScenarioUiPrefsDto,
+  ) {
+    return this.scenariosService.getUiPrefs(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+    });
+  }
+
+  @MessagePattern(MICROSERVICE_SET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async setUiPrefs(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: SetScheduleScenarioUiPrefsDto,
+  ) {
+    return this.scenariosService.setUiPrefs(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      expectedRevision: dto.expectedRevision,
+      uiPrefs: dto.uiPrefs,
+      replace: dto.replace,
     });
   }
 }

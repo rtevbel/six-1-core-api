@@ -58,6 +58,10 @@ export const MICROSERVICE_GET_SCHEDULE_SCENARIO_VERSION_PATTERN =
   'v0.1_scheduler_scenario_version_get';
 export const MICROSERVICE_RESTORE_SCHEDULE_SCENARIO_VERSION_PATTERN =
   'v0.1_scheduler_scenario_version_restore';
+export const MICROSERVICE_GET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN =
+  'v0.1_scheduler_scenario_ui_prefs_get';
+export const MICROSERVICE_SET_SCHEDULE_SCENARIO_UI_PREFS_PATTERN =
+  'v0.1_scheduler_scenario_ui_prefs_set';
 
 /** Scenario planned items */
 export const MICROSERVICE_UPSERT_SCENARIO_PLANNED_TASK_PATTERN =
@@ -148,7 +152,7 @@ export type ScheduleScenarioEventKind =
   | 'archived'
   | 'conflict_checked';
 
-/** Domain event names for future WS / collaboration consumers */
+/** Domain event names for Redis / SSE notify consumers */
 export const SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED =
   'scheduler.scenario.updated';
 export const SCHEDULER_DOMAIN_EVENT_SCENARIO_PROMOTED =
@@ -157,6 +161,18 @@ export const SCHEDULER_DOMAIN_EVENT_CONFLICTS_CHANGED =
   'scheduler.conflicts.changed';
 export const SCHEDULER_DOMAIN_EVENT_REQUIREMENT_UPDATED =
   'scheduler.requirement.updated';
+
+/** Redis pub/sub channel prefix — full key `planner:tenant:{tenantId}:events` */
+export const PLANNER_EVENTS_REDIS_CHANNEL_PREFIX = 'planner:tenant:';
+export const PLANNER_EVENTS_REDIS_CHANNEL_SUFFIX = ':events';
+
+export const PLANNING_LENS_IDS = [
+  'project-wbs',
+  'manufacturing',
+  'batch-production',
+  'process-industry',
+] as const;
+export type PlanningLensId = (typeof PLANNING_LENS_IDS)[number];
 
 // Resource patterns
 export const MICROSERVICE_CREATE_RESOURCE_PATTERN = 'v0.1_resource_create';
