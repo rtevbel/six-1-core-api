@@ -19,7 +19,10 @@ import {
   SCHEDULER_DOMAIN_EVENT_SCENARIO_PROMOTED,
   SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED,
 } from '../constants';
-import { PlannerNotifyPayload } from '../interfaces/planner-events.interface';
+import {
+  PlannerNotifyCause,
+  PlannerNotifyPayload,
+} from '../interfaces/planner-events.interface';
 
 type DomainPayload = {
   tenantId: number;
@@ -31,6 +34,7 @@ type DomainPayload = {
   actorId?: number | null;
   actorUserId?: number | null;
   count?: number;
+  cause?: PlannerNotifyCause;
 };
 
 /**
@@ -96,6 +100,7 @@ export class PlannerEventsRedisBridge
       revision: payload.revision ?? null,
       changedAt: new Date().toISOString(),
       actorId: payload.actorId ?? payload.actorUserId ?? null,
+      cause: payload.cause,
     });
   }
 
@@ -109,6 +114,7 @@ export class PlannerEventsRedisBridge
       revision: payload.revision ?? null,
       changedAt: new Date().toISOString(),
       actorId: payload.actorId ?? payload.actorUserId ?? null,
+      cause: payload.cause ?? 'promote',
     });
   }
 
@@ -123,6 +129,7 @@ export class PlannerEventsRedisBridge
       changedAt: new Date().toISOString(),
       actorId: payload.actorId ?? payload.actorUserId ?? null,
       count: payload.count,
+      cause: payload.cause ?? 'conflicts',
     });
   }
 

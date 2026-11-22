@@ -20,6 +20,7 @@ describe('PlannerManageService stampCommittedForPromote (Week 9)', () => {
       {} as any,
       {} as any,
       {} as any,
+      { emit: jest.fn() } as any,
       {} as any,
       manageRepo as any,
     );
@@ -55,6 +56,7 @@ describe('PlannerManageService stampCommittedForPromote (Week 9)', () => {
       {} as any,
       {} as any,
       {} as any,
+      { emit: jest.fn() } as any,
       {} as any,
       manageRepo as any,
     );

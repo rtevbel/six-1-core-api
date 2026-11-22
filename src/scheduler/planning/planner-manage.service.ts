@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, Like, Repository } from 'typeorm';
 import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
@@ -15,7 +16,10 @@ import {
 } from '../scenarios/scenario-lifecycle.mapper';
 import { ScheduleScenarioEntity } from '../entities/schedule_scenario.entity';
 import { ScheduleScenarioManageRecordEntity } from '../entities/schedule_scenario_manage_record.entity';
-import { ManageRecordCategory } from '../constants';
+import {
+  ManageRecordCategory,
+  SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED,
+} from '../constants';
 import {
   PlannerManageCatalogDto,
   PlannerManageListDto,
@@ -56,6 +60,7 @@ export class PlannerManageService {
     private readonly tenantUsers: TenantUsersService,
     private readonly requirements: SchedulingRequirementsService,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
     @InjectRepository(ScheduleScenarioEntity)
     private readonly scenarioRepo: Repository<ScheduleScenarioEntity>,
     @InjectRepository(ScheduleScenarioManageRecordEntity)
@@ -287,8 +292,20 @@ export class PlannerManageService {
         tenantId: dto.tenantId,
         scheduleScenarioId: scenario.scheduleScenarioId,
         revision: scenario.revision,
+        requirementId: scenario.schedulingRequirementId,
         item: this.toView(saved),
       };
+    }).then((result) => {
+      this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+        tenantId: result.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'manage_upsert',
+      });
+      const { requirementId: _requirementId, ...view } = result;
+      return view;
     });
   }
 
@@ -354,9 +371,21 @@ export class PlannerManageService {
         tenantId: dto.tenantId,
         scheduleScenarioId: scenario.scheduleScenarioId,
         revision: scenario.revision,
+        requirementId: scenario.schedulingRequirementId,
         recordKey: dto.recordKey,
         removed: true as const,
       };
+    }).then((result) => {
+      this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+        tenantId: result.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'manage_remove',
+      });
+      const { requirementId: _requirementId, ...view } = result;
+      return view;
     });
   }
 

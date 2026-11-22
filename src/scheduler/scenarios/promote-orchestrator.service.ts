@@ -326,6 +326,7 @@ export class PromoteOrchestratorService {
       scheduleScenarioId: scenario.scheduleScenarioId,
       revision: scenario.revision,
       actorUserId: userId,
+      cause: 'promote',
       promotedTaskIds,
     });
 

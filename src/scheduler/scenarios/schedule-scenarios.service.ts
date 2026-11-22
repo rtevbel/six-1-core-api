@@ -604,6 +604,7 @@ export class ScheduleScenariosService {
         scheduleScenarioId: locked.scheduleScenarioId,
         revision: locked.revision,
         actorUserId: userId,
+        cause: 'definitive',
       });
       return view;
     });
@@ -707,6 +708,7 @@ export class ScheduleScenariosService {
         scheduleScenarioId: locked.scheduleScenarioId,
         revision: locked.revision,
         actorUserId: userId,
+        cause: 'save',
       });
       return result;
     });
@@ -771,6 +773,7 @@ export class ScheduleScenariosService {
       scheduleScenarioId: scenario.scheduleScenarioId,
       revision: scenario.revision,
       actorUserId: userId,
+      cause: 'ui_prefs',
     });
 
     return {
@@ -976,7 +979,26 @@ export class ScheduleScenariosService {
         }),
         restoredFromVersion: input.version,
         version: mapVersionSummary(versionRow),
+        requirementId: locked.schedulingRequirementId,
+        scheduleScenarioId: locked.scheduleScenarioId,
+        revision: locked.revision,
       };
+    }).then((result) => {
+      this.emitScenarioUpdated({
+        tenantId: input.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'restore',
+      });
+      const {
+        requirementId: _requirementId,
+        scheduleScenarioId: _scheduleScenarioId,
+        revision: _revision,
+        ...view
+      } = result;
+      return view;
     });
   }
 
@@ -1233,6 +1255,15 @@ export class ScheduleScenariosService {
     scheduleScenarioId: number;
     revision: number;
     actorUserId: number;
+    cause?:
+      | 'save'
+      | 'definitive'
+      | 'restore'
+      | 'ui_prefs'
+      | 'task_upsert'
+      | 'task_remove'
+      | 'manage_upsert'
+      | 'manage_remove';
   }): void {
     this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, payload);
   }

@@ -118,15 +118,25 @@ describe('PlannerManageService', () => {
       ),
     };
 
+    const events = { emit: jest.fn() };
+
     const service = new PlannerManageService(
       tenantUsers as any,
       requirements as any,
       dataSource as any,
+      events as any,
       scenarioRepo as any,
       manageRepo as any,
     );
 
-    return { service, scenarioRepo, manageRepo, requirements, tenantUsers };
+    return {
+      service,
+      scenarioRepo,
+      manageRepo,
+      requirements,
+      tenantUsers,
+      events,
+    };
   }
 
   it('lists empty manage records successfully', async () => {
@@ -142,7 +152,7 @@ describe('PlannerManageService', () => {
   });
 
   it('creates a person draft and bumps revision', async () => {
-    const { service } = buildService();
+    const { service, events } = buildService();
     const result = await service.upsert(1, {
       tenantId: 20,
       schedulingRequirementId: 5,
@@ -162,6 +172,16 @@ describe('PlannerManageService', () => {
       hoursPerDay: 8,
       skills: ['electrical'],
     });
+    expect(events.emit).toHaveBeenCalledWith(
+      'scheduler.scenario.updated',
+      expect.objectContaining({
+        tenantId: 20,
+        requirementId: 5,
+        scheduleScenarioId: 12,
+        revision: 5,
+        cause: 'manage_upsert',
+      }),
+    );
   });
 
   it('creates when client supplies a new recordKey (Add-session upsert)', async () => {

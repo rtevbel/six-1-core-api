@@ -300,6 +300,7 @@ export class PlannerReadService {
       requirementId: input.schedulingRequirementId,
       scheduleScenarioId: ctx.scenarioId,
       count: conflicts.length,
+      cause: 'conflicts',
     });
 
     return {
