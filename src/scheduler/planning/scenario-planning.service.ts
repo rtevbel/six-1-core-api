@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, Repository } from 'typeorm';
 import { ScheduleScenarioEntity } from '../entities/schedule_scenario.entity';
 import { ScenarioPlannedTaskEntity } from '../entities/scenario_planned_task.entity';
@@ -15,7 +16,10 @@ import {
 import { assertExpectedRevision } from '../scenarios/scenario-lifecycle.mapper';
 import { ConstraintCapacityEngine } from '../constraints/constraint-capacity.engine';
 import { ConstraintConflict } from '../constraints/constraint.types';
-import { ScenarioPlanningKind } from '../constants';
+import {
+  SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED,
+  ScenarioPlanningKind,
+} from '../constants';
 import { NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
 import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
 import { TaskEntity } from '../../projects/tasks/entities/task.entity';
@@ -42,6 +46,7 @@ export class ScenarioPlanningService {
     private readonly audit: ScenarioAuditService,
     private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
   ) {}
 
   async upsertPlannedTask(
@@ -248,6 +253,15 @@ export class ScenarioPlanningService {
       payload: { taskId: input.taskId, conflictCount: conflicts.length },
     });
 
+    this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+      tenantId: input.tenantId,
+      requirementId: scenario.schedulingRequirementId,
+      scheduleScenarioId: scenario.scheduleScenarioId,
+      revision: scenario.revision,
+      actorUserId: userId,
+      cause: 'task_upsert',
+    });
+
     return {
       plannedTask,
       conflicts,
@@ -299,6 +313,14 @@ export class ScenarioPlanningService {
       actorUserId: userId,
       kind: 'updated',
       payload: { removedTaskId: input.taskId },
+    });
+    this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+      tenantId: input.tenantId,
+      requirementId: scenario.schedulingRequirementId,
+      scheduleScenarioId: scenario.scheduleScenarioId,
+      revision: scenario.revision,
+      actorUserId: userId,
+      cause: 'task_remove',
     });
     return { removed: true, revision: scenario.revision };
   }

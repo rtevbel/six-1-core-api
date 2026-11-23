@@ -72,6 +72,7 @@ import { PlannerMutateService } from './planning/planner-mutate.service';
 import { PlannerMutateController } from './planning/planner-mutate.controller';
 import { PlannerManageService } from './planning/planner-manage.service';
 import { PlannerManageController } from './planning/planner-manage.controller';
+import { PlannerEventsRedisBridge } from './events/planner-events-redis.bridge';
 import { TenantUsersModule } from '../tenants/tenant_users/tenant_users.module';
 
 import {
@@ -165,6 +166,7 @@ import {
     PlannerReadService,
     PlannerMutateService,
     PlannerManageService,
+    PlannerEventsRedisBridge,
     TaskProcessor,
     CalendarAdapter,
     { provide: CALENDAR_PROVIDER, useExisting: CalendarAdapter },

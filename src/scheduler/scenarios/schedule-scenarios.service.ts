@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { DataSource, In, IsNull, Repository } from 'typeorm';
 import { ScheduleScenarioEntity } from '../entities/schedule_scenario.entity';
 import { SchedulingRequirementEntity } from '../entities/scheduling_requirement.entity';
@@ -17,9 +18,13 @@ import { PlannerManageService } from '../planning/planner-manage.service';
 import {
   ScenarioAuditService,
   assertRequirementOpen,
+  assertScenarioAllowsUiPrefs,
   assertScenarioEditable,
 } from './scenario-audit.service';
-import { ScheduleScenarioStatus } from '../constants';
+import {
+  SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED,
+  ScheduleScenarioStatus,
+} from '../constants';
 import { NO_RECORD_FOUND_MESSAGE } from '../../common/constants';
 import {
   buildRuntimeV2ListPagination,
@@ -34,6 +39,10 @@ import {
   ScheduleScenarioVersionDetailView,
   ScenarioOverlayJson,
 } from '../interfaces/schedule-scenario-lifecycle.interface';
+import {
+  ScenarioUiPrefs,
+  ScenarioUiPrefsView,
+} from '../interfaces/scenario-ui-prefs.interface';
 import {
   assertExpectedRevision,
   buildOverlayFromPlannedTasks,
@@ -73,6 +82,7 @@ export class ScheduleScenariosService {
     private readonly audit: ScenarioAuditService,
     private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
   ) {}
 
   async create(
@@ -585,9 +595,18 @@ export class ScheduleScenariosService {
         `Marked scenario ${locked.scheduleScenarioId} definitive for requirement ${locked.schedulingRequirementId}`,
       );
 
-      return mapScenarioView(locked, {
+      const view = mapScenarioView(locked, {
         definitiveScenarioId: requirement.definitiveScenarioId,
       });
+      this.emitScenarioUpdated({
+        tenantId: input.tenantId,
+        requirementId: locked.schedulingRequirementId,
+        scheduleScenarioId: locked.scheduleScenarioId,
+        revision: locked.revision,
+        actorUserId: userId,
+        cause: 'definitive',
+      });
+      return view;
     });
   }
 
@@ -677,13 +696,92 @@ export class ScheduleScenariosService {
         payload: { saved: true, version: versionRow.version },
       });
 
-      return {
+      const result = {
         scenario: mapScenarioView(locked, {
           definitiveScenarioId: requirement.definitiveScenarioId,
         }),
         version: mapVersionSummary(versionRow),
       };
+      this.emitScenarioUpdated({
+        tenantId: input.tenantId,
+        requirementId: locked.schedulingRequirementId,
+        scheduleScenarioId: locked.scheduleScenarioId,
+        revision: locked.revision,
+        actorUserId: userId,
+        cause: 'save',
+      });
+      return result;
     });
+  }
+
+  async getUiPrefs(
+    userId: number,
+    input: { tenantId: number; scheduleScenarioId: number },
+  ): Promise<ScenarioUiPrefsView> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
+    const scenario = await this.findOneOrFail(
+      input.scheduleScenarioId,
+      input.tenantId,
+    );
+    return {
+      scheduleScenarioId: scenario.scheduleScenarioId,
+      tenantId: scenario.tenantId,
+      revision: scenario.revision,
+      uiPrefs: this.normalizeUiPrefs(scenario.uiPrefs),
+    };
+  }
+
+  async setUiPrefs(
+    userId: number,
+    input: {
+      tenantId: number;
+      scheduleScenarioId: number;
+      expectedRevision?: number;
+      uiPrefs: ScenarioUiPrefs;
+      replace?: boolean;
+    },
+  ): Promise<ScenarioUiPrefsView> {
+    await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
+    const scenario = await this.findOneOrFail(
+      input.scheduleScenarioId,
+      input.tenantId,
+    );
+    // Lens/settings prefs are UI-only — allowed on definitive (not planning mutations).
+    assertScenarioAllowsUiPrefs(scenario.status);
+    assertExpectedRevision(scenario, input.expectedRevision);
+
+    const requirement = await this.requirements.findOneOrFail(
+      scenario.schedulingRequirementId,
+      input.tenantId,
+    );
+    assertRequirementOpen(requirement.status);
+
+    const next = input.replace
+      ? this.normalizeUiPrefs(input.uiPrefs)
+      : this.mergeUiPrefs(
+          this.normalizeUiPrefs(scenario.uiPrefs),
+          this.normalizeUiPrefs(input.uiPrefs),
+        );
+
+    scenario.uiPrefs = next as unknown as Record<string, unknown>;
+    scenario.revision += 1;
+    await this.scenarioRepo.save(scenario);
+
+    this.emitScenarioUpdated({
+      tenantId: input.tenantId,
+      requirementId: scenario.schedulingRequirementId,
+      scheduleScenarioId: scenario.scheduleScenarioId,
+      revision: scenario.revision,
+      actorUserId: userId,
+      cause: 'ui_prefs',
+    });
+
+    return {
+      scheduleScenarioId: scenario.scheduleScenarioId,
+      tenantId: scenario.tenantId,
+      revision: scenario.revision,
+      uiPrefs: next,
+    };
   }
 
   async listVersions(
@@ -881,7 +979,26 @@ export class ScheduleScenariosService {
         }),
         restoredFromVersion: input.version,
         version: mapVersionSummary(versionRow),
+        requirementId: locked.schedulingRequirementId,
+        scheduleScenarioId: locked.scheduleScenarioId,
+        revision: locked.revision,
       };
+    }).then((result) => {
+      this.emitScenarioUpdated({
+        tenantId: input.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'restore',
+      });
+      const {
+        requirementId: _requirementId,
+        scheduleScenarioId: _scheduleScenarioId,
+        revision: _revision,
+        ...view
+      } = result;
+      return view;
     });
   }
 
@@ -1130,5 +1247,86 @@ export class ScheduleScenariosService {
       target.tenantId,
       target.createdBy,
     );
+  }
+
+  private emitScenarioUpdated(payload: {
+    tenantId: number;
+    requirementId: number;
+    scheduleScenarioId: number;
+    revision: number;
+    actorUserId: number;
+    cause?:
+      | 'save'
+      | 'definitive'
+      | 'restore'
+      | 'ui_prefs'
+      | 'task_upsert'
+      | 'task_remove'
+      | 'manage_upsert'
+      | 'manage_remove';
+  }): void {
+    this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, payload);
+  }
+
+  private normalizeUiPrefs(
+    raw: Record<string, unknown> | ScenarioUiPrefs | null | undefined,
+  ): ScenarioUiPrefs | null {
+    if (!raw || typeof raw !== 'object') return null;
+    const src = raw as Record<string, unknown>;
+    const out: ScenarioUiPrefs = {};
+    const lens = src.planningLensId;
+    if (
+      lens === 'project-wbs' ||
+      lens === 'manufacturing' ||
+      lens === 'batch-production' ||
+      lens === 'process-industry'
+    ) {
+      out.planningLensId = lens;
+    }
+    if (typeof src.advancedKpis === 'boolean') {
+      out.advancedKpis = src.advancedKpis;
+    }
+    if (typeof src.linkBoards === 'boolean') {
+      out.linkBoards = src.linkBoards;
+    }
+    if (src.panels && typeof src.panels === 'object') {
+      const p = src.panels as Record<string, unknown>;
+      const panels: ScenarioUiPrefs['panels'] = {};
+      for (const key of [
+        'resources',
+        'equipment',
+        'material',
+        'subcontractors',
+        'map',
+      ] as const) {
+        if (typeof p[key] === 'boolean') panels[key] = p[key];
+      }
+      if (Object.keys(panels).length) out.panels = panels;
+    }
+    if (src.theme === null) out.theme = null;
+    else if (typeof src.theme === 'string') {
+      out.theme = src.theme.slice(0, 32);
+    }
+    if (src.language === null) out.language = null;
+    else if (typeof src.language === 'string') {
+      out.language = src.language.slice(0, 32);
+    }
+    return Object.keys(out).length ? out : null;
+  }
+
+  private mergeUiPrefs(
+    current: ScenarioUiPrefs | null,
+    patch: ScenarioUiPrefs | null,
+  ): ScenarioUiPrefs | null {
+    if (!patch) return current;
+    if (!current) return patch;
+    return {
+      ...current,
+      ...patch,
+      panels: {
+        ...(current.panels ?? {}),
+        ...(patch.panels ?? {}),
+      },
+    };
   }
 }

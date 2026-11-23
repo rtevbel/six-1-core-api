@@ -65,3 +65,12 @@ export function assertScenarioEditable(status: string): void {
     );
   }
 }
+
+/** UI prefs (lens / panels) are not planning mutations — allowed on definitive. */
+export function assertScenarioAllowsUiPrefs(status: string): void {
+  if (status === 'archived') {
+    throw new RpcException(
+      `Scenario status 'archived' does not allow ui prefs updates`,
+    );
+  }
+}

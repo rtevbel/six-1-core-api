@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { randomUUID } from 'crypto';
 import { DataSource, EntityManager, Like, Repository } from 'typeorm';
 import { TenantUsersService } from '../../tenants/tenant_users/tenant_users.service';
@@ -15,7 +16,10 @@ import {
 } from '../scenarios/scenario-lifecycle.mapper';
 import { ScheduleScenarioEntity } from '../entities/schedule_scenario.entity';
 import { ScheduleScenarioManageRecordEntity } from '../entities/schedule_scenario_manage_record.entity';
-import { ManageRecordCategory } from '../constants';
+import {
+  ManageRecordCategory,
+  SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED,
+} from '../constants';
 import {
   PlannerManageCatalogDto,
   PlannerManageListDto,
@@ -56,6 +60,7 @@ export class PlannerManageService {
     private readonly tenantUsers: TenantUsersService,
     private readonly requirements: SchedulingRequirementsService,
     private readonly dataSource: DataSource,
+    private readonly events: EventEmitter2,
     @InjectRepository(ScheduleScenarioEntity)
     private readonly scenarioRepo: Repository<ScheduleScenarioEntity>,
     @InjectRepository(ScheduleScenarioManageRecordEntity)
@@ -287,8 +292,20 @@ export class PlannerManageService {
         tenantId: dto.tenantId,
         scheduleScenarioId: scenario.scheduleScenarioId,
         revision: scenario.revision,
+        requirementId: scenario.schedulingRequirementId,
         item: this.toView(saved),
       };
+    }).then((result) => {
+      this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+        tenantId: result.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'manage_upsert',
+      });
+      const { requirementId: _requirementId, ...view } = result;
+      return view;
     });
   }
 
@@ -354,9 +371,21 @@ export class PlannerManageService {
         tenantId: dto.tenantId,
         scheduleScenarioId: scenario.scheduleScenarioId,
         revision: scenario.revision,
+        requirementId: scenario.schedulingRequirementId,
         recordKey: dto.recordKey,
         removed: true as const,
       };
+    }).then((result) => {
+      this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_UPDATED, {
+        tenantId: result.tenantId,
+        requirementId: result.requirementId,
+        scheduleScenarioId: result.scheduleScenarioId,
+        revision: result.revision,
+        actorUserId: userId,
+        cause: 'manage_remove',
+      });
+      const { requirementId: _requirementId, ...view } = result;
+      return view;
     });
   }
 
@@ -377,6 +406,38 @@ export class PlannerManageService {
       linkedMasterId: r.linkedMasterId,
       attrs: r.attrs ?? {},
     }));
+  }
+
+  /**
+   * Week 9 Commit — stamp Manage drafts as committed on the definitive scenario.
+   * Does not invent live SoR rows; Option A “as applicable”.
+   */
+  async stampCommittedForPromote(
+    scheduleScenarioId: number,
+    tenantId: number,
+    revision: number,
+    committedAt: Date = new Date(),
+  ): Promise<{ committedCount: number; recordKeys: string[] }> {
+    const rows = await this.manageRepo.find({
+      where: { scheduleScenarioId, tenantId },
+      order: { name: 'ASC', scheduleScenarioManageRecordId: 'ASC' },
+    });
+    if (!rows.length) {
+      return { committedCount: 0, recordKeys: [] };
+    }
+    const iso = committedAt.toISOString();
+    const recordKeys: string[] = [];
+    for (const row of rows) {
+      const attrs = {
+        ...(row.attrs && typeof row.attrs === 'object' ? row.attrs : {}),
+        committedAt: iso,
+        committedRevision: revision,
+      };
+      row.attrs = attrs;
+      recordKeys.push(row.recordKey);
+    }
+    await this.manageRepo.save(rows);
+    return { committedCount: rows.length, recordKeys };
   }
 
   async replaceFromOverlay(
@@ -574,17 +635,19 @@ export class PlannerManageService {
     raw: Record<string, unknown>,
   ): Record<string, unknown> {
     const src = raw && typeof raw === 'object' ? raw : {};
+    let base: Record<string, unknown>;
     switch (category) {
       case 'project':
-        return {
+        base = {
           code: this.asString(src.code, 64),
           customer: this.asString(src.customer, 255),
           location: this.asString(src.location, 255),
           buildingArea: this.asString(src.buildingArea, 255),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'person':
-        return {
+        base = {
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           skills: this.asStringArray(src.skills, 32, 64),
           region: this.asString(src.region, 64),
@@ -597,35 +660,39 @@ export class PlannerManageService {
               : this.asInt(src.tenantUserId),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'team':
-        return {
+        base = {
           memberRecordKeys: this.asUuidArray(src.memberRecordKeys, 64),
           hoursPerDay: this.asNumber(src.hoursPerDay, 0, 24),
           region: this.asString(src.region, 64),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       case 'partner': {
         const status = this.asString(src.status, 32)?.toLowerCase() ?? 'ready';
-        return {
+        base = {
           discipline: this.asString(src.discipline, 128),
           crews: this.asNumber(src.crews, 0, 10000) ?? 0,
           status: PARTNER_STATUSES.has(status) ? status : 'ready',
           contactEmail: this.asString(src.contactEmail, 255),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       }
       case 'equipment': {
         const status =
           this.asString(src.status, 32)?.toLowerCase() ?? 'available';
-        return {
+        base = {
           status: EQUIPMENT_STATUSES.has(status) ? status : 'available',
           skills: this.asStringArray(src.skills, 32, 64),
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       }
       case 'material':
-        return {
+        base = {
           stock: this.asNumber(src.stock, 0, 1_000_000_000) ?? 0,
           reserved: this.asNumber(src.reserved, 0, 1_000_000_000) ?? 0,
           unit: this.asString(src.unit, 32),
@@ -633,9 +700,23 @@ export class PlannerManageService {
           projectRecordKey: this.asUuidOrNull(src.projectRecordKey),
           notes: this.asString(src.notes, 2000),
         };
+        break;
       default:
-        return {};
+        base = {};
     }
+    return this.withCommitStamp(src, base);
+  }
+
+  /** Preserve Commit stamps across Manage upserts. */
+  private withCommitStamp(
+    src: Record<string, unknown>,
+    base: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const committedAt = this.asIsoOrNull(src.committedAt);
+    const committedRevision = this.asInt(src.committedRevision);
+    if (committedAt) base.committedAt = committedAt;
+    if (committedRevision != null) base.committedRevision = committedRevision;
+    return base;
   }
 
   private toView(

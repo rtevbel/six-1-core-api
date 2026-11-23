@@ -31,6 +31,7 @@ describe('PromoteOrchestratorService', () => {
       {} as any,
       {} as any,
       {} as any,
+      {} as any,
       tenantUsers as any,
       {} as any,
       {} as any,

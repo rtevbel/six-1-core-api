@@ -9,6 +9,7 @@ import { ScheduledTaskEntity } from '../entities/scheduled_task.entity';
 import { ScheduleScenariosService } from './schedule-scenarios.service';
 import { SchedulingRequirementsService } from '../requirements/scheduling-requirements.service';
 import { ScenarioPlanningService } from '../planning/scenario-planning.service';
+import { PlannerManageService } from '../planning/planner-manage.service';
 import { ScenarioAuditService } from './scenario-audit.service';
 import { ConstraintCapacityEngine } from '../constraints/constraint-capacity.engine';
 import { SchedulerService } from '../services/scheduler.service';
@@ -32,6 +33,7 @@ export class PromoteOrchestratorService {
     private readonly execution: SchedulerService,
     private readonly resourceAssignments: ResourceAssignmentsService,
     private readonly audit: ScenarioAuditService,
+    private readonly plannerManage: PlannerManageService,
     private readonly tenantUsers: TenantUsersService,
     private readonly dataSource: DataSource,
     private readonly events: EventEmitter2,
@@ -55,6 +57,7 @@ export class PromoteOrchestratorService {
     requirementId: number;
     promotedTaskIds: number[];
     softConflicts: ConstraintConflict[];
+    managePublish: { committedCount: number; recordKeys: string[] };
   }> {
     await this.tenantUsers.assertTenantAccess(userId, input.tenantId);
 
@@ -298,18 +301,32 @@ export class PromoteOrchestratorService {
       graphJson,
       createdBy: userId,
     });
+    const managePublish = await this.plannerManage.stampCommittedForPromote(
+      scenario.scheduleScenarioId,
+      input.tenantId,
+      scenario.revision,
+      scenario.promotedAt ?? new Date(),
+    );
+
     await this.audit.appendEvent({
       schedulingRequirementId: requirement.schedulingRequirementId,
       scheduleScenarioId: scenario.scheduleScenarioId,
       actorUserId: userId,
       kind: 'promoted',
-      payload: { promotedTaskIds, softConflictCount: soft.length },
+      payload: {
+        promotedTaskIds,
+        softConflictCount: soft.length,
+        managePublish,
+      },
     });
 
     this.events.emit(SCHEDULER_DOMAIN_EVENT_SCENARIO_PROMOTED, {
       tenantId: input.tenantId,
       requirementId: requirement.schedulingRequirementId,
       scheduleScenarioId: scenario.scheduleScenarioId,
+      revision: scenario.revision,
+      actorUserId: userId,
+      cause: 'promote',
       promotedTaskIds,
     });
 
@@ -323,6 +340,7 @@ export class PromoteOrchestratorService {
       requirementId: requirement.schedulingRequirementId,
       promotedTaskIds,
       softConflicts: soft,
+      managePublish,
     };
   }
 }
