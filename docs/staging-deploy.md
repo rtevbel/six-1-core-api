@@ -3,47 +3,49 @@
 ## Branch
 
 - Integration branch: `staging`
-- Push or merge to `staging` builds the production Dockerfile, pushes to GHCR, then deploys the VPS via the HTTPS deploy hook.
+- Push or merge to `staging` builds the production Dockerfile, pushes to GHCR, then deploys the VPS over **SSH**.
 
 ## Image
 
 - Registry: `ghcr.io/<owner>/six-1-core-api`
 - Tags: `sha-<shortsha>` (immutable) and `staging` (moving alias)
-- Host compose uses `IMAGE_REF` (written by the deploy hook / `six1-pull-up`)
+- Host compose uses `IMAGE_REF` (written by CI / `six1-pull-up`)
 
 ## Automation flow
 
 1. GitHub Actions builds and pushes the image to GHCR.
-2. The deploy job `POST`s to `https://s2api.guoah.com/__six1-deploy` with:
-   - `Authorization: Bearer <STAGING_DEPLOY_HOOK_TOKEN>`
-   - JSON: `{ stack, image_ref, ghcr_user, ghcr_token }`
-3. The VPS deploy-hook service (`six1-deploy-hook`) logs into GHCR with the job token, pulls, and restarts the stack.
+2. The deploy job SSHs to the VPS (`appleboy/ssh-action`) with:
+   - `STAGING_HOST` / `STAGING_USER` / `STAGING_SSH_KEY`
+   - env: `IMAGE_REF`, `GHCR_USER`, `GHCR_TOKEN` (job `GITHUB_TOKEN`)
+3. On the host: `docker login ghcr.io`, then `six1-pull-up core <image_ref>` (pull + recreate).
 
-SSH from GitHub-hosted runners to the VPS is not used (provider firewall blocks inbound :22 from Actions).
+Same pattern is used for **gateway** and **frontend** (different `six1-pull-up` stack name).
 
-Same pattern is used for **gateway** (`stack: gateway`) and **frontend** (`stack: frontend`).
+The old HTTPS deploy hook (`https://s2api.guoah.com/__six1-deploy`) is no longer used by CI.
 
 ## GitHub configuration
 
-Repository secret:
+Repository secrets:
 
 | Secret | Purpose |
 |--------|---------|
-| `STAGING_DEPLOY_HOOK_TOKEN` | Shared bearer token with `/home/six1deploy/six1-deploy-hook/deploy.token` on the VPS |
+| `STAGING_HOST` | VPS hostname/IP |
+| `STAGING_USER` | SSH user (e.g. deploy account that can run Docker / `six1-pull-up`) |
+| `STAGING_SSH_KEY` | Private key for that user |
 
-Package settings: allow Actions to write packages; keep the package **private**.
+Package settings: allow Actions to write packages; keep the package **private**. Deploy job needs `packages: read` so the job token can pull on the VPS.
 
 ## Host prerequisites
 
 1. Traefik on `six1-microservices-network` with Docker provider enabled
-2. Deploy hook stack: `/home/six1deploy/six1-deploy-hook` (`six1-deploy-hook` container)
-3. App compose roots (writable by `six1deploy`):
+2. App compose roots (writable by the SSH user):
    - core → `/home/a529345/api.core.six1.guoah.com`
    - gateway → `/home/a529345/s1.api.guoah.com`
    - frontend → `/home/a529345/public_html/dynerto`
-4. Helpers still available for break-glass: `six1-compose`, `six1-ghcr-login`, `six1-pull-up`
+3. Helpers: `six1-compose`, `six1-ghcr-login`, `six1-pull-up`
+4. Firewall must allow inbound SSH from GitHub Actions runners (or use a self-hosted runner / jump host)
 
-## Break-glass (host only, not CI)
+## Break-glass (host)
 
 ```bash
 six1-ghcr-login
