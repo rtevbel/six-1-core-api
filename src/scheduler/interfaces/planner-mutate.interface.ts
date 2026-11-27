@@ -1,5 +1,5 @@
 import { ConstraintConflict } from '../constraints/constraint.types';
-import { ScenarioPlanningKind } from '../constants';
+import { PlannerPlanningPhase, ScenarioPlanningKind } from '../constants';
 import { PlannerSheetExtras } from './planner-sheet-extras.interface';
 
 export interface PlannerPlannedTaskView {
@@ -11,10 +11,12 @@ export interface PlannerPlannedTaskView {
   tenantUserId: number | null;
   resourceId: number | null;
   planningKind: ScenarioPlanningKind;
+  planningPhase: PlannerPlanningPhase;
   deadlineUtc: string | null;
   notes: string | null;
   isPlanned: boolean;
   isReady: boolean;
+  readyPct: number;
   isMilestone: boolean;
   priority: number;
   taskStatusId: number | null;

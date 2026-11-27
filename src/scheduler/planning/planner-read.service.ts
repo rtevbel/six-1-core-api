@@ -36,6 +36,7 @@ import { busyMsWithinRange } from '../constraints/interval.utils';
 import { ScenarioPlanningKind } from '../constants';
 import { toIso } from '../scenarios/scenario-lifecycle.mapper';
 import { sheetExtrasFromEntity } from './planner-sheet-extras.util';
+import { normalizePlanningPhase, normalizeReadyPct } from './planner-dock-templates';
 
 type ResolvedRange = {
   rangeStart: Date;
@@ -652,6 +653,8 @@ export class PlannerReadService {
             name: t.name,
             isMilestone: !!planned?.isMilestone,
             isPlanned: planned ? !!planned.isPlanned : false,
+            planningPhase: normalizePlanningPhase(planned?.planningPhase),
+            readyPct: normalizeReadyPct(planned?.readyPct),
             issues: issuesByTask.get(t.taskId) ?? [],
           };
         }),
@@ -750,6 +753,8 @@ export class PlannerReadService {
         isPlanned: planned ? !!planned.isPlanned : false,
         isMilestone: !!planned?.isMilestone,
         planningKind: this.planningKindFromPlanned(planned),
+        planningPhase: normalizePlanningPhase(planned?.planningPhase),
+        readyPct: normalizeReadyPct(planned?.readyPct),
         deadlineUtc: toIso(planned?.deadlineUtc),
         sheetExtras: sheetExtrasFromEntity(
           planned?.sheetExtras as Record<string, unknown> | null | undefined,

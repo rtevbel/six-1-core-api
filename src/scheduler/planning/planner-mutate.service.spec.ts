@@ -33,10 +33,12 @@ describe('PlannerMutateService', () => {
             plannedEndUtc: new Date('2026-10-08T12:00:00.000Z'),
             tzUsed: 'UTC',
             planningKind: 'task',
+            planningPhase: 'plan',
             deadlineUtc: null,
             notes: 'Cable pull',
             isPlanned: true,
             isReady: false,
+            readyPct: 0,
             isMilestone: false,
             priority: 0,
             taskStatusId: null,
@@ -57,6 +59,29 @@ describe('PlannerMutateService', () => {
       removePlannedTask: jest.fn().mockResolvedValue(
         overrides.removeResult ?? { removed: true, revision: 6 },
       ),
+      splitPlannedTask: jest.fn().mockResolvedValue({
+        revision: 7,
+        createdTaskId: 202,
+        original: {
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-08T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-08T10:00:00.000Z'),
+        },
+        created: {
+          taskId: 202,
+          plannedStartUtc: new Date('2026-10-08T10:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-08T12:00:00.000Z'),
+        },
+      }),
+      mergePlannedTasks: jest.fn().mockResolvedValue({
+        revision: 8,
+        keep: {
+          taskId: 101,
+          plannedStartUtc: new Date('2026-10-08T08:00:00.000Z'),
+          plannedEndUtc: new Date('2026-10-08T16:00:00.000Z'),
+        },
+      }),
+      setOverlayDependency: jest.fn().mockResolvedValue({ revision: 9 }),
       findPlannedTasks: jest.fn().mockResolvedValue(
         overrides.plannedTasks ?? [
           {
@@ -622,5 +647,61 @@ describe('PlannerMutateService', () => {
       }),
     ).rejects.toBeInstanceOf(RpcException);
     expect(constraintEventRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('splits a planned task via planning service', async () => {
+    const { service, planning } = buildService();
+    const result = await service.splitTask(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      taskId: 101,
+      splitAtUtc: '2026-10-08T10:00:00.000Z',
+      expectedRevision: 6,
+    });
+    expect(planning.splitPlannedTask).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        taskId: 101,
+        expectedRevision: 6,
+      }),
+    );
+    expect(result.created.taskId).toBe(202);
+    expect(result.revision).toBe(7);
+  });
+
+  it('merges two planned tasks via planning service', async () => {
+    const { service, planning } = buildService();
+    const result = await service.mergeTasks(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      keepTaskId: 101,
+      absorbTaskId: 202,
+      expectedRevision: 7,
+    });
+    expect(planning.mergePlannedTasks).toHaveBeenCalled();
+    expect(result.keepTaskId).toBe(101);
+    expect(result.revision).toBe(8);
+  });
+
+  it('sets overlay dependency via planning service', async () => {
+    const { service, planning } = buildService();
+    const result = await service.setDependency(1, {
+      tenantId: 20,
+      scheduleScenarioId: 12,
+      fromTaskId: 101,
+      toTaskId: 202,
+      dependencyType: 'FS',
+      lagDays: 0,
+      expectedRevision: 8,
+    });
+    expect(planning.setOverlayDependency).toHaveBeenCalledWith(
+      1,
+      expect.objectContaining({
+        fromTaskId: 101,
+        toTaskId: 202,
+        dependencyType: 'FS',
+      }),
+    );
+    expect(result.revision).toBe(9);
   });
 });

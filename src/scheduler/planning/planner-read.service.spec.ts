@@ -167,12 +167,21 @@ describe('PlannerReadService', () => {
     expect(board.projects[0].children.map((c) => c.taskId)).toEqual([
       501, 502,
     ]);
+    expect(board.projects[0].children[0]).toEqual(
+      expect.objectContaining({
+        taskId: 501,
+        planningPhase: 'plan',
+        readyPct: 0,
+      }),
+    );
     expect(board.resourceLanes.some((l) => l.laneKey === 'user:7')).toBe(true);
     expect(board.bars).toHaveLength(2);
     const bar501 = board.bars.find((b) => b.taskId === 501);
     expect(bar501).toEqual(
       expect.objectContaining({
         planningKind: 'external',
+        planningPhase: 'plan',
+        readyPct: 0,
         deadlineUtc: '2026-09-15T12:00:00.000Z',
         sheetExtras: expect.objectContaining({
           requiredSkills: ['electrical'],
@@ -184,6 +193,8 @@ describe('PlannerReadService', () => {
     expect(bar502).toEqual(
       expect.objectContaining({
         planningKind: 'task',
+        planningPhase: 'plan',
+        readyPct: 0,
         deadlineUtc: null,
         sheetExtras: null,
       }),

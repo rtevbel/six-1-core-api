@@ -72,6 +72,8 @@ import { PlannerMutateService } from './planning/planner-mutate.service';
 import { PlannerMutateController } from './planning/planner-mutate.controller';
 import { PlannerManageService } from './planning/planner-manage.service';
 import { PlannerManageController } from './planning/planner-manage.controller';
+import { PlannerPhaseDockService } from './planning/planner-phase-dock.service';
+import { PlannerPhaseDockController } from './planning/planner-phase-dock.controller';
 import { PlannerEventsRedisBridge } from './events/planner-events-redis.bridge';
 import { TenantUsersModule } from '../tenants/tenant_users/tenant_users.module';
 
@@ -145,6 +147,7 @@ import {
     PlannerReadController,
     PlannerMutateController,
     PlannerManageController,
+    PlannerPhaseDockController,
   ],
   providers: [
     SchedulerService,
@@ -166,6 +169,7 @@ import {
     PlannerReadService,
     PlannerMutateService,
     PlannerManageService,
+    PlannerPhaseDockService,
     PlannerEventsRedisBridge,
     TaskProcessor,
     CalendarAdapter,

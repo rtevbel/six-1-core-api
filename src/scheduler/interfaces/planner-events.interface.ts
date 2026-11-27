@@ -15,7 +15,11 @@ export type PlannerNotifyCause =
   | 'restore'
   | 'ui_prefs'
   | 'promote'
-  | 'conflicts';
+  | 'conflicts'
+  | 'task_split'
+  | 'task_merge'
+  | 'dependency_set'
+  | 'process_run';
 
 /** Notify-only payload published to Redis for Gateway SSE. */
 export interface PlannerNotifyPayload {
