@@ -14,7 +14,11 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { ScenarioPlanningKind } from '../constants';
+import {
+  PLANNER_PLANNING_PHASES,
+  PlannerPlanningPhase,
+  ScenarioPlanningKind,
+} from '../constants';
 
 const PLANNING_KINDS: ScenarioPlanningKind[] = [
   'task',
@@ -152,6 +156,17 @@ export class PlannerTaskUpsertDto {
   @IsBoolean()
   @Type(() => Boolean)
   isReady?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Type(() => Number)
+  @Min(0)
+  @Max(100)
+  readyPct?: number;
+
+  @IsOptional()
+  @IsIn(PLANNER_PLANNING_PHASES)
+  planningPhase?: PlannerPlanningPhase;
 
   @IsOptional()
   @IsBoolean()

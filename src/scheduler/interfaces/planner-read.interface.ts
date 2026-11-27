@@ -1,4 +1,4 @@
-import { ScenarioPlanningKind } from '../constants';
+import { PlannerPlanningPhase, ScenarioPlanningKind } from '../constants';
 import { ConstraintConflict } from '../constraints/constraint.types';
 import {
   PlannerAttention,
@@ -12,6 +12,9 @@ export interface PlannerBoardProjectChildView {
   name: string;
   isMilestone: boolean;
   isPlanned: boolean;
+  planningPhase: PlannerPlanningPhase;
+  /** Readiness 0–100 (Week 11) — same source as board bars. */
+  readyPct: number;
   issues: string[];
 }
 
@@ -42,6 +45,10 @@ export interface PlannerBoardBarView {
   isMilestone: boolean;
   /** Overlay planning kind for task-sheet hydrate (Week 8+). */
   planningKind: ScenarioPlanningKind;
+  /** Phase dock / sheet phase (Week 11). */
+  planningPhase: PlannerPlanningPhase;
+  /** Readiness 0–100 (Week 11). */
+  readyPct: number;
   /** ISO deadline or null. */
   deadlineUtc: string | null;
   /** Rich sheet extras for reopen without session cache; null when unset. */

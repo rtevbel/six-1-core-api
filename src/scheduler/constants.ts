@@ -112,6 +112,61 @@ export const MICROSERVICE_PLANNER_MANAGE_SCHEMA_PATTERN =
 export const MICROSERVICE_PLANNER_MANAGE_RESOLVE_PATTERN =
   'v0.1_scheduler_planner_manage_resolve';
 
+/** Week 11 — drawer / phase dock / selection */
+export const MICROSERVICE_PLANNER_TASK_SPLIT_PATTERN =
+  'v0.1_scheduler_planner_task_split';
+export const MICROSERVICE_PLANNER_TASK_MERGE_PATTERN =
+  'v0.1_scheduler_planner_task_merge';
+export const MICROSERVICE_PLANNER_DEPENDENCY_SET_PATTERN =
+  'v0.1_scheduler_planner_dependency_set';
+export const MICROSERVICE_PLANNER_PHASE_DOCK_PATTERN =
+  'v0.1_scheduler_planner_phase_dock';
+export const MICROSERVICE_PLANNER_DOCK_TEMPLATE_APPLY_PATTERN =
+  'v0.1_scheduler_planner_dock_template_apply';
+export const MICROSERVICE_PLANNER_PROCESS_RUNS_LIST_PATTERN =
+  'v0.1_scheduler_planner_process_runs_list';
+export const MICROSERVICE_PLANNER_PROCESS_RUN_APPEND_PATTERN =
+  'v0.1_scheduler_planner_process_run_append';
+
+/** Planning lifecycle phase (overlay / phase dock) */
+export type PlannerPlanningPhase =
+  | 'pre'
+  | 'plan'
+  | 'logistics'
+  | 'execute'
+  | 'close';
+
+export const PLANNER_PLANNING_PHASES: PlannerPlanningPhase[] = [
+  'pre',
+  'plan',
+  'logistics',
+  'execute',
+  'close',
+];
+
+export const PLANNER_PHASE_LABELS: Record<PlannerPlanningPhase, string> = {
+  pre: 'Pre-planning',
+  plan: 'Planning',
+  logistics: 'Logistics',
+  execute: 'Execution',
+  close: 'Closure',
+};
+
+export type PlannerProcessRunAction =
+  | 'start_planning'
+  | 'material_check'
+  | 'equipment_check'
+  | 'capacity_check'
+  | 'dispatch_start';
+
+export const PLANNER_PROCESS_RUN_ACTIONS: PlannerProcessRunAction[] = [
+  'start_planning',
+  'material_check',
+  'equipment_check',
+  'capacity_check',
+  'dispatch_start',
+];
+
 export type SchedulingRequirementScopeType = 'project' | 'board';
 export type SchedulingRequirementStatus = 'open' | 'locked' | 'closed';
 export type ScheduleScenarioStatus =

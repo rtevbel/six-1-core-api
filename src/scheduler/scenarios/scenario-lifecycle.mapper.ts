@@ -87,6 +87,7 @@ export function mapVersionDetail(
 export function buildOverlayFromPlannedTasks(
   plannedTasks: ScenarioPlannedTaskEntity[],
   manageRecords?: ScenarioOverlayJson['manageRecords'],
+  processRuns?: ScenarioOverlayJson['processRuns'],
 ): ScenarioOverlayJson {
   const overlay: ScenarioOverlayJson = {
     plannedTasks: plannedTasks.map((t) => ({
@@ -101,8 +102,10 @@ export function buildOverlayFromPlannedTasks(
       conflictSummary: t.conflictSummary,
       isPlanned: t.isPlanned,
       isReady: t.isReady,
+      readyPct: t.readyPct ?? 0,
       isMilestone: t.isMilestone,
       planningKind: t.planningKind,
+      planningPhase: t.planningPhase ?? 'plan',
       baselineStartUtc: toIso(t.baselineStartUtc),
       baselineEndUtc: toIso(t.baselineEndUtc),
       deadlineUtc: toIso(t.deadlineUtc),
@@ -124,6 +127,9 @@ export function buildOverlayFromPlannedTasks(
   };
   if (manageRecords && manageRecords.length > 0) {
     overlay.manageRecords = manageRecords;
+  }
+  if (processRuns && processRuns.length > 0) {
+    overlay.processRuns = processRuns;
   }
   return overlay;
 }
@@ -148,7 +154,11 @@ export function parseOverlayJson(
   )
     ? (raw as ScenarioOverlayJson).manageRecords
     : undefined;
-  return manageRecords?.length
-    ? { plannedTasks, manageRecords }
-    : { plannedTasks };
+  const processRuns = Array.isArray((raw as ScenarioOverlayJson).processRuns)
+    ? (raw as ScenarioOverlayJson).processRuns
+    : undefined;
+  const overlay: ScenarioOverlayJson = { plannedTasks };
+  if (manageRecords?.length) overlay.manageRecords = manageRecords;
+  if (processRuns?.length) overlay.processRuns = processRuns;
+  return overlay;
 }

@@ -562,6 +562,7 @@ export class ScheduleScenariosService {
       const overlay = buildOverlayFromPlannedTasks(
         graph.plannedTasks,
         manageRecords,
+        locked.processRuns ?? undefined,
       );
       const nextVersion = await this.nextVersionNumber(
         versionRepo,
@@ -646,6 +647,7 @@ export class ScheduleScenariosService {
     const overlay = buildOverlayFromPlannedTasks(
       graph.plannedTasks,
       manageRecords,
+      scenario.processRuns ?? undefined,
     );
 
     return this.dataSource.transaction(async (manager) => {
@@ -928,6 +930,9 @@ export class ScheduleScenariosService {
         userId,
         manager,
       );
+      locked.processRuns = overlay.processRuns?.length
+        ? overlay.processRuns
+        : null;
 
       locked.revision += 1;
       await scenarioRepo.save(locked);
@@ -945,6 +950,7 @@ export class ScheduleScenariosService {
           })
         ),
         restoredManage,
+        locked.processRuns ?? undefined,
       );
       const nextVersion = await this.nextVersionNumber(
         versionRepo,
@@ -1056,6 +1062,8 @@ export class ScheduleScenariosService {
           isReady: pt.isReady ?? false,
           isMilestone: pt.isMilestone ?? false,
           planningKind: pt.planningKind ?? 'task',
+          planningPhase: pt.planningPhase ?? 'plan',
+          readyPct: pt.readyPct ?? 0,
           baselineStartUtc: pt.baselineStartUtc
             ? new Date(pt.baselineStartUtc)
             : null,

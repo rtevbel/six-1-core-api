@@ -1,5 +1,6 @@
 import {
   ManageRecordCategory,
+  PlannerPlanningPhase,
   ScheduleScenarioStatus,
   ScenarioPlanningKind,
 } from '../constants';
@@ -61,6 +62,8 @@ export interface ScenarioOverlayJson {
   plannedTasks: ScenarioOverlayPlannedTask[];
   /** Option A — scenario-owned Manage draft snapshot */
   manageRecords?: ScenarioOverlayManageRecord[];
+  /** Drawer processRuns snapshot (Week 11). */
+  processRuns?: Array<Record<string, unknown>>;
 }
 
 export interface ScenarioOverlayManageRecord {
@@ -86,6 +89,8 @@ export interface ScenarioOverlayPlannedTask {
   isReady?: boolean;
   isMilestone?: boolean;
   planningKind?: ScenarioPlanningKind;
+  planningPhase?: PlannerPlanningPhase | null;
+  readyPct?: number;
   baselineStartUtc?: string | null;
   baselineEndUtc?: string | null;
   deadlineUtc?: string | null;

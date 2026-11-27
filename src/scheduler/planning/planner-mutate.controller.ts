@@ -12,10 +12,18 @@ import {
   PlannerTaskUpsertDto,
 } from '../dto/planner-mutate.dto';
 import {
+  PlannerDependencySetDto,
+  PlannerTaskMergeDto,
+  PlannerTaskSplitDto,
+} from '../dto/planner-phase-dock.dto';
+import {
   MICROSERVICE_CONSTRAINTS_SUGGEST_PATTERN,
   MICROSERVICE_PLANNER_ASSESS_PATTERN,
+  MICROSERVICE_PLANNER_DEPENDENCY_SET_PATTERN,
   MICROSERVICE_PLANNER_IMPACT_APPLY_PATTERN,
+  MICROSERVICE_PLANNER_TASK_MERGE_PATTERN,
   MICROSERVICE_PLANNER_TASK_REMOVE_PATTERN,
+  MICROSERVICE_PLANNER_TASK_SPLIT_PATTERN,
   MICROSERVICE_PLANNER_TASK_UPSERT_PATTERN,
 } from '../constants';
 
@@ -72,5 +80,35 @@ export class PlannerMutateController {
     @Payload('data') dto: PlannerSuggestDto,
   ) {
     return this.plannerMutate.suggest(userId, dto);
+  }
+
+  @MessagePattern(MICROSERVICE_PLANNER_TASK_SPLIT_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async splitTask(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: PlannerTaskSplitDto,
+  ) {
+    return this.plannerMutate.splitTask(userId, dto);
+  }
+
+  @MessagePattern(MICROSERVICE_PLANNER_TASK_MERGE_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async mergeTasks(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: PlannerTaskMergeDto,
+  ) {
+    return this.plannerMutate.mergeTasks(userId, dto);
+  }
+
+  @MessagePattern(MICROSERVICE_PLANNER_DEPENDENCY_SET_PATTERN)
+  @RequirePermissions('scheduler.scenario.manage')
+  @UsePipes(AppRpcValidationPipe)
+  async setDependency(
+    @Payload('userId', ParseIntPipe) userId: number,
+    @Payload('data') dto: PlannerDependencySetDto,
+  ) {
+    return this.plannerMutate.setDependency(userId, dto);
   }
 }

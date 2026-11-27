@@ -21,6 +21,11 @@ import {
   PlannerTaskUpsertDto,
 } from '../dto/planner-mutate.dto';
 import {
+  PlannerDependencySetDto,
+  PlannerTaskMergeDto,
+  PlannerTaskSplitDto,
+} from '../dto/planner-phase-dock.dto';
+import {
   PlannerAssessView,
   PlannerConflictSummary,
   PlannerImpactApplyAction,
@@ -31,6 +36,11 @@ import {
   PlannerTaskRemoveView,
   PlannerTaskUpsertView,
 } from '../interfaces/planner-mutate.interface';
+import {
+  PlannerDependencySetView,
+  PlannerTaskMergeView,
+  PlannerTaskSplitView,
+} from '../interfaces/planner-phase-dock.interface';
 import { PlannerSheetExtras } from '../interfaces/planner-sheet-extras.interface';
 import {
   normalizeSheetExtras,
@@ -103,6 +113,8 @@ export class PlannerMutateService {
             : null,
       isPlanned: dto.isPlanned,
       isReady: dto.isReady,
+      readyPct: dto.readyPct,
+      planningPhase: dto.planningPhase,
       isMilestone: dto.isMilestone,
       taskName: dto.taskName,
       expectedRevision: dto.expectedRevision,
@@ -149,6 +161,83 @@ export class PlannerMutateService {
       revision: result.revision,
       scheduleScenarioId: dto.scheduleScenarioId,
       taskId: dto.taskId,
+    };
+  }
+
+  async splitTask(
+    userId: number,
+    dto: PlannerTaskSplitDto,
+  ): Promise<PlannerTaskSplitView> {
+    const result = await this.planning.splitPlannedTask(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      taskId: dto.taskId,
+      splitAtUtc: new Date(dto.splitAtUtc),
+      expectedRevision: dto.expectedRevision,
+    });
+    return {
+      revision: result.revision,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      original: {
+        taskId: result.original.taskId,
+        plannedStartUtc:
+          toIso(result.original.plannedStartUtc) ?? new Date(0).toISOString(),
+        plannedEndUtc:
+          toIso(result.original.plannedEndUtc) ?? new Date(0).toISOString(),
+      },
+      created: {
+        taskId: result.createdTaskId,
+        plannedStartUtc:
+          toIso(result.created.plannedStartUtc) ?? new Date(0).toISOString(),
+        plannedEndUtc:
+          toIso(result.created.plannedEndUtc) ?? new Date(0).toISOString(),
+      },
+    };
+  }
+
+  async mergeTasks(
+    userId: number,
+    dto: PlannerTaskMergeDto,
+  ): Promise<PlannerTaskMergeView> {
+    const result = await this.planning.mergePlannedTasks(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      keepTaskId: dto.keepTaskId,
+      absorbTaskId: dto.absorbTaskId,
+      expectedRevision: dto.expectedRevision,
+    });
+    return {
+      revision: result.revision,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      keepTaskId: dto.keepTaskId,
+      absorbTaskId: dto.absorbTaskId,
+      plannedStartUtc:
+        toIso(result.keep.plannedStartUtc) ?? new Date(0).toISOString(),
+      plannedEndUtc:
+        toIso(result.keep.plannedEndUtc) ?? new Date(0).toISOString(),
+    };
+  }
+
+  async setDependency(
+    userId: number,
+    dto: PlannerDependencySetDto,
+  ): Promise<PlannerDependencySetView> {
+    const result = await this.planning.setOverlayDependency(userId, {
+      tenantId: dto.tenantId,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      fromTaskId: dto.fromTaskId,
+      toTaskId: dto.toTaskId,
+      dependencyType: dto.dependencyType,
+      lagDays: dto.lagDays,
+      expectedRevision: dto.expectedRevision,
+    });
+    return {
+      revision: result.revision,
+      scheduleScenarioId: dto.scheduleScenarioId,
+      fromTaskId: dto.fromTaskId,
+      toTaskId: dto.toTaskId,
+      dependencyType: dto.dependencyType,
+      lagDays: dto.lagDays ?? 0,
     };
   }
 
@@ -594,10 +683,12 @@ export class PlannerMutateService {
       tenantUserId: shift?.tenantUserId ?? null,
       resourceId: shift?.resourceId ?? null,
       planningKind: row.planningKind,
+      planningPhase: (row.planningPhase ?? 'plan') as PlannerPlannedTaskView['planningPhase'],
       deadlineUtc: toIso(row.deadlineUtc),
       notes: row.notes,
       isPlanned: !!row.isPlanned,
       isReady: !!row.isReady,
+      readyPct: row.readyPct ?? 0,
       isMilestone: !!row.isMilestone,
       priority: row.priority,
       taskStatusId: row.taskStatusId,

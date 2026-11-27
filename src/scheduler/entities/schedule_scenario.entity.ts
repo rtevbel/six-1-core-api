@@ -42,6 +42,10 @@ export class ScheduleScenarioEntity {
   @Column({ name: 'ui_prefs', type: 'json', nullable: true })
   uiPrefs!: Record<string, unknown> | null;
 
+  /** Drawer Actions Panel processRuns (Week 11) — append-only capped list. */
+  @Column({ name: 'process_runs', type: 'json', nullable: true })
+  processRuns!: Array<Record<string, unknown>> | null;
+
   @Index('idx_scenario_status')
   @Column({
     name: 'status',

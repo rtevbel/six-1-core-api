@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from 'typeorm';
-import { ScenarioPlanningKind } from '../constants';
+import { PlannerPlanningPhase, ScenarioPlanningKind } from '../constants';
 import { ScheduleScenarioEntity } from './schedule_scenario.entity';
 import { ScenarioPlannedShiftEntity } from './scenario_planned_shift.entity';
 import { ScenarioResourceAssignmentEntity } from './scenario_resource_assignment.entity';
@@ -88,6 +88,15 @@ export class ScenarioPlannedTaskEntity {
   @Column({ name: 'is_ready', type: 'tinyint', width: 1, default: 0 })
   isReady!: boolean;
 
+  /** 0–100 readiness for drawer / sheet (Week 11). */
+  @Column({
+    name: 'ready_pct',
+    type: 'tinyint',
+    unsigned: true,
+    default: 0,
+  })
+  readyPct!: number;
+
   @Column({ name: 'is_milestone', type: 'tinyint', width: 1, default: 0 })
   isMilestone!: boolean;
 
@@ -98,6 +107,16 @@ export class ScenarioPlannedTaskEntity {
     default: 'task',
   })
   planningKind!: ScenarioPlanningKind;
+
+  /** Phase dock / sheet phase (Week 11). */
+  @Column({
+    name: 'planning_phase',
+    type: 'varchar',
+    length: 16,
+    nullable: true,
+    default: 'plan',
+  })
+  planningPhase!: PlannerPlanningPhase | null;
 
   @Column({
     name: 'baseline_start_utc',
